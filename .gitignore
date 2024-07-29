@@ -1,0 +1,17 @@
+
+/2D_FIR/HW/*/dni
+/2D_FIR/HW/*/qdb
+/2D_FIR/HW/*/dma_top
+/2D_FIR/HW/*/ip/dma_top/*/
+/2D_FIR/HW/*/tmp-clearbox
+/2D_FIR/HW/*/support_logic
+/2D_FIR/HW/*/output_files
+/2D_FIR/HW/Agilex7/dma_ex.qws
+/2D_FIR/HW/Arria10/dma_ex.nuiqu.*
+/2D_FIR/HW/Arria10/serv_req_info.txt
+/2D_FIR/HW/Max10/db
+2D_FIR/HW/Max10/dma_top.sopcinfo
+2D_FIR/HW/Arria10/dma_ex.qws
+/2D_FIR/HW/Max10/incremental_db
+/2D_FIR/HW/Max10/.qsys_edit
+/2D_FIR/HW/Max10/simulation
