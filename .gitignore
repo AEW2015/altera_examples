@@ -18,3 +18,6 @@
 2D_FIR/HW/Max10/dma_ex.qws
 /2D_FIR/python/__pycache__
 2D_FIR/HW/Agilex7/board.info
+/2D_FIR/HW/Agilex7/.qsys_edit
+2D_FIR/HW/Agilex7/serv_req_info.txt
+.vscode/settings.json
