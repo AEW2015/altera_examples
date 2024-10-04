@@ -8,7 +8,6 @@ import mmap
 
 import socket
 
-
 #setup UIO transform layout
 
 size = 0x1000
@@ -27,8 +26,8 @@ uio_map[0] = 1
 time.sleep(0.1)
 uio_map[0] = 0
 uio_map[1] = 32
-uio_map[2] = 224
-uio_map[3] = 224
+uio_map[2] = 416
+uio_map[3] = 416
 
 uio_fp[16] = 1.0
 uio_fp[17] = 1.0
@@ -37,18 +36,39 @@ uio_fp[32] = -103.94
 uio_fp[33] = -116.78
 uio_fp[34] = -123.68
 
+#Get Images
 
-#Get Camera
-cap = cv2.VideoCapture(0,cv2.CAP_V4L2)
+# Specify the directory containing the BMP images
+image_directory = '../car_image/'
 
+# Get a list of all BMP files in the directory
+bmp_files = glob.glob(image_directory + '/*.jpg')
+print(bmp_files)
+images = []
+images2view = []
+
+
+for bmp_file in bmp_files:
+    print(bmp_file)
+    im = cv2.imread(bmp_file)
+    im = cv2.resize(im, (416,416), interpolation= cv2.INTER_LINEAR)
+    images2view.append(im)
+    im = np.flip(im,axis=-1)
+    lead_zeros = np.zeros((416,416,1),dtype=np.uint8)
+    images.append(np.concatenate((lead_zeros,im),axis=-1,dtype=np.uint8))
+
+
+
+size = 71825*4
 
 #Create Shared Memory
 with open('shared.mem', "wb") as f:
-        f.seek(63)  # Go to the last byte
+        f.seek(size)  # Go to the last byte
         f.write(b"\0")  # Write a single byte to ensure the file is the correct size
 
 
 #Tell inference we are ready!
+
 sem = posix_ipc.Semaphore("/CoreDLA_ready_for_streaming",flags=posix_ipc.O_CREAT, mode=0o644, initial_value=0);
 
 firstTime = True
@@ -69,8 +89,8 @@ while True:
     time.sleep(0.1)
 sem.close()
 
+
 #Get Shared memory
-size = 40
 offset = 0
 mmap_file = os.open('shared.mem', os.O_RDWR | os.O_SYNC)
 mem = mmap.mmap(mmap_file, size,
@@ -78,60 +98,36 @@ mem = mmap.mmap(mmap_file, size,
                 mmap.PROT_READ | mmap.PROT_WRITE,
                 offset=offset)
 os.close(mmap_file)
-output_map = np.frombuffer(mem, np.uint32, size >> 2)
+output_map = np.frombuffer(mem, np.float32, size >> 2)
 
-#Get labels
-with open("imagenet-classes.txt") as file:
-    lines = [line.rstrip() for line in file]
-
+output_map = np.reshape(output_map, (1,425,13,13))
 
 #Stream Images
 
-# Create a UDP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-# Set the address and port of the receiver
-server_address = ('192.168.0.33', 12345)
-
 count = 0
-while True:
 
-    _,frame = cap.read()
-    #print(frame.shape)
-    im = cv2.resize(frame, (224,224), interpolation= cv2.INTER_LINEAR)
-    im = np.flip(im,axis=-1)
-    lead_zeros = np.zeros((224,224,1),dtype=np.uint8)
-    im = np.concatenate((lead_zeros,im),axis=-1,dtype=np.uint8)
 
+for i in range(len(images2view)):
+
+    print("\n\r#######################################################################\n\r")
 
     nwritten = 0
+    image2view = images2view[count % len(images)]
     with open("/dev/msgdma_stream0", "wb+", buffering=0) as f:
-        nwritten = f.write(im.tobytes())
+        nwritten = f.write(images[count % len(images)].tobytes())
     print(count, nwritten)
     count += 1
-    
-    time.sleep(0.05)
-    print(output_map)
-    label = lines[output_map[0]-1]
-    print(label)
-    
-    # Add text to the image
-    position = (10, 400)  # Bottom-left corner of the text
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 2
-    color = (255, 255, 255)  # White color in BGR
-    thickness = 5
-    cv2.putText(frame, label, position, font, font_scale, color, thickness)
-    
-    frame = cv2.resize(frame, (224,224), interpolation= cv2.INTER_LINEAR)
-    # Encode the frame as JPEG
-    _, encoded_frame = cv2.imencode('.jpeg', frame)
 
-    # Send the encoded frame over UDP
-    sock.sendto(encoded_frame, server_address)
     time.sleep(0.1)
+    
+    for x in range(5):
+        for j in range (13):
+            for k in range(13):
+                if output_map[0,x*85+4,j,k] > 0.4:
+                    txt = "\n\r-> [{0:2d},{1:2d},{2:2d}] {4} Conf:{3:1.3f}\n\r"
+                    print(txt.format(j,k,x,output_map[0,x*85+4,j,k],output_map[0,x*85:x*85+4,j,k]))
+                    print(output_map[0,x*85+5:x*85+85,j,k])
+    
+    time.sleep(5)
 
 
-# Release the webcam and close the socket
-cap.release()
-sock.close()

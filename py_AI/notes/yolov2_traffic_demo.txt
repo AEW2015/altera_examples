@@ -1,0 +1,12 @@
+uio-devices restart
+export compiled_model=~/resnet-50-tf/y2_bench.bin
+export imgdir=~/resnet-50-tf/sample_images
+export archfile=~/resnet-50-tf/AGX7_Performance.arch
+cd ~/app
+export COREDLA_ROOT=/home/root/app
+./dla_benchmark -b=1 -cm $compiled_model -d=HETERO:FPGA,CPU -i $imgdir -niter=5 -plugins_xml_file ./plugins.xml -arch_file $archfile -api=async -perf_est  -nireq=4 -bgr
+
+uio-devices restart
+cd ~/app
+export COREDLA_ROOT=/home/root/app
+./run_y2_stream.sh
