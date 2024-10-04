@@ -10,3 +10,12 @@ uio-devices restart
 cd ~/app
 export COREDLA_ROOT=/home/root/app
 ./run_y2_stream.sh
+
+
+omz_downloader --name yolo-v2-tiny-vehicle-detection-0001  --output_dir $COREDLA_WORK/demo/models/
+ 
+omz_converter --name yolo-v2-tiny-vehicle-detection-0001  --download_dir $COREDLA_WORK/demo/models/   --output_dir $COREDLA_WORK/demo/models/
+
+dla_compiler --march $COREDLA_ROOT/example_architectures/AGX7_Performance.arch --network-file ./yolo-v2-tiny-vehicle-detection-0001.xml --foutput-format=open_vino_hetero --o $COREDLA_WORK/demo/y2_bench.bin --batch-size=1 --fanalyze-performance
+
+dla_compiler --march $COREDLA_ROOT/example_architectures/AGX7_Performance.arch --network-file ./yolo-v2-tiny-vehicle-detection-0001.xml --foutput-format=open_vino_hetero --o $COREDLA_WORK/demo/y2_stream.bin --batch-size=1 --fanalyze-performance --ffolding-option=0
