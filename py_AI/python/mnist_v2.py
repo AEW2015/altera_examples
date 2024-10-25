@@ -37,28 +37,6 @@ uio_fp[32] = -103.94
 uio_fp[33] = -116.78
 uio_fp[34] = -123.68
 
-#Get Images
-
-# Specify the directory containing the BMP images
-image_directory = '../resnet-50-tf/mnimg'
-
-# Get a list of all BMP files in the directory
-bmp_files = glob.glob(image_directory + '/*.JPG')
-print(bmp_files)
-images = []
-images2view = []
-
-count = 0
-
-for bmp_file in bmp_files:
-    print(bmp_file)
-    im = cv2.imread(bmp_file)
-    im = cv2.resize(im, (28,28), interpolation= cv2.INTER_LINEAR)
-    images2view.append(im)
-    lead_zeros = np.zeros((28,28,1),dtype=np.uint8)
-    images.append(np.concatenate((lead_zeros,im),axis=-1,dtype=np.uint8))
-
-
 
 size = 40
 
@@ -101,27 +79,41 @@ mem = mmap.mmap(mmap_file, size,
 os.close(mmap_file)
 output_map = np.frombuffer(mem, np.float32, size >> 2)
 
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-#output_map = np.reshape(output_map, (1,425,13,13))
-
 #Stream Images
 
 count = 0
 
+# Create a UDP socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# Set the address and port of the receiver
+server_address = ('192.168.0.33', 12345)
+
+# Create a UDP socket
+rxsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+local_address = ('192.168.0.180', 12345)
+rxsock.bind(local_address)
 
 while True:
 
+    print("\n\r#######################################################################\n\r")
+
+
+    frame, _ = rxsock.recvfrom(65536)
+    frame = np.frombuffer(frame, dtype=np.uint8).reshape(28,28,3)
+    image2view = frame
+    im = frame
+    print(im.shape)
+    lead_zeros = np.zeros((28,28,1),dtype=np.uint8)
+    im = np.concatenate((lead_zeros,im),axis=-1,dtype=np.uint8)
 
     nwritten = 0
-    image2view = images2view[count % len(images)]
     with open("/dev/msgdma_stream0", "wb+", buffering=0) as f:
-        nwritten = f.write(images[count % len(images)].tobytes())
+        nwritten = f.write(im.tobytes())
     print(count, nwritten)
     count += 1
-    time.sleep(1)
+    time.sleep(0.1)
     print((output_map))
     print(np.argmax(output_map))
-    time.sleep(1)
+    time.sleep(0.1)
     
