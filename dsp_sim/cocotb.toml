@@ -1,0 +1,12 @@
+sim = "questa"
+hdl_toplevel = "dsp_sim"
+hdl_toplevel_lang = "vhdl"
+
+[build]
+
+[test]
+waves = true
+gui = true
+build_dir = "./dsp_sim/sim/mentor"
+hdl_toplevel_library = "dsp_sim"
+test_args = ['-t','fs','-L','work','-L','work_lib','-L','lpm_ver','-L','sgate_ver','-L','altera_ver','-L','altera_mf_ver','-L','altera_lnsim_ver','-L','tennm_ver','-L','tennm_hvio_ver','-L','tennm_sm_hps_ver','-L','tennm_agilex5_io96_ver','-L','tennm_agilex5_hssi_a_ver','-L','lpm','-L','sgate','-L','altera','-L','altera_mf','-L','altera_lnsim','-L','tennm','-L','tennm_hvio','-L','tennm_sm_hps','-L','tennm_agilex5_io96','-L','tennm_agilex5_hssi_a','-L','agilex_native_tensor_dsp_100','-L','dsp_sim']

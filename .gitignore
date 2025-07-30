@@ -22,3 +22,9 @@
 2D_FIR/HW/Agilex7/serv_req_info.txt
 .vscode/settings.json
 py_AI/stream
+dsp_sim/a5e_dsp_example.qws
+dsp_sim/.qsys_edit
+dsp_sim/dni
+dsp_sim/dsp_sim
+dsp_sim/qdb
+
