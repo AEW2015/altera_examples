@@ -29,11 +29,13 @@ RUN useradd -m -s /bin/bash ${USER} \
  && echo "${USER}:${PASS}" | chpasswd \
  && adduser ${USER} sudo
 
+RUN groupadd -f plugdev && usermod -aG plugdev dev
+
 # Copy Quartus license file into the image
 # Adjust the path if the license file is beside your Dockerfile
 COPY License.dat /home/${USER}/License.dat
 
-# Fix ownership so the ${USER} user can read it
+# Update ownership so the ${USER} user can read it
 RUN chown ${USER}:${USER} /home/${USER}/License.dat
 
 # Append Altera/Intel FPGA tool paths to ${USER} user's PATH
@@ -55,4 +57,12 @@ RUN sed -i 's/^\s*#\?\s*allowed_users=.*/allowed_users=anybody/' /etc/X11/Xwrapp
 EXPOSE 3389
 
 # Start services (Xvnc via xrdp-sesman)
-CMD ["/bin/bash","-lc","service dbus start && /usr/sbin/xrdp-sesman && /usr/sbin/xrdp && tail -F /var/log/xrdp.log /var/log/xrdp-sesman.log"]
+CMD ["/bin/bash", "-c", "\
+rm -f /var/run/dbus/pid /var/run/xrdp/xrdp-sesman.pid; \
+service dbus start && \
+echo 'Step 1' && \
+/usr/sbin/xrdp-sesman && \
+echo 'Step 2' && \
+service xrdp restart && \
+echo 'XRDP started successfully. Connect via RDP on port 3389.' && \
+tail -F /var/log/xrdp.log /var/log/xrdp-sesman.log"]
