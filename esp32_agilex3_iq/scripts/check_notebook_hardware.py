@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'cyberether')]
 from lessons import lan_ip,stop_demo
-from iq_bridge import DEFAULT_PORT
+from common import resolve_uart
 
 
 def check_features(number,host):
@@ -200,7 +200,7 @@ def main():
     output=ROOT/'cyberether/run/notebook-hardware-retest';output.mkdir(parents=True,exist_ok=True)
     client=Observed(test,timeout=240,kernel_name='atum-a3-iq',resources={'metadata':{'path':str(ROOT)}})
     try:
-        client.execute(env=dict(os.environ,ATUM_UART=os.getenv('ATUM_UART',DEFAULT_PORT)))
+        client.execute(env=dict(os.environ,ATUM_UART=resolve_uart()))
         for tag in ('program','live'):
             index=next(i for i,c in enumerate(test.cells)if tag in c.metadata.get('tags',[]))
             updates=[m for m in client.messages if m['cell']==index]

@@ -2,7 +2,7 @@
 """Report the tools used directly in this terminal/kernel's environment."""
 import os, shutil, sys, sysconfig
 from pathlib import Path
-from common import ROOT, altera_root, local_tools, tool_exe
+from common import ROOT, altera_root, local_tools, tool_exe, resolve_uart
 
 def check():
     if not local_tools():
@@ -29,7 +29,8 @@ def check():
         print(('OK     'if ok else 'MISSING'),name,':',p)
         if not ok: missing.append(name)
     print('DISPLAY:',os.getenv('DISPLAY','unset — desktop required for VDS/CyberEther'))
-    print('UART:',os.getenv('ATUM_UART','default rig; override for your board'))
+    try: print('UART:',resolve_uart())
+    except RuntimeError as exc: print('UART unavailable:',exc)
     print('JTAG cable:',os.getenv('ATUM_JTAG_CABLE','default rig; override for your board'))
     if missing: raise SystemExit('Configure missing tools: '+', '.join(missing))
     return paths

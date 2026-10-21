@@ -163,3 +163,9 @@ All seven notebooks pass schema, Python syntax and clean-output checks. HTML exp
 A failed checkpoint-1 diagram export left Quartus blocked by its “project already open in another instance” dialog. The saved error screenshot showed this modal warning while the helper waited for the loaded-project window title. The VDS/IP generation step had succeeded.
 
 The export helper now prepares a uniquely named `gui_project-*` copy for each run, avoiding reuse of the locked project directory. Two consecutive checkpoint-1 exports passed with six native VDS cells and validated PDF/PNG output; all 73 host tests passed. This check did not program the FPGA, download CPU/ESP32 firmware or start hardware acquisition.
+
+## Portable UART selection and acquisition startup errors — 2026-10-21
+
+RF Arcade failed to capture because its default UART pointed to the original rig's unavailable by-id link. UART selection now honors explicit arguments and `ATUM_UART`, otherwise resolves the Atum's interface-1 by-id link or USB identity. Multiple boards require an explicit selection; unrelated USB serial devices and interface 0 are excluded. Overrides set after Python imports are respected. Demo startup resolves and passes the UART before stopping an existing demo or launching a new process. Timeouts include the current launch's acquisition error and log path, excluding stale errors.
+
+All 77 host tests passed against an isolated export of the staged source, including ten new UART/startup regression tests. Read-only USB enumeration selected `/dev/ttyUSB0` in the current container without a by-id mapping; detection was checked with serial opening disabled. This validates discovery and error reporting, not RF acquisition or FPGA arithmetic. No FPGA/CPU/ESP32 programming or hardware acquisition was performed for this change.

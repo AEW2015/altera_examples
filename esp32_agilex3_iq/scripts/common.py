@@ -3,6 +3,29 @@ import json,os,subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 CONTAINER=os.getenv('ATUM_CONTAINER','agilex-xrdp')
+def resolve_uart(port=None):
+    """Resolve the Atum UART without opening it; never guess among USB serial ports."""
+    requested=port if port is not None else os.getenv('ATUM_UART')
+    if requested is not None:
+        requested=os.fspath(requested)
+        if not requested or not Path(requested).exists():
+            raise RuntimeError(f'Configured UART {requested!r} does not exist. Set ATUM_UART to the board UART exposed in this environment.')
+        return requested
+    candidates={}
+    for path in sorted(Path('/dev/serial/by-id').glob('usb-TERASIC_Atum_A3_Nano_*-if01-port0')):
+        if path.exists():candidates[path.resolve()]=str(path)
+    from serial.tools import list_ports
+    for info in list_ports.comports():
+        if (info.vid,info.pid)!=(0x09fb,0x6022):continue
+        # The Atum's FTDI interface 0 is JTAG; interface 1 is the sample UART.
+        if info.location and not info.location.endswith(':1.1'):continue
+        path=Path(info.device)
+        if path.exists():candidates.setdefault(path.resolve(),str(path))
+    if len(candidates)==1:return next(iter(candidates.values()))
+    if candidates:
+        raise RuntimeError('Multiple Atum A3 Nano UARTs detected: '+', '.join(sorted(candidates.values()))+'. Set ATUM_UART explicitly.')
+    raise RuntimeError('No Atum A3 Nano UART detected. Connect/expose the board USB UART or set ATUM_UART explicitly.')
+
 def container_root():
     if local_tools():return str(ROOT)
     if os.getenv('ATUM_CONTAINER_ROOT'):return os.environ['ATUM_CONTAINER_ROOT'].rstrip('/')

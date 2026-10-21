@@ -7,10 +7,13 @@ import argparse,collections,dataclasses,hashlib,json,struct,time,zlib,threading
 from pathlib import Path
 import numpy as np
 import serial,os
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+from common import resolve_uart
 COMMAND=struct.Struct('<4sBBHII')
 HEADER=struct.Struct('<4sBBBB8IQQQ')
 MAX_SAMPLES=16384
-DEFAULT_PORT=os.getenv('ATUM_UART','/dev/serial/by-id/usb-TERASIC_Atum_A3_Nano_TRWJB3QN-if01-port0')
+DEFAULT_PORT=None  # Resolve at connection time, including overrides set after import.
 @dataclasses.dataclass
 class Frame:
     kind:int; source:int; job:int; samples:int; rate:int; frequency:int; raw_crc:int
@@ -64,6 +67,7 @@ def decode_frame(wire):
 
 class Bridge:
     def __init__(self,port=DEFAULT_PORT,baud=2000000,background=False):
+        port=resolve_uart(port)
         self.port=serial.Serial(port=None,baudrate=baud,timeout=.15,write_timeout=5,exclusive=True)
         self.port.dtr=False;self.port.rts=False;self.port.port=port;self.port.open()
         self.job=0;self.responses=collections.deque();self.resync_bytes=0;self.last_status=None

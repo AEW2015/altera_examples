@@ -1,7 +1,7 @@
 """Local notebook workflow: theory, real VDS/IP, simulation, programming and live UI."""
 import hashlib,json,os,re,signal,socket,subprocess,sys,time,shlex
 from pathlib import Path
-from common import ROOT,stages,tool_command,tool_path,local_tools,tool_exe
+from common import ROOT,stages,tool_command,tool_path,local_tools,tool_exe,resolve_uart
 from notebook_progress import progress,task
 NAMES=['Raw IQ bridge','Nios V transfer monitor','FIR II filtering','Frequency translation and decimation','Digital gain and power meters']
 def lan_ip():
@@ -115,13 +115,15 @@ class Lesson:
   self.command([sys.executable,ROOT/'scripts/run.py','load','--checkpoint',self.n],self.out/'program.log')
  @task("Start CyberEther and wait for fresh acquisition")
  def start_demo(self,host=None,demo_night=False):
+  uart=resolve_uart()
   stop_demo();host=host or lan_ip();run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
-  env=dict(os.environ,ATUM_LESSON='0'if demo_night else str(self.n),ATUM_DEMO_NIGHT='1'if demo_night else'0',ATUM_CONTAINER_ROOT=tool_path(ROOT))
+  env=dict(os.environ,ATUM_UART=uart,ATUM_LESSON='0'if demo_night else str(self.n),ATUM_DEMO_NIGHT='1'if demo_night else'0',ATUM_CONTAINER_ROOT=tool_path(ROOT))
   launched=time.time()
   log=(run/'notebook-launch.log').open('a')
   args=[sys.executable,str(ROOT/'cyberether/start_iq_bridge_lab.py'),'--host',host]
   p=subprocess.Popen(args,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True);log.close()
   (run/'notebook-demo.json').write_text(json.dumps(dict(pid=p.pid,lesson=self.n,host=host)))
+  last_error=None
   with progress('Wait for viewer and fresh FPGA acquisition') as feedback:
    end=time.monotonic()+100
    while time.monotonic()<end:
@@ -129,10 +131,11 @@ class Lesson:
     state=run/'iq-bridge-lab/state.json'
     if state.exists():
      s=json.loads(state.read_text())
+     if s.get('updated_unix',0)>=launched:last_error=s.get('error')
      feedback.message('Acquisition: '+str(s.get('status','STARTING'))+' · '+str(s.get('completed',0))+' result(s); waiting for a fresh matching checkpoint.')
      if s.get('completed',0)>0 and s.get('fpga',{}).get('stage_relative')==str(self.stage.relative_to(ROOT))and s.get('updated_unix',0)>=launched and s.get('updated_unix',0)>time.time()-4:break
     time.sleep(.3)
-   else:raise RuntimeError('No live result; inspect the acquisition log')
+   else:raise RuntimeError('No live result'+(': '+last_error if last_error else '')+'; inspect '+str(run/'iq-bridge-lab/acquisition.log'))
   invite=run/'iq-bridge-lab/control-invite.json';self.url=json.loads(invite.read_text())['url']
   from IPython.display import HTML,display
   import html

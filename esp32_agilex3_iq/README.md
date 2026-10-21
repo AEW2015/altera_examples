@@ -67,7 +67,7 @@ bash scripts/install_local.sh --system  # Debian/Ubuntu prerequisites + venv + C
 
 Choose the **Atum A3 IQ Demos** kernel in Jupyter or VS Code. Omit `--system` if system packages are already installed. The installer downloads the pinned CyberEther AppImage, extracts it locally and installs its Python dependencies into `.venv-notebooks`. Proprietary FPGA tools are not distributed here.
 
-For a different RiscFree installation, set `ATUM_RISCV_GCC`, `ATUM_RISCV_SIZE` and `ATUM_ELF2HEX` to executable paths. Set `ATUM_UART` and `ATUM_JTAG_CABLE` for your board. The notebook configuration cell accepts the same environment settings.
+For a different RiscFree installation, set `ATUM_RISCV_GCC`, `ATUM_RISCV_SIZE` and `ATUM_ELF2HEX` to executable paths. The UART is detected from an Atum A3 Nano by-id link or its USB identity, including container device mappings without by-id links. Set `ATUM_UART` to override detection or select among multiple boards, and set `ATUM_JTAG_CABLE` for your board. The notebook configuration cell accepts the same environment settings. An invalid explicit UART path is reported rather than silently replaced.
 
 Existing host-to-container scripts remain available as an optional compatibility mode: explicitly set `ATUM_TOOLS_MODE=docker`, `ATUM_CONTAINER` and, if mount discovery is unsuitable, `ATUM_CONTAINER_ROOT`. Prefer running Jupyter beside the tools for the complete notebook workflow.
 
@@ -245,7 +245,7 @@ export ATUM_JTAG_CABLE='Atum A3 Nano [your-cable-id]'
 .venv-notebooks/bin/python scripts/run.py serve --host <host-LAN-IP>
 ```
 
-Defaults retain the original rig's device/cable identifiers; set both variables for another board. `serve` uses the foreground terminal; **Ctrl+C** stops the lab cleanly. Native viewer port is **8687**, controls **8768**, TCP media **40100–40103**. For alternate ports set `ATUM_VIEWER_PORT`, `ATUM_CONTROL_PORT`, and `ATUM_MEDIA_RANGE` before starting. The service binds to the explicit host IP, not a wildcard. No router credentials are needed.
+The UART is auto-detected when `ATUM_UART` is unset; the default JTAG cable name retains the original rig's identifier. Set the cable for another board. `serve` uses the foreground terminal; **Ctrl+C** stops the lab cleanly. Native viewer port is **8687**, controls **8768**, TCP media **40100–40103**. For alternate ports set `ATUM_VIEWER_PORT`, `ATUM_CONTROL_PORT`, and `ATUM_MEDIA_RANGE` before starting. The service binds to the explicit host IP, not a wildcard. No router credentials are needed.
 
 Open the private URL saved to **`cyberether/run/iq-bridge-lab/control-invite.json`**, using your normal host browser. The page contains ordinary HTML controls and embeds the native CyberEther video. Its title is **IQ Pipeline Lab**. Do not use port 8687 alone when you need the lesson controls. Tokens are created at runtime and never committed.
 
