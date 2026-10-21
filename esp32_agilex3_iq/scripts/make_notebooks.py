@@ -3,7 +3,7 @@
 import ast
 from pathlib import Path
 import nbformat as nb
-from common import ROOT
+from common import ROOT,stages
 from lessons import NAMES
 source=ast.parse((ROOT/'scripts/notebook_plots.py').read_text());function=next(x for x in source.body if isinstance(x,ast.FunctionDef)and x.name=='theory')
 chain=next(x for x in function.body if isinstance(x,ast.If));cases=[]
@@ -68,14 +68,14 @@ plt.show()
 summary
 '''
  cells += [nb.v4.new_code_cell(code,metadata={'tags':['theory']}),
- nb.v4.new_markdown_cell('## 2 · Generate the actual FPGA block design\n\nRebuild the Nios initialization memory where present, recreate the native VDS system, validate and generate vendor IP. The cell opens **Quartus Visual Designer Studio itself**, fits the diagram and uses **File → Export**. Its native PDF is rendered to a high-resolution PNG and displayed inline. The original PDF and a full GUI screenshot are saved beside it. A private X display keeps capture separate from your desktop.'),
+ nb.v4.new_markdown_cell('## 2 · Generate the actual FPGA block design\n\nRebuild the Nios initialization memory where present, recreate the native VDS system, validate and generate vendor IP. The cell opens **Quartus Visual Designer Studio itself**, fits the diagram and uses **File → Export**. Its native PDF is rendered to a high-resolution PNG and displayed inline. The original PDF and a full GUI screenshot are saved beside it. A private X display keeps capture separate from your desktop. The output also provides **Quartus project** and **complete project ZIP** links. The ZIP contains the SDC, RTL, generated IP and Nios memory initialization. Extract it before opening the QPF in Quartus.'),
  nb.v4.new_code_cell('from IPython.display import Image, display\ndiagram_png = lesson.generate()\ndisplay(Image(filename=str(diagram_png)))\nprint("Exported:", diagram_png)',metadata={'tags':['generate']}),
  nb.v4.new_markdown_cell(f'### Saved native VDS GUI diagram\n\n![Checkpoint {i} — actual VDS GUI export](diagrams/{i:02d}_vds_gui.png)\n\nThe cell above refreshes this diagram from your local design.'),
  nb.v4.new_markdown_cell(f'## 3 · RTL/IP simulation\n\n{levels[i-1]}\n\nThe plots below read the actual simulator output files. Assertions must pass before the result is plotted.'),
  nb.v4.new_code_cell('simulation_result = lesson.simulate()\nprint("Simulation:", simulation_result["status"])\nlesson.simulation_plot()',metadata={'tags':['rtl']}),
  nb.v4.new_markdown_cell('### Open the Questa GUI\n\nUse a desktop terminal **on the machine running Quartus** (or its container desktop). Execute the printed commands. `wave.wlf` opens the saved real simulation; `view.do` adds its signals. To rerun interactively, start `vsim -gui` in the same directory and type `do gui.do` in the Transcript. This reruns the same assertions and leaves the waveform window open.'),
  nb.v4.new_code_cell('lesson.questa_gui()',metadata={'tags':['instructions']}),
- nb.v4.new_markdown_cell('## 4 · Build the SOF\n\nA source-matched, hash-verified cached bitfile can be reused for a quick presentation. Set `FORCE_REBUILD=True` to demonstrate a full Quartus compilation. A fresh checkout always requires a build.'),
+ nb.v4.new_markdown_cell('## 4 · Build the SOF\n\nA source-matched, hash-verified cached bitfile can be reused for a quick presentation. Set `FORCE_REBUILD=True` to demonstrate a full Quartus compilation. A fresh checkout always requires a build. Both a new build and cached reuse display links to the complete Quartus project and its ZIP. Open the linked QPF (or extract the ZIP first), then use **Processing → Start Compilation** to build in the GUI.'),
  nb.v4.new_code_cell('build = lesson.build(force=FORCE_REBUILD)\nprint("SOF:", lesson.stage / "iq_bridge_vds.sof")\nprint("SHA256:", build["sha256"])\nprint("Compiled resources:", build["resources"])',metadata={'tags':['build']}),
  nb.v4.new_markdown_cell('## 5 · Program the physical board\n\nThis cell **programs the selected checkpoint**. It first stops a previous notebook-owned demo and releases UART/JTAG. Stop any unrelated acquisition service before running it; an unknown serial owner is refused. No ESP32 flashing or reset-button presses are needed with the installed suite.'),
  nb.v4.new_code_cell('lesson.program()',metadata={'tags':['hardware','program']}),
@@ -89,5 +89,9 @@ summary
    nb.v4.new_markdown_cell('### Official Nios V BSP and applications\n\nGenerate a HAL BSP from this actual VDS system, plus editable **Hello World** and **IQ monitor** CMake applications. This builds software only; it does not download or replace the running firmware. Open both BSP and app with **RiscFree → File → Import Nios V CMake Project**, then build with Ctrl+B. See [Nios V IDE guide](../software/README.md) for BSP Editor, JTAG download and restore steps.'),
    nb.v4.new_code_cell('software_dir = lesson.software()\nprint("BSP:", software_dir / "bsp")\nprint("Hello World:", software_dir / "hello_world")\nprint("IQ monitor:", software_dir / "iq_monitor")',metadata={'tags':['software']}),
   ]
+ for cell in cells:
+  if cell.cell_type=='markdown'and cell.source.startswith('## 2 ·'):
+   sdc=stages()[i-1].relative_to(ROOT)/'iq_bridge_vds.sdc'
+   cell.source+=f'\n\nTiming constraints: [iq_bridge_vds.sdc](../{sdc.as_posix()}).'
  notebook=nb.v4.new_notebook(cells=cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
  name=f'{i:02d}_'+['raw_iq_bridge','nios_transfer_monitor','fir_filter','ddc_frequency_translation','gain_power_meters'][i-1]+'.ipynb';nb.write(notebook,ROOT/'notebooks'/name)

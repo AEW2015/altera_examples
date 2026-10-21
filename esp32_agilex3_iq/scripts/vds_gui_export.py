@@ -18,14 +18,9 @@ def export_gui(stage,out,expected_cells):
  for p in(ready,pdf,png,out/'vds_gui_window.png',out/'vds_gui_error.png'):p.unlink(missing_ok=True)
  # A separate project wrapper prevents locks or focus changes in an already-open user project.
  work=out/'gui_project';work.mkdir(exist_ok=True)
- for name in('iq_bridge_vds.qpf','iq_bridge_vds.qsf') :shutil.copy2(stage/name,work/name)
- src=work/'src'
- if src.is_symlink():src.unlink()
- shutil.copytree(stage/'src',src,dirs_exist_ok=True)
+ from quartus_project import prepare_project
+ prepare_project(stage,work)
  gui_system=work/'src/vds/iq_bridge_system/iq_bridge_system.vds'
- for name in('rtl','ip','sw','gen','scripts'):
-  target=work/name
-  if (stage/name).exists()and not target.exists():target.symlink_to(stage/name,target_is_directory=True)
  log=(out/'vds-gui.log').open('w');read_fd,write_fd=os.pipe();server=None;gui=None
  try:
   server=subprocess.Popen(['Xvfb','-displayfd',str(write_fd),'-screen','0','3200x2000x24','-nolisten','tcp'],pass_fds=(write_fd,),stdout=log,stderr=log,start_new_session=True)

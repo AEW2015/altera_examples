@@ -76,3 +76,21 @@ Both original-ESP32 unified firmware profiles compile against pinned ESP-IDF `25
 The temporary FPGA bridge passed Questa assertions for **six target/mode combinations × 64 input combinations**, including inactive-UART isolation and GPIO0 low/high-Z behavior with pull-ups. RFS2 ROM, Pmod A ROM and Pmod B runtime variants compiled with Quartus 26.1.1 for A3CZ135BB18AE7S (14 I/O pins, no RAM/DSP). These builds were not loaded and no connected ESP32 was reset or reflashed for this addition.
 
 **41 host tests pass**, including wrong application/console pins, out-of-build images, flash bounds, corrupted recorded images and esptool 4/5 manual-reset command generation. All five notebooks validate and their introductions now explain the addition, its use and its FPGA implementation with a short flow diagram. The root project `SKILL.md` passes skill validation and is referenced by `AGENTS.md`. Live acquisition and its JTAG reader were stopped at the user's request; the serial device was confirmed free and was not reopened for this work.
+
+## Complete linked Quartus projects and SDC packaging
+
+All five tracked source SDCs were present; the GUI-export wrapper omitted its referenced SDC. The wrapper now uses the complete project exporter, copying constraints, RTL, generated IP and memory initialization with no source-directory symlinks. Every generation/build (including notebook SOF cache reuse) prints the prepared QPF and full ZIP, and notebook output displays clickable links. Each notebook also links its tracked SDC.
+
+The generated-HDL snapshot QSF explicitly assigns the top SDC, system QIP **and every leaf-IP QIP**. The latter are separate registrations in VDS and are not automatically included by the system QIP. `PROJECT_FILES.json` lists/hashes the inputs; export rejects missing/external QIP inputs and missing constraints. Native diagrams/Tcl definitions remain included.
+
+Each ZIP was extracted to a new temporary directory and compiled using only `quartus_sh --flow compile iq_bridge_vds`, with no Nios/ESP32 software build or original-checkout source references in compile HDL/QIP/SDC files. All five full builds passed, targeted A3CZ135BB18AE7S, read `iq_bridge_vds.sdc`, and reported positive minimum slack:
+
+| Checkpoint | Minimum reported slack (ns) |
+|---|---:|
+| vds_demo_01_raw | +0.089 |
+| vds_demo_02_nios | +0.027 |
+| vds_demo_03_fir | +0.023 |
+| vds_demo_04_ddc | +0.014 |
+| vds_demo_05_gain | +0.008 |
+
+Native VDS GUI export also passed for the six-block raw project and 17-block gain project after the packaging change. **45 host tests pass**, including missing SDC/leaf-HDL rejection, complete extracted ZIP inputs and replacement of old GUI-wrapper symlinks. All notebook schemas/code cells validate. The serial device was not reopened and hardware was not programmed. Prepared project ZIPs, their file hashes and extracted-build logs/proofs remain generated local artifacts. Minimum reported slack does not establish complete external/asynchronous I/O constraints.

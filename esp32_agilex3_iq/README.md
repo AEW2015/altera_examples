@@ -97,6 +97,34 @@ quartus_sh -t scripts/connect_vds.tcl
 quartus_sh --flow compile iq_bridge_vds
 ```
 
+### Linked, complete Quartus projects
+
+Every `scripts/build.py` run prints a **Quartus project** path and a **Project ZIP** path. Notebook `lesson.generate()` and `lesson.build()` display clickable links for both, including cached builds. For already generated designs, refresh these exports with:
+
+```bash
+.venv-notebooks/bin/python scripts/quartus_project.py all
+```
+
+**Download the ZIP, extract it, open its `iq_bridge_vds.qpf`, then choose Processing → Start Compilation.** Keep the QPF with its sibling files; downloading the QPF alone is insufficient. Use Quartus Prime Pro 26.1.1 with Agilex 3 device support. No serial/JTAG access or FPGA programming is involved in compilation.
+
+The prepared project explicitly includes **`iq_bridge_vds.sdc`**, board RTL/pins, the generated system **and every leaf-IP QIP**, vendor HDL/IP constraints, and Nios initialization HEX where present. `PROJECT_FILES.json` lists/hashes the packaged inputs. The GUI screenshot project's copy now includes the same files and SDC, too.
+
+The ZIP is a generated-HDL snapshot, so it compiles directly in Quartus without the ESP32 SDK or Nios compiler. Native VDS diagrams and their Tcl definitions are included; follow `OPEN_IN_QUARTUS.md` inside the ZIP to view the diagram or regenerate edited Tcl definitions. These generated files are local exports and are not committed as vendor source.
+
+| Lesson | Tracked timing constraints |
+|---|---|
+| 1 · Raw IQ | [SDC](fpga_hub/iq_bridge/vds_demo_01_raw/iq_bridge_vds.sdc) |
+| 2 · Nios monitor | [SDC](fpga_hub/iq_bridge/vds_demo_02_nios/iq_bridge_vds.sdc) |
+| 3 · FIR | [SDC](fpga_hub/iq_bridge/vds_demo_03_fir/iq_bridge_vds.sdc) |
+| 4 · DDC | [SDC](fpga_hub/iq_bridge/vds_demo_04_ddc/iq_bridge_vds.sdc) |
+| 5 · Gain | [SDC](fpga_hub/iq_bridge/vds_demo_05_gain/iq_bridge_vds.sdc) |
+
+To check portability yourself, extract/compile the ZIPs in fresh directories:
+
+```bash
+.venv-notebooks/bin/python scripts/quartus_project.py all --verify --jobs 2
+```
+
 ### Open in Visual Designer Studio
 
 After generating the checkpoint, in your desktop terminal:

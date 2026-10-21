@@ -52,3 +52,5 @@ Stop unrelated board acquisition services first. One physical board runs one che
 The simulations test the named RTL/IP, not a complete Wi-Fi receiver or Nios instruction execution. Real DSP runs on the FPGA; the host handles transport, independent reference checks, plotting and display FFT. The final two lessons use FPGA-generated clean signals without RF transmission.
 
 Saved [GUI previews](diagrams/README.md) are included for all five lessons. Fresh native PDFs/PNGs, full GUI screenshots, simulation waves, builds and captures remain under each checkpoint's ignored `results/` and `run/` directories. Live invitation tokens stay in ignored runtime files. Authored notebooks contain no tokens or captured network data.
+
+After generation or build, use the **Quartus project** or **complete project ZIP** links in the output. The ZIP contains the SDC and generated IP sources: extract it and open `iq_bridge_vds.qpf`, then choose **Processing → Start Compilation**. Each lesson also links its tracked SDC. See [complete project instructions](../README.md#linked-complete-quartus-projects).

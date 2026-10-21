@@ -13,6 +13,8 @@ def build(stage):
     command='export PATH='+shlex.quote(prefix)+':$PATH; '+' && '.join(commands)
     with(out/'build.log').open('w')as log:
         subprocess.run(tool_command(['bash','-c',command],cwd=stage,display=args.display),cwd=stage,env=dict(tool_env(),DISPLAY=args.display),stdout=log,stderr=subprocess.STDOUT,check=True)
+    from quartus_project import export_project
+    export_project(stage)
     if args.generate_only:
         print(stage.name,'PASS generation',flush=True);return dict(status='PASS_GENERATED')
     fit=(stage/'iq_bridge_vds.fit.summary').read_text();sta=(stage/'iq_bridge_vds.sta.summary').read_text();slacks=[float(x)for x in re.findall(r'Slack : (-?[\d.]+)',sta)]

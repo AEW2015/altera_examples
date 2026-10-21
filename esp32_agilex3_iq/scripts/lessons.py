@@ -36,7 +36,14 @@ class Lesson:
   if p.returncode:raise RuntimeError(f'Command failed ({p.returncode}); inspect {log}')
  def generate(self):
   self.command([sys.executable,ROOT/'scripts/build.py',self.n,'--generate-only','--display',os.getenv('DISPLAY',':0')],self.out/'generate.log')
-  return self.diagram()
+  png=self.diagram();self.project();return png
+ def project(self):
+  from quartus_project import export_project
+  qpf,archive=export_project(self.stage)
+  from IPython.display import FileLink,display
+  display(FileLink(os.path.relpath(qpf,Path.cwd()),result_html_prefix='Quartus project: '))
+  display(FileLink(os.path.relpath(archive,Path.cwd()),result_html_prefix='Download complete project ZIP: '))
+  return dict(qpf=qpf,archive=archive)
  def diagram(self):
   from vds_gui_export import export_gui
   return export_gui(self.stage,self.out,[6,11,13,16,17][self.n-1])
@@ -82,9 +89,9 @@ class Lesson:
   if not force and p.exists()and sof.exists():
    d=json.loads(p.read_text())
    if d.get('source_fingerprint')==sig and d.get('sha256')==hashlib.sha256(sof.read_bytes()).hexdigest():
-    print('Reusing source-matched cached SOF:',d['sha256'][:16],'; set FORCE_REBUILD=True to compile again.');return d
+    print('Reusing source-matched cached SOF:',d['sha256'][:16],'; set FORCE_REBUILD=True to compile again.');self.project();return d
   self.command([sys.executable,ROOT/'scripts/build.py',self.n,'--display',os.getenv('DISPLAY',':0')],self.out/'build-command.log')
-  d=json.loads(p.read_text());d['source_fingerprint']=fingerprint(self.stage);p.write_text(json.dumps(d,indent=2)+'\n');return d
+  d=json.loads(p.read_text());d['source_fingerprint']=fingerprint(self.stage);p.write_text(json.dumps(d,indent=2)+'\n');self.project();return d
  def program(self):
   stop_demo()
   self.command([sys.executable,ROOT/'scripts/run.py','load','--checkpoint',self.n],self.out/'program.log')
