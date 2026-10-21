@@ -5,11 +5,11 @@
 #include <ctype.h>
 #include <errno.h>
 bool probe_parse_tone(const char *line, probe_job_t *job) {
-    bool nco=!strncmp(line,"NCO ",4),fast=!strncmp(line,"FASTPHASE ",10),frame=!strncmp(line,"FRAME ",6);
-    bool phase=!strncmp(line,"PHASE ",6)||fast||frame;
+    bool nco=!strncmp(line,"NCO ",4),fast=!strncmp(line,"FASTPHASE ",10),frame=!strncmp(line,"FRAME ",6),qframe=!strncmp(line,"QFRAME ",7);
+    bool phase=!strncmp(line,"PHASE ",6)||fast||frame||qframe;
     if (!phase && !nco && strncmp(line, "TONE ", 5)) return false;
-    const char *p=line+(fast?10:phase?6:nco?4:5); unsigned long values[7]={0};
-    for (unsigned i=0;i<(fast?7:phase?6:nco?4:3);i++) {
+    const char *p=line+(fast?10:qframe?7:phase?6:nco?4:5); unsigned long values[8]={0};
+    for (unsigned i=0;i<(qframe?8:fast?7:phase?6:nco?4:3);i++) {
         while (*p==' ') p++;
         if (!isdigit((unsigned char)*p)) return false;
         errno=0; char *end;
@@ -20,9 +20,10 @@ bool probe_parse_tone(const char *line, probe_job_t *job) {
     while (*p==' ') p++;
     if (*p || values[0]<1 || values[0]>11 || values[1]<50 || values[1]>3000 ||
         values[2]<80 || values[2]>120 || (nco && values[3]>32) ||
-        (phase && (values[1]>500 || values[3]>255 || values[4]<(fast||frame?8:32) || values[4]>256 || values[5]>8192)) ||
-        (fast && (values[6]<1 || values[6]>3))) return false;
-    *job=(probe_job_t){.channel=values[0],.duration_ms=values[1],.backoff_qdb=values[2],.nco_step=nco?values[3]:frame?0x103:fast?values[6]:0,.nco=nco,.phase=phase,.pattern=values[3],.symbol_us=values[4],.pulse_cycles=values[5]}; return true;
+        (phase && (values[1]>500 || values[3]>255 || values[4]<(fast||frame||qframe?8:32) || values[4]>256 || values[5]>8192)) ||
+        (fast && (values[6]<1 || values[6]>3)) ||
+        (qframe && (!values[5] || !values[6] || !values[7] || values[6]>8192 || values[7]>8192))) return false;
+    *job=(probe_job_t){.channel=values[0],.duration_ms=values[1],.backoff_qdb=values[2],.nco_step=nco?values[3]:qframe?0x203:frame?0x103:fast?values[6]:0,.nco=nco,.phase=phase,.pattern=values[3],.symbol_us=values[4],.pulse_cycles=values[5],.pulse180_cycles=qframe?values[6]:0,.pulse270_cycles=qframe?values[7]:0}; return true;
 }
 
 static uint8_t parity7(uint8_t x) { x^=x>>4;x^=x>>2;x^=x>>1;return x&1; }
@@ -42,3 +43,17 @@ void probe_frame_bits(uint16_t payload, uint8_t bits[64]) {
     }
     for(unsigned i=60;i<64;i++) bits[i]=0;
 }
+
+/* Gray-labelled cardinal phase states, negative quarter-turns on measured RF.
+ * Training is fixed and independent of the payload. */
+void probe_qframe_states(uint16_t payload, uint8_t states[64]) {
+    static const char training[]="01320312023110233012032120310302";
+    uint8_t bits[64]; probe_frame_bits(payload,bits);
+    for(unsigned i=0;i<32;i++) states[i]=training[i]-'0';
+    for(unsigned i=0;i<22;i++) {
+        unsigned a=bits[16+2*i],b=bits[17+2*i];
+        states[32+i]=(a<<1)|(a^b);
+    }
+    for(unsigned i=54;i<64;i++) states[i]=0;
+}
+

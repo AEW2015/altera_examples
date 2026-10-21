@@ -66,9 +66,11 @@ static uint32_t IRAM_ATTR phase_pulse(uint32_t original_ext,uint32_t step,uint32
 static void phase_run(const probe_job_t *job,int64_t started,uint32_t original_ext) {
     uint32_t period=(uint64_t)esp_clk_cpu_freq()*job->symbol_us/1000000u;
     uint32_t next=esp_cpu_get_cycle_count();unsigned current=0,index=0;
-    bool frame=(job->nco_step&0x100)!=0;
+    bool qframe=(job->nco_step&0x200)!=0;
+    bool frame=(job->nco_step&0x300)!=0;
     unsigned step=job->nco_step&3;if (!step) step=1;
-    uint8_t bits[64];if (frame) probe_frame_bits(job->pattern,bits);
+    uint8_t bits[64];if (qframe) probe_qframe_states(job->pattern,bits);
+    else if (frame) probe_frame_bits(job->pattern,bits);
     while (!cancel && esp_timer_get_time()-started<(int64_t)job->duration_ms*1000) {
         if (!wait_cycle(next)) break;
         uint32_t at=esp_cpu_get_cycle_count();
@@ -77,7 +79,9 @@ static void phase_run(const probe_job_t *job,int64_t started,uint32_t original_e
         index=(index+1)&(frame?63:7);
         if(frame && index==0) phase_stats.frames++;
         if (bit!=current && job->pulse_cycles) {
-            uint32_t width=phase_pulse(original_ext,step,job->pulse_cycles);
+            unsigned delta=qframe?((bit-current)&3):1;
+            uint32_t request=qframe?(delta==1?job->pulse_cycles:delta==2?job->pulse180_cycles:job->pulse270_cycles):job->pulse_cycles;
+            uint32_t width=phase_pulse(original_ext,step,request);
             if (!phase_stats.flips || width<phase_stats.min) phase_stats.min=width;
             if (width>phase_stats.max) phase_stats.max=width;
             phase_stats.flips++;
@@ -119,7 +123,10 @@ static void worker(void *unused) {
                 }
                 saved_ext=e;
                 phase_stats=(phase_stats_t){.job=id,.cpu=esp_clk_cpu_freq()};
-                if (job.nco_step&0x100)
+                if (job.nco_step&0x200)
+                    printf("QFRAME_CFG,job=%"PRIu32",cpu=%"PRIu32",period_us=%"PRIu32",quarter_cycles=%"PRIu32",half_cycles=%"PRIu32",three_cycles=%"PRIu32",payload=%"PRIu32",symbols=64,step=3\n",
+                           id,phase_stats.cpu,job.symbol_us,job.pulse_cycles,job.pulse180_cycles,job.pulse270_cycles,job.pattern);
+                else if (job.nco_step&0x100)
                     printf("FRAME_CFG,job=%"PRIu32",cpu=%"PRIu32",period_us=%"PRIu32",pulse_cycles=%"PRIu32",payload=%"PRIu32",bits=64,step=3\n",
                            id,phase_stats.cpu,job.symbol_us,job.pulse_cycles,job.pattern);
                 else
@@ -167,10 +174,18 @@ static void command(char *line) {
     if (!strcmp(line,"INFO")) {
         uint8_t mac[6]; esp_chip_info_t chip;
         ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA)); esp_chip_info(&chip);
-        printf("TX_PROBE,v=4,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x,tx=%d,rx=%d,baud=2000000,busy=%d,iq=unverified\n",chip.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,busy);
+        printf("TX_PROBE,v=5,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x,tx=%d,rx=%d,baud=2000000,busy=%d,iq=unverified\n",chip.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,busy);
     } else if (!strcmp(line,"PHASECAP")) {
         uint32_t cpu=esp_clk_cpu_freq();
         printf("PHASECAP,cpu=%"PRIu32",half_cycles=%"PRIu32",step_nom_mHz=39062500,fast_half_cycles=%"PRIu32",fast_step=3\n",cpu,cpu/78125u,cpu/234375u);
+    } else if (!strncmp(line,"QFRAMEBITS ",11)) {
+        probe_job_t parsed;char text[96];
+        snprintf(text,sizeof(text),"QFRAME 8 50 96 %s 8 335 670 1005",line+11);
+        if (!probe_parse_tone(text,&parsed)) {puts("ERR invalid_payload8");return;}
+        uint8_t states[64];probe_qframe_states(parsed.pattern,states);
+        printf("QFRAMEBITS,payload=%"PRIu32",states=",parsed.pattern);
+        for(unsigned i=0;i<64;i++) putchar('0'+states[i]);
+        putchar('\n');
     } else if (!strncmp(line,"FRAMEBITS ",10)) {
         probe_job_t parsed;char text[96];
         snprintf(text,sizeof(text),"FRAME 8 50 96 %s 8 0",line+10);
@@ -189,7 +204,9 @@ static void command(char *line) {
     } else {
         probe_job_t job;
         if (!probe_parse_tone(line,&job)) { puts("ERR use_INFO_STATE_STOP_TONE_or_NCO_bounded_job"); return; }
-        if (job.phase && job.pulse_cycles>(uint64_t)esp_clk_cpu_freq()*job.symbol_us/(job.nco_step?1250000u:2000000u)) {
+        uint32_t longest=job.pulse_cycles;
+        if(job.nco_step&0x200) {if(job.pulse180_cycles>longest) longest=job.pulse180_cycles; if(job.pulse270_cycles>longest) longest=job.pulse270_cycles;}
+        if (job.phase && longest>(uint64_t)esp_clk_cpu_freq()*job.symbol_us/(job.nco_step?1250000u:2000000u)) {
             puts("ERR phase_pulse_exceeds_slot_guard");return;
         }
         if (busy) { puts("ERR busy"); return; }
@@ -210,7 +227,7 @@ void app_main(void) {
     configASSERT(xTaskCreate(worker,"bounded_tx",4096,NULL,5,NULL)==pdPASS);
     /* UART STOP can preempt the bounded phase worker even during busy waits. */
     vTaskPrioritySet(NULL,6);
-    puts("TX_PROBE_READY,rf=off,commands=INFO_STOP_TONE_NCO_PHASE_FASTPHASE_FRAME_FRAMEBITS_STATE,iq_playback=unverified");
+    puts("TX_PROBE_READY,rf=off,commands=INFO_STOP_TONE_NCO_PHASE_FASTPHASE_FRAME_FRAMEBITS_QFRAME_QFRAMEBITS_STATE,iq_playback=unverified");
     char line[96]; unsigned used=0; bool overflow=false;
     for (;;) {
         uint8_t c;

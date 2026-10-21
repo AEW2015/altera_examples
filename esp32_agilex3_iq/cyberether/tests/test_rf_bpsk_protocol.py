@@ -16,7 +16,7 @@ class Job(ctypes.Structure):
                 ('backoff_qdb', ctypes.c_uint32), ('nco_step', ctypes.c_uint32),
                 ('nco', ctypes.c_bool), ('phase', ctypes.c_bool),
                 ('pattern', ctypes.c_uint32), ('symbol_us', ctypes.c_uint32),
-                ('pulse_cycles', ctypes.c_uint32)]
+                ('pulse_cycles', ctypes.c_uint32), ('pulse180_cycles', ctypes.c_uint32), ('pulse270_cycles', ctypes.c_uint32)]
 
 
 @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
