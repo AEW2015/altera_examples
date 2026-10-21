@@ -33,6 +33,33 @@ tries=[
  'Press **Verify tone rejection** for a known FPGA two-tone input. Compare with **Show alias**, then **Impulse response**. The requested/applied ledger checks phase, bypass flags, decimation, sample counts, CRC and zero integer-reference error. Input and output FFTs share the same physical frequency axis.',
  'Try **Clean 1× → Boost 2× → Clip 16×**. Check amplitude, harmonics, measured FPGA power change and clipped samples. Gain readback and zero integer-reference error must match the current request before the badge says VERIFIED.',
 ]
+def cyberether_examples(number):
+ captions = {
+  1: 'Live RFS2 ESP32 RF capture through the raw bridge: spectrum, IQ samples, payload rate and CRC/metadata evidence.',
+  2: 'Live RFS2 ESP32 RF capture with Nios V transfer counters, counter freshness and error checks.',
+  3: 'FPGA-generated two-tone input with the 4 MHz notch applied. Compare the cyan input with the gold filtered output and inspect the coefficient readback evidence.',
+  4: 'FPGA-generated two-tone input: the mixer shifts the wanted tone to DC, FIR II rejects the interferer, and decimation reduces the output sample rate.',
+  5: 'FPGA-generated single-tone input at 16× gain. Saturation creates harmonics; the FPGA reports 4096 clipped samples and the output matches the integer reference.',
+  6: 'RF Arcade’s Power rush scene at 16× gain, using an FPGA-generated test signal. The display shows saturation, harmonics, clipping and zero integer-reference error.',
+ }
+ cells = [nb.v4.new_markdown_cell(
+  '### CyberEther · example screenshot\n\n'
+  'Saved browser screenshot from a physical Atum A3 Nano / Agilex 3 hardware test. '
+  'This is a static example; run the launch cell above for current data.\n\n'
+  + captions[number] + f'\n\n![CyberEther example — lesson {number:02d}](screenshots/{number:02d}_cyberether.png)\n\n'
+  f'[Open full-resolution screenshot](screenshots/{number:02d}_cyberether.png).',
+  metadata={'tags':['cyberether-example']})]
+ if number == 3:
+  cells.append(nb.v4.new_markdown_cell(
+   '#### Custom FIR editor example\n\n'
+   'Eight-tap averaging coefficients loaded through the browser editor. The candidate response, '
+   'actual before/after samples and VERIFIED coefficient readback are shown together. '
+   'The input is an FPGA-generated test signal.\n\n'
+   '![CyberEther custom FIR coefficient editor](screenshots/03_fir_custom_editor.png)\n\n'
+   '[Open full-resolution editor screenshot](screenshots/03_fir_custom_editor.png).',
+   metadata={'tags':['cyberether-example']}))
+ return cells
+
 def write_notebook(notebook, path):
  for cell in notebook.cells:
   if cell.cell_type=='code' and 'theory' in cell.metadata.get('tags',[]) and not cell.source.startswith('from notebook_progress import progress'):
@@ -144,6 +171,7 @@ Change `input_kind` to `fpga-impulse` to inspect its impulse response, or `live`
   if cell.cell_type=='markdown'and cell.source.startswith('## 2 ·'):
    sdc=stages()[i-1].relative_to(ROOT)/'iq_bridge_vds.sdc'
    cell.source+=f'\n\nTiming constraints: [iq_bridge_vds.sdc](../{sdc.as_posix()}).'
+ cells.extend(cyberether_examples(i))
  notebook=nb.v4.new_notebook(cells=cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
  name=f'{i:02d}_'+['raw_iq_bridge','nios_transfer_monitor','fir_filter','ddc_frequency_translation','gain_power_meters'][i-1]+'.ipynb';write_notebook(notebook,ROOT/'notebooks'/name)
 
@@ -227,6 +255,7 @@ More detail: [RF Arcade guide](../docs/RF_ARCADE.md)."""),
 Run this cell **when finished presenting**. It stops this checkout's notebook-owned demo and its acquisition/JTAG children, releasing their device handles. It does not stop unrelated user processes or erase the FPGA image. To present again, rerun Launch; to switch designs, open another lesson and run its programming cell."""),
  nb.v4.new_code_cell('stop_demo()\nprint("Notebook-owned RF Arcade stopped; its UART/JTAG handles are released.")',metadata={'tags':['hardware','cleanup']}),
 ]
+arcade_cells.extend(cyberether_examples(6))
 arcade = nb.v4.new_notebook(cells=arcade_cells, metadata=notebook.metadata)
 write_notebook(arcade, ROOT/'notebooks/06_rf_arcade.ipynb')
 
