@@ -189,6 +189,12 @@ python3 scripts/fetch.py firmware
 bash scripts/build_firmware.sh
 ```
 
+The [firmware/programming guide](docs/ESP32_FIRMWARE.md) covers both **RFS2 and Digilent Pmod** UART profiles, the flashing utility, and the temporary FPGA programming bridge. Build Pmod firmware with `bash scripts/build_firmware.sh pmod`; it uses GPIO17/16 during normal operation.
+
+```bash
+.venv-notebooks/bin/python scripts/flash_esp32.py --module pmod-a --port /dev/ttyUSB0 --dry-run
+```
+
 The first SDK installation may download its toolchain and Python environment. Use `IDF_TOOLS_PATH` to choose a separate tools cache. Initial flashing requires your UART/programming wiring and boot-mode handling; the build script does not flash or reset a module. ESP32-S3/S31 and other chip variants are intentionally outside this example.
 
 ## Run IQ Pipeline Lab
@@ -222,3 +228,7 @@ The host performs transport, independent integer-reference checks, display FFT a
 ## Licensing and upstream dependencies
 
 See [NOTICES.md](NOTICES.md). CyberEther, ESP-IDF, ESP-DSP, ESP-SDR and the proprietary FPGA IP retain their own licenses. The repository's root MIT license does not replace those notices. The bootstrap downloads the pinned CyberEther binary and compiles the small local GStreamer registration shim; neither binary is stored in Git.
+
+## Project agent instructions
+
+[AGENTS.md](AGENTS.md) points agents to the local [SKILL.md](SKILL.md), which describes the build, notebook, firmware, Nios, hardware and RF Arcade workflows. The skill stays with this example and does not change global agent settings.

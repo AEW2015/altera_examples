@@ -45,3 +45,4 @@ software/workspace/
 software/ide-validation/
 software/riscfree.log
 gdbopxdriscv.ini
+/build-esp32-pmod/
