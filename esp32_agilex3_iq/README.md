@@ -268,3 +268,5 @@ See [NOTICES.md](NOTICES.md). CyberEther, ESP-IDF, ESP-DSP, ESP-SDR and the prop
 ## Project agent instructions
 
 [AGENTS.md](AGENTS.md) points agents to the local [SKILL.md](SKILL.md), which describes the build, notebook, firmware, Nios, hardware and RF Arcade workflows. The skill stays with this example and does not change global agent settings.
+
+Planned extension: [two-ESP32 Wi-Fi gateway through Agilex 3](docs/WIFI_GATEWAY_FPGA_PLAN.md), including packet forwarding and a separately gated raw-IQ PHY/MAC track.
