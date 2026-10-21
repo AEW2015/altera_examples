@@ -2,6 +2,8 @@
 
 Status: proposed implementation, not a completed modem or hardware result.
 
+This foundation is expanded by the [next major RF demo roadmap: BPSK to 64-QAM](RF_MODEM_BPSK_TO_64QAM_PLAN.md).
+
 ## Demonstration goal
 
 Transmit known data as a clean BPSK/QPSK constellation from one ESP32. Capture it on a second ESP32, recover symbols and bits in Agilex 3, and demonstrate forward error correction (FEC) reducing the measured bit error rate (BER). A third ESP32 independently monitors the transmitted spectrum and activity.
