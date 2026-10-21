@@ -13,7 +13,7 @@ from nios_software import software_env, software_stage
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('checkpoint', type=int, choices=range(2, 8))
+    parser.add_argument('checkpoint', type=int, choices=range(2, 9))
     parser.add_argument('app', choices=['hello_world', 'iq_monitor', 'boot_monitor'])
     parser.add_argument('--ide-build', action='store_true', help='Use RiscFree build/Default ELF instead of CLI build ELF')
     parser.add_argument('--device', type=int, default=0, help='Downloader device index (zero-based in Quartus 26.1.1)')
@@ -26,6 +26,8 @@ def main():
     if not state.exists() or json.loads(state.read_text()).get('stage_relative') != str(stage.relative_to(ROOT)):
         if args.checkpoint == 6:
             parser.error('Load checkpoint06 first: python scripts/modem_fpga.py program')
+        if args.checkpoint == 8:
+            parser.error('Load checkpoint08 first: python scripts/preamble_pipeline.py program')
         if args.checkpoint == 7:
             parser.error('Load checkpoint07 first: python scripts/spi_pipeline.py program')
         parser.error(f'Load the matching FPGA checkpoint first: python scripts/run.py load --checkpoint {args.checkpoint}')

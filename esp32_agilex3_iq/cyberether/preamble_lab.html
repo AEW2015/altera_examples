@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Atum · FPGA Preamble Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#07141d;--panel:#10222e;--line:#23404e;--text:#e4f1f5;--muted:#9eb7c2;--cyan:#40d9de;--amber:#ffbe63;--green:#8adea6;--red:#ff8b81;--blue:#80b9ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 52% -20%,#17394a 0,transparent 54%),var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:1380px;margin:auto;padding:28px 24px 48px}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.eyebrow{color:var(--cyan);font-weight:750;letter-spacing:.13em;text-transform:uppercase;font-size:12px}h1{margin:4px 0 8px;font-size:clamp(28px,4vw,44px);line-height:1.1;letter-spacing:-.03em}.intro{color:var(--muted);max-width:820px;margin:0}.links{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}.links a{color:var(--text);text-decoration:none;border:1px solid var(--line);background:#0a1a25;border-radius:999px;padding:8px 12px;font-size:13px}.links a:hover{border-color:var(--cyan)}
+.hero{margin:22px 0 17px;border:1px solid #285265;background:linear-gradient(110deg,#102532,#0c1e29);border-radius:16px;padding:18px 20px;box-shadow:0 16px 50px #0003}.pipe{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:11px;align-items:stretch}.step{position:relative;min-height:92px;padding:13px;border:1px solid #294654;border-radius:12px;background:#0a1922}.step:not(:last-child):after{content:'›';position:absolute;right:-12px;top:30px;color:var(--cyan);font-size:24px;z-index:2;text-shadow:0 0 12px #40d9de66}.step b{display:block;font-size:13px;margin:4px 0}.step small{color:var(--muted);font-size:11px;display:block}.num{font-size:10px;color:var(--cyan);font-weight:800;letter-spacing:.12em}
+.subnote{margin:12px 2px 0;color:var(--muted);font-size:12px}.subnote strong{color:var(--amber)}
+.actions{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px;margin:16px 0}.action{border:1px solid var(--line);background:#0d202b;border-radius:14px;padding:15px 16px}.action h2{font-size:15px;margin:0 0 5px}.action p{font-size:12px;color:var(--muted);min-height:36px;margin:0 0 12px}.action button{width:100%;border:0;border-radius:9px;padding:11px 13px;font-weight:750;color:#06161e;background:var(--cyan);cursor:pointer}.action:nth-child(2) button{background:var(--amber)}.action:nth-child(3) button{background:#9ad7a6}.action button:disabled{opacity:.45;cursor:not-allowed}.action .tag{font-size:10px;color:var(--muted);margin-top:8px}
+.status{margin:12px 0 16px;border:1px solid var(--line);background:#0d202b;border-radius:12px;padding:13px 15px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}.statusmain{font-weight:700}.detail{color:var(--muted);font-size:12px;margin-top:3px}.badge{font-size:11px;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}.badge.pass{color:var(--green);border-color:#397956}.badge.error{color:var(--red);border-color:#78433f}.progress{height:3px;border-radius:4px;background:#1d3540;overflow:hidden;margin-top:10px;display:none}.progress.busy{display:block}.progress:after{content:"";display:block;width:30%;height:100%;background:linear-gradient(90deg,transparent,var(--cyan),transparent);animation:move 1.3s ease-in-out infinite}@keyframes move{from{transform:translateX(-110%)}to{transform:translateX(440%)}}
+.grid{display:grid;grid-template-columns:1.7fr 1fr;gap:14px}.panel{border:1px solid var(--line);background:linear-gradient(150deg,#10222e,#0b1b25);border-radius:15px;padding:16px;min-width:0}.panel h2{font-size:15px;margin:0 0 4px}.caption{color:var(--muted);font-size:11px;margin:0 0 8px}.canvaswrap{height:310px;position:relative}canvas{display:block;width:100%;height:100%}.iqwrap{height:310px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}.stat{border:1px solid #203c49;border-radius:10px;padding:10px;min-width:0}.stat label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}.stat strong{display:block;margin-top:4px;font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.evidence{margin-top:14px}.evidence dl{display:grid;grid-template-columns:190px 1fr;gap:7px 14px;margin:12px 0 0;font-size:12px}.evidence dt{color:var(--muted)}.evidence dd{margin:0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.scope{color:#c4d8df;font-size:12px;border-left:2px solid var(--amber);padding:8px 10px;background:#ffbe630c;margin-top:12px}.empty{height:100%;display:grid;place-content:center;text-align:center;color:var(--muted);padding:20px}.empty strong{color:var(--text);font-size:14px;margin-bottom:4px}.hidden{display:none!important}.footer{color:#78929f;font-size:11px;margin-top:16px}
+@media(max-width:900px){.pipe{grid-template-columns:repeat(3,1fr)}.step:nth-child(3):after{display:none}.grid{grid-template-columns:1fr}.actions{grid-template-columns:1fr}.top{display:block}.links{justify-content:flex-start;margin-top:13px}}
+@media(max-width:520px){main{padding:18px 12px 32px}.pipe{grid-template-columns:repeat(2,1fr)}.step:nth-child(even):after{display:none}.step:nth-child(3):after{display:block}.stats{grid-template-columns:repeat(2,1fr)}.evidence dl{grid-template-columns:1fr;gap:3px}.evidence dd{margin-bottom:7px}.status{grid-template-columns:1fr}.badge{justify-self:start}}
+</style>
+</head>
+<body>
+<main>
+ <header class="top">
+  <div><div class="eyebrow">Atum A3 Nano · Agilex 3</div><h1>FPGA Preamble Lab</h1><p class="intro">Inspect a coarse differential-QPSK training detector on raw captured IQ. The FPGA computes candidate correlation and peak fields; an independent host integer reference checks the full score trace. This lab does not transmit RF or decode the payload.</p></div>
+  <nav class="links" aria-label="Related labs"><a id="rfLink" href="#">RF Link Lab · 8770</a><a id="spiLink" href="#">SPI IQ Pipeline · 8771</a></nav>
+ </header>
+
+ <section class="hero" aria-label="Preamble detector stages">
+  <div class="pipe">
+   <div class="step"><span class="num">01 · RAW INPUT</span><b>CI8 capture</b><small>Signed I/Q samples · 16 MS/s</small></div>
+   <div class="step"><span class="num">02 · SYMBOL WINDOWS</span><b>16-sample averages</b><small>32 known training positions</small></div>
+   <div class="step"><span class="num">03 · PHASE CHANGE</span><b>31 differentials</b><small>Adjacent complex products</small></div>
+   <div class="step"><span class="num">04 · TRAINING</span><b>Quarter-turn rotation</b><small>Expected QPSK transitions</small></div>
+   <div class="step"><span class="num">05 · COHERENCE</span><b>Normalized Q15 score</b><small>Phase-invariant coarse metric</small></div>
+   <div class="step"><span class="num">06 · PEAK</span><b>Best candidate window</b><small>Candidate start + threshold</small></div>
+  </div>
+  <p class="subnote"><strong>Interpretation:</strong> peak location is coarse capture-window alignment, not the transmitter's exact frame edge. The detector does not provide carrier lock, payload symbols, CRC, FEC, or packet delivery status.</p>
+ </section>
+
+ <section class="actions" aria-label="Explicit preamble lab actions">
+  <article class="action"><h2>Deterministic replay</h2><p>Generate a clean synthetic phase-pulse IQ vector, upload it to the FPGA, then compare every candidate score with the independent reference. No radio transmission.</p><button id="synthetic" disabled>Replay clean IQ</button><div class="tag">Python-generated CI8 · FPGA replay · no RF</div></article>
+  <article class="action"><h2>Saved capture replay</h2><p>Upload the last saved raw RF CI8 file and score it again. Replay adds no new RF observation.</p><button id="saved" disabled>Replay saved RF</button><div class="tag">Saved bytes uploaded · no live capture or TX</div></article>
+  <article class="action"><h2>Passive RF snapshot</h2><p>Request one receive-only PMOD B capture over SPI and run the raw samples through the detector in parallel with FIR.</p><button id="passive" disabled>Passive RF snapshot</button><div class="tag">PMOD B ESP32 receives · no transmit command</div></article>
+ </section>
+
+ <section class="status" aria-live="polite">
+  <div><div id="statusMain" class="statusmain">Connecting to the idle lab…</div><div id="statusDetail" class="detail">This page does not start UART, JTAG, capture, or transmission when opened.</div><div id="progress" class="progress"></div></div>
+  <span id="badge" class="badge">IDLE</span>
+ </section>
+
+ <section class="grid">
+  <article class="panel">
+   <h2>FPGA trace vs independent reference</h2>
+   <p class="caption">Score in normalized Q15 [0,1] · cyan: hardware · amber dashed: Python reference · dotted line: requested threshold</p>
+   <div class="canvaswrap"><canvas id="corr" aria-label="Candidate correlation score plot"></canvas><div id="corrEmpty" class="empty"><strong>No passing trace yet</strong>Run one of the explicit replay or passive receive actions.<br>Plots retain the latest passing result while a new job runs or fails.</div></div>
+   <div class="stats"><div class="stat"><label>Candidate window start</label><strong id="bestStart">—</strong></div><div class="stat"><label>Peak score · Q15</label><strong id="bestScore">—</strong></div><div class="stat"><label>Threshold result</label><strong id="detected">—</strong></div><div class="stat"><label>Full trace comparison</label><strong id="traceCheck">—</strong></div><div class="stat"><label>Detector work</label><strong id="cycles">—</strong></div><div class="stat"><label>Input capture size</label><strong id="samples">—</strong></div></div>
+  </article>
+  <article class="panel">
+   <h2>Raw input IQ</h2><p class="caption">Host display of the captured/saved CI8 input · dots are samples, not recovered QPSK symbols</p>
+   <div class="iqwrap"><canvas id="iq" aria-label="Raw IQ scatter plot"></canvas><div id="iqEmpty" class="empty">No passing IQ plot yet.</div></div>
+   <div class="scope">Alignment marks a candidate 32-symbol training window inside the captured samples. It does not assert a precise TX boundary.</div>
+  </article>
+ </section>
+
+ <section class="panel evidence">
+  <h2>Provenance and verification</h2><p class="caption">The latest successful proof is held on screen separately from the active job status.</p>
+  <dl>
+   <dt>Provenance</dt><dd id="provenance">—</dd>
+   <dt>Host programming record</dt><dd id="checkpoint">—</dd>
+   <dt>Input SHA-256</dt><dd id="inputSha">—</dd>
+   <dt>Frozen raw CRC32</dt><dd id="rawCrc">—</dd>
+   <dt>Capture source / job</dt><dd id="sourceJob">—</dd>
+   <dt>Applied input profile</dt><dd id="inputProfile">—</dd>
+   <dt>Block ID / host manifest</dt><dd id="image">—</dd>
+   <dt>Proof scope</dt><dd id="scope">—</dd>
+  </dl>
+ </section>
+ <p class="footer">Local educational viewer · no external JavaScript or chart libraries · opening the page is idle; each hardware action above is explicit and bounded.</p>
+</main>
+<script>
+(()=>{
+ 'use strict';
+ const $=id=>document.getElementById(id);
+ const buttons=[$('synthetic'),$('saved'),$('passive')];
+ const stateUrl='/api/state';
+ let lastPass=null,active=false,lastState=null;
+ const fmt=n=>Number.isFinite(Number(n))?Number(n).toLocaleString('en-US'):'—';
+ const hex=n=>Number.isFinite(Number(n))?'0x'+(Number(n)>>>0).toString(16).padStart(8,'0'):'—';
+ const setBadge=(label,kind='')=>{$('badge').textContent=label;$('badge').className='badge'+(kind?' '+kind:'')};
+ const setStatus=(main,detail,busy=false)=>{$('statusMain').textContent=main;$('statusDetail').textContent=detail||'';$('progress').classList.toggle('busy',busy)};
+ function checkpointReady(s){return Number(s?.recorded_checkpoint)===8&&!Boolean(s?.preamble_paused)}
+ function syncActions(s){const ready=checkpointReady(s)&&!active;for(const b of buttons)b.disabled=!ready;$('saved').disabled=!ready||s?.saved_available!==true;}
+ function setLinks(){for(const [id,port]of [['rfLink','8770'],['spiLink','8771']]){const u=new URL(location.href);u.port=port;u.pathname='/';u.search='';u.hash='';$(id).href=u.toString()}}
+ function canvasContext(canvas){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(1,r.width),h=Math.max(1,r.height);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);const c=canvas.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return{c,w,h}}
+ function drawCorrelation(proof){const cv=$('corr'),empty=$('corrEmpty'),d=proof?.plots?.correlation;if(!d||!Array.isArray(d.x)||!Array.isArray(d.fpga)||!Array.isArray(d.reference)){cv.classList.add('hidden');empty.classList.remove('hidden');return}cv.classList.remove('hidden');empty.classList.add('hidden');const {c,w,h}=canvasContext(cv),pad={l:54,r:16,t:20,b:38},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,xs=d.x,n=Math.min(xs.length,d.fpga.length,d.reference.length);if(!n)return;const xmax=Math.max(1,Number(xs[n-1])||1),threshold=(Number(proof.requested?.threshold_q15)||0)/32768;const X=x=>pad.l+Math.max(0,Math.min(1,x/xmax))*pw,Y=y=>pad.t+(1-Math.max(0,Math.min(1.05,y)))*ph;
+  c.clearRect(0,0,w,h);c.font='11px system-ui';c.lineWidth=1;c.strokeStyle='#25404c';c.fillStyle='#9eb7c2';
+  for(let k=0;k<=4;k++){const v=k/4,y=Y(v);c.beginPath();c.moveTo(pad.l,y);c.lineTo(w-pad.r,y);c.stroke();c.fillText(v.toFixed(2),8,y+4)}
+  for(let k=0;k<=4;k++){const v=xmax*k/4,x=X(v);c.beginPath();c.moveTo(x,pad.t);c.lineTo(x,h-pad.b);c.stroke();c.textAlign=k===0?'left':k===4?'right':'center';c.fillText(Math.round(v).toLocaleString(),x,h-12);c.textAlign='left'}
+  c.fillStyle='#9eb7c2';c.fillText('Normalized Q15 score',pad.l,13);c.fillText('Candidate start sample',Math.max(pad.l,w/2-56),h-1);
+  c.setLineDash([3,4]);c.strokeStyle='#ffbe6388';c.beginPath();c.moveTo(pad.l,Y(threshold));c.lineTo(w-pad.r,Y(threshold));c.stroke();c.setLineDash([]);
+  function line(values,color,dashed){c.beginPath();c.strokeStyle=color;c.lineWidth=1.7;c.setLineDash(dashed?[6,4]:[]);for(let i=0;i<n;i++){const x=X(xs[i]),y=Y((Number(values[i])||0)/32768);i?c.lineTo(x,y):c.moveTo(x,y)}c.stroke();c.setLineDash([])}
+  line(d.fpga,'#40d9de',false);line(d.reference,'#ffbe63',true);
+  const peak=Number(proof.hardware?.best_start);if(Number.isFinite(peak)){c.strokeStyle='#ffffff88';c.setLineDash([2,4]);c.beginPath();c.moveTo(X(peak),pad.t);c.lineTo(X(peak),h-pad.b);c.stroke();c.setLineDash([])}
+ }
+ function drawIq(proof){const cv=$('iq'),empty=$('iqEmpty'),q=proof?.plots?.iq;if(!q||!Array.isArray(q.i)||!Array.isArray(q.q)){cv.classList.add('hidden');empty.classList.remove('hidden');return}cv.classList.remove('hidden');empty.classList.add('hidden');const {c,w,h}=canvasContext(cv),pad={l:36,r:14,t:14,b:34},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,n=Math.min(q.i.length,q.q.length),m=Math.max(32,...q.i.map(Math.abs),...q.q.map(Math.abs)),cx=pad.l+pw/2,cy=pad.t+ph/2,scale=Math.min(pw,ph)/(2*m*1.1);c.clearRect(0,0,w,h);c.strokeStyle='#294452';c.lineWidth=1;c.beginPath();c.moveTo(cx,pad.t);c.lineTo(cx,h-pad.b);c.moveTo(pad.l,cy);c.lineTo(w-pad.r,cy);c.stroke();c.fillStyle='#40d9deaa';for(let i=0;i<n;i++){const x=cx+q.i[i]*scale,y=cy-q.q[i]*scale;c.beginPath();c.arc(x,y,2,0,Math.PI*2);c.fill()}c.fillStyle='#9eb7c2';c.font='11px system-ui';c.fillText('I',w-pad.r-10,cy-6);c.fillText('Q',cx+6,pad.t+10);c.fillText('Raw IQ scatter',pad.l,h-9)}
+ function renderProof(p){if(!p||p.status!=='PASS'||!p.completed)return;drawCorrelation(p);drawIq(p);$('bestStart').textContent=fmt(p.hardware?.best_start)+' samples';$('bestScore').textContent=fmt(p.hardware?.best_score)+' / 32768';$('detected').textContent=p.detected?'DETECTED':'BELOW THRESHOLD';$('traceCheck').textContent=p.verification?.full_trace_bit_exact?'Exact · max error '+fmt(p.verification.max_q15_error):'Not exact';$('cycles').textContent=fmt(p.timing?.fpga_cycles)+' cycles · '+(Number.isFinite(p.timing?.fpga_seconds)?(p.timing.fpga_seconds*1e3).toFixed(2)+' ms':'—');$('samples').textContent=fmt(p.frozen?.samples)+' complex · '+fmt(p.frozen?.rate/1e6)+' MS/s';$('provenance').textContent=(p.provenance?.kind||'unknown')+' · '+(p.provenance?.description||'');$('checkpoint').textContent='Checkpoint '+(p.image?.checkpoint??p.recorded_checkpoint??'—')+' · recorded SHA '+(p.image?.sha256||'—');$('inputSha').textContent=p.input_sha256||'—';$('rawCrc').textContent=hex(p.frozen?.raw_crc)+' · verified '+(p.verification?.input_crc_verified?'yes':'no');$('sourceJob').textContent='source '+fmt(p.frozen?.source)+' · job '+fmt(p.frozen?.job);$('inputProfile').textContent=fmt(p.requested?.samples)+' samples · '+fmt(p.requested?.sps)+' SPS · window '+fmt(p.requested?.window)+' · stride '+fmt(p.requested?.stride)+' · threshold '+fmt(p.requested?.threshold_q15)+'/32768';$('image').textContent='Actual block ID '+hex(p.actual_block_identity)+' · host manifest SHA '+(p.image?.sha256||'—')+' · '+(p.image?.scope||'Programming record, not a device-read hash');$('scope').textContent=(p.scope||'Coarse preamble alignment only')+' · Complete training/body window fits: '+(p.buffer_coverage?.complete54symbol_window_fits?'yes':'no')+' (host index/length check only).';}
+ function describeSnapshot(p){if(!p)return;const when=p.updated_at?new Date(p.updated_at*1000).toLocaleString():'time unavailable';if(p.status==='PASS'){lastPass=p;renderProof(p);setBadge('PASS','pass');if(!active)setStatus('Latest preamble proof passed',when+' · full FPGA score trace matches the independent Python reference.',false)}else if(p.status==='ERROR'){setBadge('ERROR','error');if(!active)setStatus('Latest job did not pass',p.error||'See the saved proof for details. Existing plots remain from the latest passing run.',false)}}
+ function applyState(s){lastState=s;syncActions(s);if(s.snapshot)describeSnapshot(s.snapshot);const j=s.job||{},busy=j.busy===true;active=busy;syncActions(s);if(busy){setBadge('RUNNING');const started=Number(j.started_at),elapsed=Number.isFinite(started)?Math.max(0,Math.floor(Date.now()/1000-started))+' s elapsed':'';const progress=s.snapshot?.updated_at>=j.started_at?s.snapshot.progress:null;const stage=progress?progress.stage+(Number.isFinite(progress.total)?' · '+progress.completed+' / '+progress.total:''):'FPGA transaction';setStatus(stage+' in progress',elapsed+' · No transmit operation. The activity bar remains indeterminate.',true)}else if(s.preamble_paused||Number(s.recorded_checkpoint)!==8){setBadge('PAUSED');setStatus('Checkpoint 08 is not available',s.preamble_paused?'Preamble acquisition is paused by the recorded image/bus state. Load the compatible image before using these actions.':'Recorded FPGA image is checkpoint '+(s.recorded_checkpoint??'unknown')+'. These actions require checkpoint 08.',false)}else if(!s.snapshot){setBadge('IDLE');setStatus('Ready · idle', 'No UART/JTAG owner is opened by this page. Choose one explicit action to begin.',false)}else if(!busy)describeSnapshot(s.snapshot);syncActions(s)}
+ async function poll(){try{const r=await fetch(stateUrl,{cache:'no-store'});if(!r.ok)throw new Error('State request failed: HTTP '+r.status);applyState(await r.json())}catch(e){setBadge('OFFLINE','error');setStatus('Preamble lab backend unavailable',e.message+' · opening this page does not start hardware.',false);buttons.forEach(b=>b.disabled=true)}}
+ async function action(path,payload,label){if(active||!checkpointReady(lastState))return;active=true;syncActions(lastState||{});setBadge('QUEUED');setStatus(label+' requested','Waiting for the local lab controller; no transmit operation is available.',true);try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||('HTTP '+r.status));setStatus(label+' started','The controller owns the bounded verification job. Plot remains on the last passing proof until a new one passes.',true);await poll()}catch(e){active=false;setBadge('ERROR','error');setStatus(label+' could not start',e.message,false);syncActions(lastState||{})}}
+ $('synthetic').addEventListener('click',()=>action('/api/synthetic',{},'Synthetic replay'));
+ $('saved').addEventListener('click',()=>action('/api/capture',{source:'saved'},'Saved RF replay'));
+ $('passive').addEventListener('click',()=>action('/api/capture',{source:'passive'},'Passive RF snapshot'));
+ setLinks();window.addEventListener('resize',()=>{if(lastPass){drawCorrelation(lastPass);drawIq(lastPass)}});poll();setInterval(poll,1600);
+})();
+</script>
+</body>
+</html>

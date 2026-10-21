@@ -89,7 +89,7 @@ class SPIManager(CaptureManager):
         # A manifest is a programming hint; every checker still probes hardware.
         checkpoint = active.get('checkpoint')
         return dict(snapshot=snapshot, job=job, recorded_checkpoint=checkpoint,
-                    spi_capture_paused=checkpoint != 7)
+                    spi_capture_paused=checkpoint not in (7, 8))
 
     def capture(self, data, synthetic=False):
         if not isinstance(data, dict) or set(data) - {'pipeline', 'profile', 'host_baud', 'captures'}:

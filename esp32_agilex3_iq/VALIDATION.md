@@ -592,3 +592,44 @@ The current-image GUI regression passed 12 alternating pairs (six synthetic, six
 The independent saved-raw audit passed integrity checks and blind re-decode for all 172 unique v6 captures. BPSK: eight captures, nine acquired frames, eight CRC passes / one fail, 16/396 coded errors → 0/72 soft payload errors (hard decoder 1/72). QPSK: at 12 µs, 34 CRC-valid frames from 64 captures, 30 no-acquisition and 0/1496 coded → 0/272 payload errors; at 10 µs CLI, 30 valid from 32, two no-acquisition and 0/1320 → 0/240; at 9 µs, 23 CRC-valid from 32, seven failures, two no-acquisition, 171/1320 → 27/240 soft payload errors (hard 21/240); at 8 µs, 32 captures produced zero acquired frames because TX completed zero frames. BER is undefined at 8 µs. The 9 µs sample does not show a soft-FEC benefit.
 
 Proofs and grouped denominators are under `cyberether/run/rf-v6-independent-audit/qualification.json`, `rf-v6-bpsk-rfs2-002/proof.json`, `rf-v6-qpsk-{8us,9us,10us,12us}-001/proof.json`, `rf-link-browser-v6-final.json` and `rf-link-20261021-222650-1792621610926103009/proof.json`. The 100,000-payload-bit target, continuous coverage and automatic watchdog recovery remain open. No 16/64-QAM RF or arbitrary-IQ claim follows from these measurements.
+
+
+## Checkpoint08 preamble observer — current cf2eea09
+
+Checkpoint08's 14-block native VDS export, Quartus build and official Nios V
+BSP/Hello World/IQ monitor builds passed. The compiled/routed FPGA implementation
+reported 29,472/45,800 ALMs, 152/353 M20Ks and 24/368 DSPs, with 50 MHz setup
+slack +6.591 ns and minimum hold slack +0.019 ns. The final current SOF is
+`cf2eea090cd7825d23087b2e0dbacc2e5b08c3aa898e98aff5b43ef64205145d`, source
+fingerprint `dd6bf7276d85b1a1f73619a69e9aaab6a786184e86ade61af66b6ab414b1f439`.
+After a monitor-only `PAIR`/`PRESET` command reservation fix, the Nios boot
+memory was refreshed with Quartus's MIF-update/assembler flow. This did not
+change RTL or routed logic; the prior timing/resource report applies. The
+official BSP and applications were rebuilt but no ELF was downloaded.
+
+Nine RTL fixtures and seven model tests passed. The full host suite passed 228
+tests. A regression exposed that the original 8ae98339 image's preamble command
+parser intercepted the existing FIR `PAIR`/`PRESET` controls; the corrected
+current image passed the FIR regression with 16,380 complex samples, exact
+Hamming integer-reference output, valid CRC, restored coefficients, disabled
+pairing and host UART back at 2 Mbaud (`preamble-fir-regression-fixed-001`).
+
+The current-image browser checks passed clean synthetic replay, replay of a
+saved RFS2 QPSK capture, and one passive PMOD B SPI snapshot. All three proofs
+reported `tx_started: false`, valid input CRC, exact full FPGA/reference score
+traces, cleanup readbacks and no browser JavaScript errors. Synthetic replay
+(10,000 samples) checked 1,257 exact candidates; best start 60, score 32,739,
+and 2,091,649 FPGA cycles (41.83298 ms). Saved replay checked 2,852 exact
+candidates from the prior `rf-v6-qpsk-10us-001` source-0/job-7 sample; best
+start 924, score 32,696, and 4,745,729 cycles (94.91458 ms). Replay adds no new
+RF observation. The passive 16,380-sample source-2/job-5 capture checked 2,852
+candidates, best start 6,040 and score 4,141, below the 24,576 threshold, so no
+preamble was detected. Its SPI sequence/bank/length/CRC, mode restoration and
+detector clear checks passed; it took 4,610,049 FPGA cycles (92.20098 ms).
+
+Final PMOD A idle proof `cyberether/run/preamble-tx-idle-after.json` reports v6
+`busy=0`, raw tone1 register `0x20000000`, tone2 `0`, extension tone `0`, and
+zero amplitude fields for both tones (both disabled); RFS2 host UART is at 2 Mbaud. No test sent a TX command. These results qualify the coarse detector
+against this bounded synthetic, saved and passive data; they do not prove exact
+TX boundary recovery, payload decode, BER, continuous reception or a full QPSK
+FPGA receiver.

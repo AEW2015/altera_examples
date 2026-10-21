@@ -74,3 +74,6 @@ firmware/esp32_spi_probe/build/
 
 # Generated standalone checkpoint07 simulation fixtures
 /simulation/spi_pipeline/
+
+# Generated preamble detector simulation vectors
+/simulation/preamble/

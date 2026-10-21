@@ -7,7 +7,7 @@ import numpy as np
 ROOT=Path(__file__).resolve().parents[1]
 import sys
 sys.path.insert(0,str(ROOT/'scripts'))
-from common import tool_command,tool_path
+from common import tool_command,tool_path,tool_exe
 HAMMING=[-42,-177,-406,-352,669,2961,5846,7885,7885,5846,2961,669,-352,-406,-177,-42]
 PROFILES={1:[2048]*16,2:HAMMING}
 CABLE=os.getenv('ATUM_JTAG_CABLE','Atum A3 Nano [1-4.3-iface0]')
@@ -24,7 +24,7 @@ class NiosFir:
         run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
         self.pidfile=run/f'nios-fir-{os.getpid()}.pid'
         shared=tool_path(self.pidfile)
-        self.process=subprocess.Popen(tool_command(['stdbuf','-oL','-eL','/opt/altera/quartus/bin/juart-terminal','-q','-c',CABLE,'-d','1','-i','0','--no-quit-on-ctrl-d','--write-pid',shared]),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+        self.process=subprocess.Popen(tool_command(['stdbuf','-oL','-eL',str(tool_exe('juart-terminal')),'-q','-c',CABLE,'-d','1','-i','0','--no-quit-on-ctrl-d','--write-pid',shared]),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
         def reader():
             for line in self.process.stdout:
                 if self.log:self.log.write(line);self.log.flush()
@@ -94,6 +94,35 @@ if p.exists():
             return dict(id=ident,verb=parts[3],**values)
         raise TimeoutError(f'Nios did not acknowledge {verb}')
     def status(self):return self.command('STATUS')
+    def commands(self,calls,timeout=12):
+        """Bounded pipelined control writes; match every reply by request ID.
+
+        This removes a JTAG polling round trip per small replay block. The
+        existing command() API remains synchronous for ordinary controls.
+        """
+        calls=list(calls)
+        if not 1<=len(calls)<=16:raise ValueError('Batch requires1..16commands')
+        pending={};lines=[]
+        for call in calls:
+            verb,*args=call
+            if not isinstance(verb,str) or not verb.isalnum() or any('\n' in str(a) or '\r' in str(a) for a in args):
+                raise ValueError('One verb and single-line arguments required')
+            self.request+=1;ident=self.request;pending[ident]=verb
+            lines.append(f'FIR {ident} {verb}'+''.join(' '+str(a) for a in args)+'\n')
+        self.process.stdin.write(''.join(lines));self.process.stdin.flush()
+        deadline=time.monotonic()+timeout;results={}
+        while len(results)<len(pending):
+            if time.monotonic()>=deadline:raise TimeoutError('Batched Nios reply deadline exceeded')
+            parts=self.line(deadline).split(',')
+            if len(parts)<4 or parts[0]!='FIR':continue
+            try:ident=int(parts[1])
+            except ValueError:continue
+            if ident not in pending:continue
+            if ident in results or parts[2]!='OK' or parts[3]!=pending[ident]:
+                raise RuntimeError('Invalid/failed/duplicate batched Nios reply: '+','.join(parts))
+            values={key:int(value,16 if key.endswith('crc') or key=='bits' else 10) for key,value in (v.split('=',1) for v in parts[4:] if '=' in v)}
+            results[ident]=dict(id=ident,verb=parts[3],**values)
+        return [results[ident] for ident in pending]
     def wait(self,mask,timeout=12):
         deadline=time.monotonic()+timeout
         while time.monotonic()<deadline:

@@ -86,3 +86,5 @@ export ATUM_UART=/dev/ttyUSB0
 Select 1–5 for each FPGA lesson, or 6 for RF Arcade using checkpoint 5. The checker executes the authored programming/launch cells in Jupyter, verifies live progress updates and checks the corresponding physical feature. Add `--browser` if the optional Playwright/Chromium development tools are installed to capture the rendered live page. Stop unrelated device owners before running. Executed notebooks and evidence stay in ignored `cyberether/run/notebook-hardware-retest/`; they can include private viewer links and should not be published wholesale.
 
 Notebooks 01–06 end with saved **CyberEther example screenshots**, including a second FIR coefficient-editor view. These render directly in Jupyter, VS Code and GitHub without running the demos. [Screenshot descriptions](screenshots/README.md).
+
+Explore [10 FPGA Preamble Lab](10_fpga_preamble.ipynb): differential training detection on raw CI8, Python score plots, native checkpoint08 VDS diagram, Questa tests and optional FPGA replay. The focused page uses clean/saved-IQ replay or one passive SPI RF snapshot; it has no TX controls. [Guide](../docs/FPGA_PREAMBLE_LAB.md).

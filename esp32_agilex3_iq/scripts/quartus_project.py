@@ -155,12 +155,15 @@ def verify_archive(stage):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('checkpoint', choices=['1', '2', '3', '4', '5', '7', 'all'])
+    parser.add_argument('checkpoint', choices=['1', '2', '3', '4', '5', '7', '8', 'all'])
     parser.add_argument('--verify', action='store_true', help='Compile each ZIP after extracting to a fresh directory')
     parser.add_argument('--jobs', type=int, choices=[1, 2], default=2)
     args = parser.parse_args()
     if args.checkpoint == 'all':
         selected = stages()  # Preserve the established 1–5 `all` scope.
+    elif args.checkpoint == '8':
+        from preamble_pipeline import STAGE
+        selected = [STAGE]
     elif args.checkpoint == '7':
         # Import lazily: spi_pipeline imports this module inside its build path.
         from spi_pipeline import STAGE

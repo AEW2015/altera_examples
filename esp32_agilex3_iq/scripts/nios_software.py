@@ -25,10 +25,12 @@ def software_env():
 def software_stage(checkpoint):
     if checkpoint == 6:
         return ROOT / 'fpga_hub/iq_bridge/vds_demo_06_modem'
+    if checkpoint == 8:
+        return ROOT / 'fpga_hub/iq_bridge/vds_demo_08_preamble'
     if checkpoint == 7:
         return ROOT / 'fpga_hub/iq_bridge/vds_demo_07_spi_fir'
     if checkpoint not in range(2, 6):
-        raise ValueError('Nios checkpoint 2–7 required')
+        raise ValueError('Nios checkpoint 2–8 required')
     return stages()[checkpoint - 1]
 
 
@@ -38,6 +40,8 @@ def generate(checkpoint, build=True, refresh_sources=False):
     if not system.exists():
         if checkpoint == 6:
             raise RuntimeError('Generate checkpoint 06 first: python scripts/modem_fpga.py generate')
+        if checkpoint == 8:
+            raise RuntimeError('Generate checkpoint 08 first: python scripts/preamble_pipeline.py generate')
         if checkpoint == 7:
             raise RuntimeError('Generate checkpoint 07 first: python scripts/spi_pipeline.py generate')
         raise RuntimeError(f'Generate checkpoint {checkpoint} first: python scripts/build.py {checkpoint} --generate-only')
@@ -115,7 +119,7 @@ def open_ide():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('checkpoint', choices=['2', '3', '4', '5', '6', '7', 'all'])
+    parser.add_argument('checkpoint', choices=['2', '3', '4', '5', '6', '7', '8', 'all'])
     parser.add_argument('--generate-only', action='store_true', help='Generate the BSP and app CMake files without compiling')
     parser.add_argument('--open', action='store_true', help='Open the official RiscFree IDE on the current desktop')
     parser.add_argument('--refresh-sources', action='store_true', help='Replace editable app main.c copies with the repository examples')

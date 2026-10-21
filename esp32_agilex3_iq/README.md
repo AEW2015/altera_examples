@@ -19,6 +19,8 @@ The [FIR notebook](notebooks/03_fir_filter.ipynb) includes [15 reloadable filter
 
 **Modem Lab:** [notebook 08](notebooks/08_modem_lab.ipynb) and [run guide](docs/MODEM_LAB.md) demonstrate BPSK → QPSK → 16-QAM → 64-QAM, synchronization, soft decoding and BER. A separate [VDS modem checkpoint](fpga_hub/iq_bridge/vds_demo_06_modem/README.md) implements the FPGA symbol/FEC path. [Implementation status](docs/MODEM_IMPLEMENTATION_STATUS.md) distinguishes Python, RTL, hardware and the unresolved original-ESP32 IQ transmitter. [Full roadmap](docs/RF_MODEM_BPSK_TO_64QAM_PLAN.md).
 
+**FPGA Preamble Lab:** [notebook 10](notebooks/10_fpga_preamble.ipynb) and [guide](docs/FPGA_PREAMBLE_LAB.md) add raw-IQ differential QPSK training detection. Clean/saved-IQ replay and passive RF checks use no transmitter commands. Checkpoint08 retains SPI and FIR in parallel with the detector.
+
 **Original ESP32 TX bring-up:** [measured RF results and plots](docs/ESP32_TX_BRINGUP_RESULTS.md), [bounded diagnostic firmware](firmware/esp32_tx_probe/README.md), and repeatable CW/OOK checks. PMOD A sends; RFS2 receives; the FPGA transports captures. Arbitrary-IQ TX remains a separate investigation.
 
 ## Contents
@@ -30,6 +32,8 @@ The [FIR notebook](notebooks/03_fir_filter.ipynb) includes [15 reloadable filter
 | [3 · FIR II](#checkpoint-3--fir-ii) | `vds_demo_03_fir` | 13 | Reloadable 16-tap filter and paired raw/filtered readback |
 | [4 · DDC](#checkpoint-4--ddc) | `vds_demo_04_ddc` | 16 | Frequency translation, I/Q FIR filters and decimation |
 | [5 · Gain and meters](#checkpoint-5--gain-and-meters) | `vds_demo_05_gain` | 17 | Saturating digital gain and integer power/peak/clip meters |
+| [7 · SPI and FIR](docs/SPI_PIPELINE_LAB.md) | `vds_demo_07_spi_fir` | 13 | PMOD B SPI ingress and exact paired FIR checks |
+| [8 · Preamble](docs/FPGA_PREAMBLE_LAB.md) | `vds_demo_08_preamble` | 14 | Raw-IQ training correlation, score trace and coarse alignment |
 
 RTL, Nios firmware and the native VDS construction/connection Tcl definitions are included. The editable `.vds` diagrams and vendor IP parameter caches are regenerated from those definitions. Vendor HDL, synthesis databases, bitfiles, SDKs, Python environments, captures and credentials are generated/downloaded locally. The small CI8 files under `cyberether/samples/clean-ddc` are deterministic synthetic test fixtures, not RF recordings.
 
@@ -62,7 +66,7 @@ processing boundaries and measured error counts.
 
 [BER qualification](docs/BER_QUALIFICATION.md) compares hard/soft FEC on identical synthetic samples and audits physical RF separately. [QPSK qualification](docs/QPSK_QUALIFICATION.md) documents the measured 12 µs operating point and shorter-period failures. The [SPI transport prototype](docs/SPI_TRANSPORT.md) has separate firmware/FPGA images; installing it is an explicit hardware step.
 
-The separate [SPI IQ Pipeline Lab](docs/SPI_PIPELINE_LAB.md) runs on port8771. Opening it does not acquire RF; the installed SPI meter supports explicit test-pattern or passive-RF runs, while SPI-plus-FIR checkpoint07 still awaits hardware qualification.
+The separate [SPI IQ Pipeline Lab](docs/SPI_PIPELINE_LAB.md) runs on port8771. Opening it does not acquire RF; the installed SPI meter supports explicit test-pattern or passive-RF runs, and SPI-plus-FIR checkpoint07 has passed bounded hardware verification.
 
 Use a **Linux x86-64 desktop where the FPGA tools are installed**. This can be your host or a desktop inside a container. Run the installer and Jupyter in that same environment; Docker is not required by the notebooks.
 
