@@ -148,7 +148,7 @@ def main():
                 with Bridge(args.port) as bridge:
                     bridge.control(2,1,2000000)
                     proof['identity']=bridge.radio_command(1,'INFO','TX_PROBE,')
-                    if not proof['identity'].startswith('TX_PROBE,v=4,'):raise RuntimeError('Requires installed v4 probe')
+                    if not proof['identity'].startswith(('TX_PROBE,v=4,','TX_PROBE,v=5,','TX_PROBE,v=6,')):raise RuntimeError('Requires installed v4/v5 probe')
                     bitline=bridge.radio_command(1,f'FRAMEBITS {args.payload}','FRAMEBITS,')
                     bitfields=dict(x.split('=',1) for x in bitline.split(',')[1:])
                     if bitfields['bits']!=''.join(str(int(x)) for x in frame_bits(args.payload)) or int(bitfields['payload'])!=args.payload:

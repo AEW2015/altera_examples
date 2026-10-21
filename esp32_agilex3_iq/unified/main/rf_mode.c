@@ -83,6 +83,12 @@ void rf_csi_main(void);
 void rf_sdr_main(void);
 void app_main(void)
 {
+#ifdef IQ_SPI_RX_PROFILE
+    // Explicit separate qualification profile; never use a saved MONITOR/CSI mode.
+    current_mode=RF_SDR;
+    rf_sdr_main();
+    return;
+#endif
     esp_err_t err=nvs_flash_init();
     if (err==ESP_ERR_NVS_NO_FREE_PAGES || err==ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase()); err=nvs_flash_init();

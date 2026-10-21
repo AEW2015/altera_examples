@@ -31,6 +31,8 @@ def fields(line):
 def snapshot(proof, requested, status, error=None):
     rows = proof['rows']
     reports = [r['report'] for r in rows]
+    plot_index = next((i for i in range(len(rows)-1, -1, -1) if reports[i]['valid_frames']), len(rows)-1)
+    plot_row = rows[plot_index] if rows else None
     totals = {key: sum(r[key] for r in reports) for key in
               ('valid_frames', 'acquisition_failures', 'coded_errors',
                'coded_bits', 'payload_errors', 'payload_bits')}
@@ -40,8 +42,8 @@ def snapshot(proof, requested, status, error=None):
                   crc_pass=totals['valid_frames'], crc_total=acquired)
     if not reports:
         totals = {k: None for k in totals}
-    return dict(schema='rf-link-v1', status=status,
-                updated_at=rows[-1]['captured_at'] if rows else time.time(),
+    return dict(schema='rf-link-v1', modulation='BPSK', status=status,
+                updated_at=plot_row['captured_at'] if plot_row else time.time(),
                 status_updated_at=time.time(),
                 provenance=dict(kind='synthetic' if proof['kind']=='synthetic_bpsk' else 'physical_rf',
                     description='Generated phase-ramp test fixture' if proof['kind']=='synthetic_bpsk'
@@ -55,8 +57,11 @@ def snapshot(proof, requested, status, error=None):
                           for label, location in [('Phase-pulse TX','PMOD A ESP32'),('Raw CI8 RX','ESP32'),
                               ('Capture RAM / transport','Agilex 3 FPGA'),('Carrier / timing / frame acquisition','Host'),
                               ('Soft demap / K7 FEC / CRC','Host')]],
-                metrics=totals, plots=reports[-1]['plots'] if reports else {}, error=error,
-                notes=['BER includes synchronized CRC-failed frames; unsynchronized captures have their own counter.',
+                metrics=totals, plots=plot_row['report']['plots'] if plot_row else {}, error=error,
+                plot_capture=dict(index=plot_index, source_sha256=plot_row['transport'].get('payload_sha256') if plot_row else None, crc_valid=bool(plot_row and plot_row['report']['valid_frames']),
+                                  captured_at=plot_row['captured_at'] if plot_row else None),
+                notes=['Plots retain the latest CRC-valid capture within this batch; counts include every attempt. Plot age refers to those displayed samples.',
+                       'BER includes synchronized CRC-failed frames; unsynchronized captures have their own counter.',
                        'Frames outside sparse capture windows are unobserved. No delivery ratio is inferred.',
                        'The on-air frame carries one payload byte; CRC and six termination bits are separate.',
                        'FPGA symbol/FEC replay is a separate explicitly measured step, not live waveform synchronization.',
@@ -84,9 +89,9 @@ def main():
         parser.error('--synthetic-coded-flips requires --synthetic')
     args.output.mkdir(parents=True, exist_ok=False)
     requested = dict(channel=args.channel, payload=args.payload, symbol_us=args.symbol_us,
-                     pulse_cycles=args.pulse_cycles, rx_gain=args.rx_gain, source=args.source)
+                     pulse_cycles=args.pulse_cycles, rx_gain=args.rx_gain, source=args.source, backoff_qdb=args.backoff_qdb)
     requested['synthetic_coded_flips']=args.synthetic_coded_flips if args.synthetic else None
-    proof = dict(kind='synthetic_bpsk' if args.synthetic else 'physical_rf_bpsk',
+    proof = dict(requested=requested, kind='synthetic_bpsk' if args.synthetic else 'physical_rf_bpsk',
                  completed=False, rows=[], processing='Host synchronization/demapping/FEC; FPGA capture transport only')
 
     def publish(status, error=None):
@@ -124,8 +129,8 @@ def main():
             with Bridge(args.port) as bridge:
                 bridge.control(2, 1, 2000000)
                 proof['identity'] = bridge.radio_command(1, 'INFO', 'TX_PROBE,')
-                if not proof['identity'].startswith('TX_PROBE,v=4,'):
-                    raise RuntimeError('Framed RF requires explicitly installed v4 probe')
+                if not proof['identity'].startswith(('TX_PROBE,v=4,','TX_PROBE,v=5,','TX_PROBE,v=6,')):
+                    raise RuntimeError('Framed RF requires explicitly installed v4/v5 probe')
                 bitline = bridge.radio_command(1, f'FRAMEBITS {args.payload}', 'FRAMEBITS,')
                 encoded = dict(x.split('=', 1) for x in bitline.split(',')[1:])
                 expected = ''.join(str(int(x)) for x in frame_bits(args.payload))

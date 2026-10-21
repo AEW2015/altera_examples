@@ -52,6 +52,7 @@ def main():
     if live:
         print('Already running:', meta['url']); return
     with socket.socket() as check:
+        check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         check.bind((a.host, a.port))
     command = [sys.executable, str(ROOT / 'cyberether/rf_link_lab.py'), '--host', a.host, '--port', str(a.port), '--input', str(a.input.resolve())]
     with (RUN / 'rf-link-lab-service.log').open('a') as log:

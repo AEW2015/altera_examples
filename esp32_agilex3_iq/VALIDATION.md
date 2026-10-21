@@ -357,3 +357,138 @@ Local evidence: `cyberether/run/rf-bpsk-001` through `rf-bpsk-004`,
 `rf-bpsk-001/fpga-proof.json`, `rf-bpsk-fir-001/proof.json`, and
 `rf-bpsk-independent-review.json`. Runtime captures remain private/ignored.
 [Walkthrough and reproduction commands](docs/RF_BPSK_WALKTHROUGH.md).
+
+## BER qualification and physical QPSK — 2026-10-21
+
+The roadmap now sequences measured BER qualification, SPI transport, then
+increased modulation complexity. Parallel agents implemented independent BER,
+SPI and QPSK paths; Luna handled documentation. The qualified v5 transmitter
+source is preserved in Git commit `ba208dc`, separately from the subsequent v6
+cycle-deadline optimization (built, not yet RF-qualified).
+
+### BER evidence
+
+The offline BPSK AWGN experiment uses 1,000 independent random 16-byte frames per
+point, 128,000 payload bits at each −2/0/2/4/6 dB encoder-information Eb/N0.
+Finite termination cost enters the effective code rate; CRC information bits
+are included, preamble and guards excluded. Hard/soft Viterbi see identical
+received samples. At 4 dB, hard decoding produced 704 payload errors versus 8
+with soft metrics. At 6 dB both observed zero; the 95% one-sided zero-event bit
+bound is 2.3404e-5 under an independent-bit assumption. Decoder errors correlate,
+so separately returned independent-frame bounds are more appropriate for frame
+reliability. Perfect synchronization is assumed; these are not RF measurements.
+
+Saved RF proofs are audited with raw-SHA deduplication, separate receiver and
+setting groups, and missing historical settings left unknown. The earlier
+96 captures/97 frame observations give 79/4268 coded errors → 0/776 payload
+errors with both hard and soft decoding. The separate v5 BPSK regression adds
+four captures/four valid frames, 1/176 → 0/32. Neither establishes a hard/soft RF
+advantage because both decoders succeed. A training-only offline timing audit
+reduced errors on the same older RFS2 data from 75/4092 to 69/4092 without
+changing CRC or payload results; its modest gain was not installed in the live
+receiver. Replays add no independent RF observations.
+
+### QPSK qualification
+
+A phase-state gate measured three quarter-turn captures with four coherent
+plateaus (335 requested cycles, step3, 32 µs symbols). Fourth circular moments
+were 0.9702/0.9789/0.9885; all carrier-only and BPSK controls rejected the
+four-state criterion. This gate itself does not decode bits.
+
+PMOD A was then explicitly flashed with v5, hashes verified, and normal startup
+reported INFO v5. Application SHA-256:
+`057dda48dcd6621d9bfd09d06eb565767265ee50b661535e45d22746bca315ef`.
+The 64-symbol QFRAME contains 32 fixed training states, 22 Gray-coded payload/
+CRC/FEC symbols and ten guards. All 256 native encoder payloads match the
+independent reference. Quarter/half/three-quarter requests are independently
+configurable; these RF trials used 335/670/1005 at the measured 160 MHz CPU.
+
+| Physical run | Symbol period | Captures | Acquired frames | CRC pass/fail | Acquisition failures | Coded errors/bits | Payload errors/bits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| QPSK001, original receiver | 8 µs | 8 | 0 | 0/0 | 8 | 0/0 | 0/0 |
+| QPSK002, original receiver | 12 µs | 8 | 4 | 4/0 | 4 | 0/176 | 0/32 |
+| QPSK003 | 10 µs | 16 | 12 | 6/6 | 4 | 112/528 | 19/96 |
+| QPSK004, payload3C | 12 µs | 32 | 21 | 21/0 | 11 | 0/924 | 0/168 |
+
+At 8 µs, transmitter counters reported **zero completed frames**, about 5,080
+missed deadlines per job; this is a failed operating point, not BER zero.
+At 10 µs, some correctly acquired training precedes damaged bodies; CRC failures
+and payload errors remain included. At 12 µs, counters show completed frames and
+far fewer timing misses. Use 12 µs as the default; sparse capture windows still
+may miss a complete training/body sequence.
+
+The receiver now requires the actual 54 training/body symbols, rather than ten
+unused guards too. Blind reprocessing QPSK002 recovered five valid frames from
+the same eight captures (0/220 → 0/40), while leaving QPSK001 unacquired. This is
+an offline improvement on existing data, not five new RF frames. Tests accept
+omitted guards but reject a truncated body, CW and noise. Known payload changes
+only BER measurement; blind and referenced acquisition return identical frames.
+
+Checkpoint06 was physically programmed and decoded 22 measured symbols from
+QPSK004, after an explicit host −135° rotation to match its different Gray-map
+convention. Received noise/amplitude were retained. Hardware block ID was
+`0x4d440601`; integer soft metrics and Viterbi bits matched independent references:
+0/44 coded errors → 0/8 payload errors, CRC valid. Decode took **3,100 cycles /
+62 µs at 50 MHz**; the JTAG transaction took **68.328 seconds**. The source-matched
+SOF hash is recorded in the earlier checkpoint06 section. Checkpoint03 was
+restored after the replay. Raw carrier/timing acquisition remains on the host.
+
+### Presentation and reproducibility
+
+RF Link Lab port8770 now offers BPSK/QPSK, defaults QPSK requests to 12 µs,
+labels expected Gray points separately from received dots, and retains the most
+recent CRC-valid plot within a batch while counting every attempt. The plot age
+refers to the displayed capture. Historical FPGA FIR/replay panels preserve
+source hashes and remain separate operations. Synthetic pages hide those panels.
+The BER button runs a bounded offline experiment and leaves the RF snapshot
+unchanged. During ROM programming, RF capture was verified to refuse the missing
+runtime manifest. Actual browser tests verified the BER action, QPSK reference,
+mode defaults and page rendering without JavaScript errors.
+
+Notebook08 includes progress feedback, editable BER/QPSK simulations and saved
+physical screenshots. Its QPSK software record contains two full frame periods;
+actual RF retains 16,380 samples. The clean model has no firmware timing jitter.
+Local proofs: `rf-qpsk-001` through `rf-qpsk-004`, their independent reviews,
+`rf-qpsk-004/fpga-proof.json`, `phase-qpsk-gate-001/four-state-proof.json`,
+`ber-qualification/qualification.json`, and `bpsk-robustness-audit-001.json` under
+ignored `cyberether/run/`. The 100,000-payload-bit RF target, continuous capture,
+full FPGA synchronization and amplitude-linear QAM remain open.
+
+### SPI preparation (hardware reset pending)
+
+Separate SPIQ0001 qualification firmware and FPGA sources compile and simulate.
+The original ESP32 DMA slave starts with synthetic data and accepts explicit
+T/R requests for synthetic/fixed-channel8 CI8 snapshots; packet flags identify
+the applied mode. Python/C wire encoders agree; all four SPI modes, CS, READY,
+backpressure, bounds, reset and full packet-to-UART paths pass Questa checks.
+SPIQ0001 fit: 323 ALMs, 405 registers, one RAM, zero DSP; 50 MHz setup/hold
++13.699/+0.084 ns and nominal 5 MHz SPI +88.747/+18.415 ns. All eight physical
+pins use explicitly fitted 3.3 V I/O. The separate meter variant adds FPGA
+CRC/header/order checking and atomic whole-capture power/peak/clipping results.
+It is independently simulated and compiled before hardware use.
+
+Combined SPI application SHA:
+`51412513067d942e1d476bb861df9731ed18972a79f510bcd06f1dd031c7c499`.
+SPIQ0001 SOF SHA:
+`b424cc647e767ce6a83b5a11482fc63ad49aea6be60fae430fe370b9c50f312c`.
+These build results do not establish physical SPI throughput or correctness.
+PMOD B's ROM bridge is loaded, GPIO0 low, and its manual programming-reset
+prompt is pending. No B SPI flash or physical SPI capture has occurred yet.
+Current working-tree host suite: **172 tests passed**.
+
+The SPIQ0002 meter image also completed a no-edit consistency rebuild, with
+1,237 ALMs, 1,940 registers, one RAM and one reported DSP block. Setup/hold
+slacks are +12.698/+0.088 ns (50 MHz) and +88.334/+18.626 ns (nominal 5 MHz
+SPI), with zero unconstrained clocks/ports. SOF SHA:
+`7385b167454d9e6e297f463e5376bf4ac47b81113da56cefea13e632aa58c540`.
+Twelve host/native SPI tests and two meter Questa testbenches pass, including
+backwards/replayed sequence rejection, wrap, signed rails and separate clipped
+sample/component counts. FPGA measurement correctness still needs the physical
+SPI qualification; compiled allocation is not live utilization.
+
+The subsequent v6 TX build replaces per-symbol wall-clock calls with a checked,
+wrap-safe CPU-cycle deadline that charges setup against the original 500 ms
+limit. Dynamic frequency scaling is rejected; short pulse interrupt masking,
+STOP and restoration remain. Native deadline tests pass and the app builds:
+`6da0772f01bc853e20424aa2b1ed681929163b68389225d7d600dd659cff3b78`.
+It is not flashed and does not establish faster QPSK or improved RF BER.

@@ -52,13 +52,15 @@ Open the [RF Arcade setup notebook](notebooks/06_rf_arcade.ipynb) for the guided
 Start with [the notebook guide](notebooks/README.md). Each checkpoint has a Python model, plots, a PNG exported by the actual VDS GUI, an RTL simulation, an FPGA build/program step and its own focused CyberEther page.
 
 The new [RF Link Lab](docs/RF_BPSK_WALKTHROUGH.md) adds a compact original-ESP32
-framed-BPSK prototype to notebook08. Start its page with
+framed BPSK/QPSK experiment to notebook08. Start its page with
 `.venv-notebooks/bin/python scripts/start_rf_link_lab.py start` (port 8770).
 **Clean reference** and **FEC challenge** use clearly labelled synthetic input;
-**Capture RF** needs the explicitly installed v4 probe and runtime FPGA hub.
+**Capture RF** needs the explicitly installed v4/v5 probe (QPSK: v5) and runtime FPGA hub.
 Actual framed RF, same-capture FPGA FIR and separate FPGA demapper/FEC replay
 are hardware-tested; the [walkthrough](docs/RF_BPSK_WALKTHROUGH.md) records their
 processing boundaries and measured error counts.
+
+[BER qualification](docs/BER_QUALIFICATION.md) compares hard/soft FEC on identical synthetic samples and audits physical RF separately. [QPSK qualification](docs/QPSK_QUALIFICATION.md) documents the measured 12 µs operating point and shorter-period failures. The [SPI transport prototype](docs/SPI_TRANSPORT.md) has separate firmware/FPGA images; installing it is an explicit hardware step.
 
 Use a **Linux x86-64 desktop where the FPGA tools are installed**. This can be your host or a desktop inside a container. Run the installer and Jupyter in that same environment; Docker is not required by the notebooks.
 

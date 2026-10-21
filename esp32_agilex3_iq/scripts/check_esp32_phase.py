@@ -33,8 +33,8 @@ def main():
         with Bridge(a.port)as b:
             b.control(2,1,2000000)
             proof['identity']=b.radio_command(1,'INFO','TX_PROBE,')
-            if not proof['identity'].startswith(('TX_PROBE,v=3,','TX_PROBE,v=4,')):raise RuntimeError('Phase probe requires v3/v4')
-            if a.fast_step and not proof['identity'].startswith('TX_PROBE,v=4,'):raise RuntimeError('FASTPHASE requires v4')
+            if not proof['identity'].startswith(('TX_PROBE,v=3,','TX_PROBE,v=4,','TX_PROBE,v=5,','TX_PROBE,v=6,')):raise RuntimeError('Phase probe requires v3/v4')
+            if a.fast_step and not proof['identity'].startswith(('TX_PROBE,v=4,','TX_PROBE,v=5,','TX_PROBE,v=6,')):raise RuntimeError('FASTPHASE requires v4')
             proof['receiver']=b.prepare_sdr(0,2447,16000000)
             old=b.radio_command(0,'GAIN?','GAIN ')
             try:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay real RF recovered BPSK symbols into an already-loaded FPGA modem.
+"""Replay real RF recovered BPSK/QPSK symbols into an already-loaded FPGA modem.
 
 Requires checkpoint06. Does not program an image, open the radio UART, or send
 RF. Carrier/timing/frame acquisition stays on the host; FPGA soft demapping and
@@ -24,8 +24,11 @@ from rf_bpsk import crc8, frame_bits, int_bits
 
 def select_frames(proof, max_frames=1):
     """Select by sync only: CRC failures must not be excluded from BER checks."""
-    if proof.get('kind')!='physical_rf_bpsk':
-        raise ValueError('Expected physical_rf_bpsk capture proof; synthetic inputs are not accepted')
+    if proof.get('kind') not in ('physical_rf_bpsk','physical_rf_qpsk'):
+        raise ValueError('Expected physical_rf_bpsk or physical_rf_qpsk capture proof; synthetic inputs are not accepted')
+    qpsk = proof['kind']=='physical_rf_qpsk'
+    symbol_count = 22 if qpsk else 44
+    max_sync_errors = 2 if qpsk else 1
     if not isinstance(max_frames,int) or not 1<=max_frames<=100:
         raise ValueError('max_frames must be1..100')
     selected=[]
@@ -36,11 +39,11 @@ def select_frames(proof, max_frames=1):
         if len(digest)!=64 or any(x not in '0123456789abcdef' for x in digest.lower()):
             raise ValueError('Missing valid captured CI8 payload SHA-256')
         for candidate_index,frame in enumerate(row.get('report',{}).get('candidates',[])):
-            if not isinstance(frame.get('sync_errors'),int) or not 0<=frame['sync_errors']<=1:
+            if not isinstance(frame.get('sync_errors'),int) or not 0<=frame['sync_errors']<=max_sync_errors:
                 continue
             symbols=np.asarray(frame.get('symbols'),dtype=float)
-            if symbols.shape!=(44,2) or not np.isfinite(symbols).all():
-                raise ValueError('Expected44 finite recovered complex BPSK symbols')
+            if symbols.shape!=(symbol_count,2) or not np.isfinite(symbols).all():
+                raise ValueError(f'Expected{symbol_count} finite recovered complex symbols')
             selected.append((row_index,candidate_index,payload,digest,frame,symbols))
             if len(selected)>=max_frames:
                 return selected
@@ -51,6 +54,11 @@ def select_frames(proof, max_frames=1):
 
 def check(owner,proof,output=None,max_frames=1,input_path=None):
     selected=select_frames(proof,max_frames)
+    mode='QPSK' if proof['kind']=='physical_rf_qpsk' else 'BPSK'
+    bps=2 if mode=='QPSK' else 1
+    # FPGA QPSK LUT has00=(-I,-Q). RF cardinal Gray00=+I,01=-Q,
+    # 11=-I,10=+Q therefore needs a -135deg rotation, not +45deg.
+    rotation_radians=-3*np.pi/4 if bps==2 else 0.
     # Constructor reads actual hardware blockID before writes.
     modem=ModemFPGA(owner)
     block_id=modem.read(0)
@@ -61,16 +69,19 @@ def check(owner,proof,output=None,max_frames=1,input_path=None):
         expected_frame_code=frame_bits(payload)[16:60]
         np.testing.assert_array_equal(expected_code,expected_frame_code)
         started=time.monotonic()
-        # Encode configures the actual modem length/BPSK mode and golden RAM.
+        # Encode configures the actual modem length/modulation mode and golden RAM.
         # The following decode input is measured RF IQ, not this golden IQ.
-        tx=modem.encode(info,bps=1)
+        tx=modem.encode(info,bps=bps)
         np.testing.assert_array_equal(tx['coded'],expected_code)
-        rounded=np.rint(symbols*8192.)
+        measured_complex=symbols[:,0]+1j*symbols[:,1]
+        rotated=measured_complex*np.exp(1j*rotation_radians)
+        frontend_symbols=np.column_stack((rotated.real,rotated.imag))
+        rounded=np.rint(frontend_symbols*8192.)
         limited=np.clip(rounded,-32767,32767).astype(np.int16)
         quantization_clips=int(np.count_nonzero(rounded!=limited))
         rx=modem.decode(limited)
         wall=time.monotonic()-started
-        expected_llr=fixedpoint_soft_demapper(limited,'BPSK')
+        expected_llr=fixedpoint_soft_demapper(limited,mode)
         np.testing.assert_array_equal(rx['llr'],expected_llr)
         reference_bits=viterbi_decode(expected_llr,soft=True,terminated=True)
         np.testing.assert_array_equal(rx['bits'],reference_bits)
@@ -91,6 +102,10 @@ def check(owner,proof,output=None,max_frames=1,input_path=None):
                     info_errors=info_errors,info_bits=16,fpga_counter_raw_errors=int(rx['raw_errors']),
                     fpga_counter_decoded_errors=int(rx['decoded_errors']),
                     symbol_format='CI16 Q3.13, normalized measured RX late-symbol averages',
+                    modulation=mode,bits_per_symbol=bps,measured_symbol_count=len(symbols),
+                    host_frontend_rotation_radians=float(rotation_radians),
+                    host_frontend_rotation_degrees=float(np.degrees(rotation_radians)),
+                    measured_symbols_before_rotation=symbols.tolist(),
                     quantization_clipped_components=quantization_clips,
                     symbols_ci16=limited.tolist(),fpga_llr=np.asarray(rx['llr']).tolist(),
                     fpga_decoded_info=np.asarray(rx['bits']).tolist(),
@@ -101,10 +116,12 @@ def check(owner,proof,output=None,max_frames=1,input_path=None):
                     decode_kernel_seconds=int(rx['cycles'])/50000000.,
                     jtag_transaction_wall_seconds=wall)
         results.append(result)
-    result=dict(kind='physical_rf_bpsk_fpga',status='PASS_FPGA_RF_SYMBOL_REPLAY',
+    result=dict(kind=proof['kind']+'_fpga',status='PASS_FPGA_RF_SYMBOL_REPLAY',
                 tested_unix=time.time(),device='Atum A3 Nano / Agilex 3',
-                hardware_block_id=f'{block_id:08x}',host_processing='RF carrier/timing/frame acquisition and amplitude normalization',
-                fpga_processing='BPSK integer soft demapper and terminated K7(171,133) Viterbi',
+                hardware_block_id=f'{block_id:08x}',host_processing='RF carrier/timing/frame acquisition, amplitude normalization and explicit constellation convention rotation',
+                frontend_rotation_degrees=float(np.degrees(rotation_radians)),
+                modulation=mode,
+                fpga_processing=f'{mode} integer soft demapper and terminated K7(171,133) Viterbi',
                 transmitted_by_this_check=False,waveform_synchronization_in_fpga=False,
                 selection='Sync-acquired candidates, regardless of CRC outcome; no CRC-based BER filtering',
                 capture_hash_scope='Copied from transport provenance; this replay does not reacquire RF or rehash raw CI8 files',
@@ -130,7 +147,7 @@ def check(owner,proof,output=None,max_frames=1,input_path=None):
 @task('Replay recovered RF symbols through FPGA')
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--input',required=True,type=Path,help='Physical capture proof.json from RF BPSK harness')
+    parser.add_argument('--input',required=True,type=Path,help='Physical capture proof.json from RF BPSK/QPSK harness')
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--max-frames',type=int,default=1,help='Default1 limits slow JTAG transfers; selects by sync, regardless of CRC')
     args=parser.parse_args()

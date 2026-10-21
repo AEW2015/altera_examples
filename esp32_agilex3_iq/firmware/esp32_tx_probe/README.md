@@ -225,3 +225,84 @@ are used only after recovery to count errors. CRC-failed synchronized frames
 remain in BER counts; unobserved gaps and acquisition failures stay separate.
 The separate `check_rf_bpsk_fpga.py` can replay measured, host-synchronized symbols
 through the existing FPGA demapper/FEC after explicitly loading checkpoint 06.
+
+## v5: experimental Gray QPSK phase frames
+
+v5 retains every v4 command and adds independently calibrated transitions:
+
+```text
+QFRAMEBITS 165
+QFRAME 8 500 120 165 8 335 670 1005
+STOP
+```
+
+`QFRAME` arguments are channel, bounded duration (50–500 ms), attenuation
+(80–120 quarter-dB), payload byte, symbol period (8–256 µs), and three requested
+CPU pulse widths for +1/+2/+3 phase-state advances modulo four. The measured
+RF phase advances in the negative direction. The three widths are independent;
+firmware does not assume that doubling a pulse request doubles the phase.
+The largest request must fit within 80% of a symbol. Requests run only at an
+explicit command; normal startup leaves RF disabled. `STOP` remains available
+between the short interrupt-masked pulses. The worker uses `xTaskCreate`, also
+on the pinned SDK's single-core configuration.
+
+The provisional 160 MHz profile is **335 / 670 / 1005 request cycles**. Quarter
+and half turns were measured separately at a longer symbol period. A complete
+8 µs QPSK frame, especially the three-quarter transition, needs its own RF
+qualification; compiling the image or decoding the Python fixture is not that
+qualification. `QFRAME_CFG` reports the CPU clock, all three requests, payload,
+symbol period, job ID and 64-symbol size for matching against each capture.
+
+```text
+32 known training states | 22 QPSK coded symbols | 10 zero-state guards
+01320312023110233012032120310302
+```
+
+The body is the same payload8 + CRC8 + six terminating zeros encoded with K=7
+(171,133 octal) as v4. Adjacent coded-bit pairs use cardinal Gray labels:
+`00→state0`, `01→state1`, `11→state2`, `10→state3`. State `k` ideally has phase
+`−k·π/2`. On each symbol the firmware advances by `(target-current) mod 4`;
+unchanged states require no pulse. It tracks the actual applied state across a
+missed deadline, abandons the damaged frame and restarts its training marker.
+This remains a scalar NCO phase-pulse experiment, not arbitrary Cartesian IQ or
+a pulse-shaped standards-compliant QPSK transmitter.
+
+`QFRAMEBITS payload8` reports the actual 64 state digits without initializing RF.
+Native tests compare all 256 payloads against the independent Python encoder.
+`cyberether/rf_qpsk.py` estimates carrier/timing/phase from fixed training,
+soft-demaps the captured body, then runs Viterbi and CRC on the host. Optional
+known payload is only a BER reference after acquisition. The synthetic test
+includes phase ramps, random capture phase, CFO and noise, and is labelled as
+simulation. Hardware capture requires already-installed v5 firmware:
+
+```bash
+python scripts/check_rf_qpsk.py --synthetic --output cyberether/run/qpsk-model
+python scripts/check_rf_qpsk.py --output cyberether/run/qpsk-rf --captures 4
+```
+
+The second command uses the existing FPGA capture transport and briefly enables
+PMOD A RF; it does not flash either device. Use the shared RF Link capture lock
+and one acquisition owner. The script verifies state-encoder/configuration
+readbacks, saves original CI8, checks transmitter idle/tone-off and restores RX
+gain. Sparse gaps between captures are not counted as error-free traffic.
+
+## v6: cycle-bounded phase scheduling
+
+v6 preserves the v5 commands and replaces the wall-clock call in every symbol
+with a cached CPU-cycle deadline. At phase-loop entry it reads elapsed wall time
+once, subtracts that setup time from the original bounded job duration, and
+checks that the remaining cycle budget is positive and below `2^31`. Signed
+32-bit deadline comparisons remain valid when the hardware counter wraps.
+The build rejects dynamic frequency scaling (`CONFIG_PM_ENABLE` must be off);
+the qualified profile uses a fixed 160 MHz CPU. A symbol whose scheduled start
+is outside the deadline is not transmitted.
+
+The interrupt mask still covers only an individual frequency pulse. UART STOP,
+missed-slot restart, tone-off and register restoration retain their existing
+behavior. This is software scheduling: an in-progress short pulse and interrupt
+latency still set the stop granularity; it is not a hardware RF kill timer.
+Native tests exercise counter wrap, exact expiration, expired setup budgets and
+the removal of per-symbol wall-clock reads. RF testing must separately establish
+whether this reduces missed deadlines or enables complete 8 µs QPSK frames.
+The previously qualified v5 firmware is retained privately before rebuilding;
+v6 compilation by itself is not a new RF qualification.

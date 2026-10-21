@@ -57,3 +57,9 @@ void probe_qframe_states(uint16_t payload, uint8_t states[64]) {
     for(unsigned i=54;i<64;i++) states[i]=0;
 }
 
+bool probe_cycle_budget(uint32_t cpu_hz, int64_t remaining_us, uint32_t *cycles) {
+    if (!cycles || !cpu_hz || remaining_us<=0 || remaining_us>500000) return false;
+    uint64_t budget=(uint64_t)cpu_hz*(uint64_t)remaining_us/1000000u;
+    if (!budget || budget>INT32_MAX) return false;
+    *cycles=(uint32_t)budget; return true;
+}

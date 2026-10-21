@@ -21,6 +21,9 @@
 #include "soc/dport_access.h"
 #include "nvs_flash.h"
 #include "probe_protocol.h"
+#if CONFIG_PM_ENABLE
+#error "Cycle-bounded phase jobs require the fixed-frequency SDK profile (CONFIG_PM_ENABLE=n)"
+#endif
 static QueueHandle_t jobs;
 static volatile bool busy, cancel;
 static bool initialized;
@@ -64,15 +67,25 @@ static uint32_t IRAM_ATTR phase_pulse(uint32_t original_ext,uint32_t step,uint32
     return width;
 }
 static void phase_run(const probe_job_t *job,int64_t started,uint32_t original_ext) {
-    uint32_t period=(uint64_t)esp_clk_cpu_freq()*job->symbol_us/1000000u;
-    uint32_t next=esp_cpu_get_cycle_count();unsigned current=0,index=0;
+    /* Read the wall clock once, charging setup/printf against the original
+     * worker deadline. Per-symbol wall-clock calls consumed the 8 us budget.
+     * CONFIG_PM_ENABLE=n guarantees this CPU-cycle timebase cannot change. */
+    uint32_t cpu=esp_clk_cpu_freq(),budget;
+    int64_t remaining=(int64_t)job->duration_ms*1000-(esp_timer_get_time()-started);
+    if (!probe_cycle_budget(cpu,remaining,&budget)) return;
+    uint32_t period=(uint64_t)cpu*job->symbol_us/1000000u;
+    configASSERT(period && period<INT32_MAX);
+    uint32_t next=esp_cpu_get_cycle_count(),deadline=next+budget;
+    unsigned current=0,index=0;
     bool qframe=(job->nco_step&0x200)!=0;
     bool frame=(job->nco_step&0x300)!=0;
     unsigned step=job->nco_step&3;if (!step) step=1;
     uint8_t bits[64];if (qframe) probe_qframe_states(job->pattern,bits);
     else if (frame) probe_frame_bits(job->pattern,bits);
-    while (!cancel && esp_timer_get_time()-started<(int64_t)job->duration_ms*1000) {
-        if (!wait_cycle(next)) break;
+    while (!cancel && probe_cycle_before(esp_cpu_get_cycle_count(),deadline)) {
+        /* Do not wait for a symbol whose start lies outside the original job. */
+        if (!probe_cycle_before(next,deadline) || !wait_cycle(next)) break;
+        if (!probe_cycle_before(esp_cpu_get_cycle_count(),deadline)) break;
         uint32_t at=esp_cpu_get_cycle_count();
         if ((int32_t)(at-next)>(int32_t)(period/50)) phase_stats.late++;
         unsigned bit=frame?bits[index]:(job->pattern>>(7-index))&1;
@@ -174,7 +187,7 @@ static void command(char *line) {
     if (!strcmp(line,"INFO")) {
         uint8_t mac[6]; esp_chip_info_t chip;
         ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA)); esp_chip_info(&chip);
-        printf("TX_PROBE,v=5,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x,tx=%d,rx=%d,baud=2000000,busy=%d,iq=unverified\n",chip.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,busy);
+        printf("TX_PROBE,v=6,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x,tx=%d,rx=%d,baud=2000000,busy=%d,iq=unverified\n",chip.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,busy);
     } else if (!strcmp(line,"PHASECAP")) {
         uint32_t cpu=esp_clk_cpu_freq();
         printf("PHASECAP,cpu=%"PRIu32",half_cycles=%"PRIu32",step_nom_mHz=39062500,fast_half_cycles=%"PRIu32",fast_step=3\n",cpu,cpu/78125u,cpu/234375u);

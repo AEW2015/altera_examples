@@ -11,3 +11,9 @@ void probe_frame_bits(uint16_t payload, uint8_t bits[64]);
 
 void probe_qframe_states(uint16_t payload, uint8_t states[64]);
 
+/* Valid only for deadlines less than 2^31 cycles in the future. */
+static inline bool probe_cycle_before(uint32_t now, uint32_t deadline) {
+    return (int32_t)(now-deadline)<0;
+}
+/* Remaining wall time is measured once at phase-run entry. */
+bool probe_cycle_budget(uint32_t cpu_hz, int64_t remaining_us, uint32_t *cycles);

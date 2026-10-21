@@ -18,7 +18,13 @@ if(IDF_TARGET STREQUAL "esp32s31")
 endif()
 set(receiver "${target_dir}/receiver.c")
 set(sources "common/burst_serial.c" "common/burst_gpio.c" "common/burst_version.c" "common/spectrum_stats.c" "common/rx_recalibration.c" "common/rx_calibration_state.c")
-set(dependencies lwip esp_driver_gpio esp_hw_support esp_phy esp_wifi nvs_flash esp_timer esp_driver_uart esp-dsp)
+set(dependencies lwip esp_driver_gpio esp_hw_support esp_phy esp_wifi nvs_flash esp_timer esp_driver_uart esp_driver_spi esp-dsp)
+# Separate opt-in SPI raw-RX profile; default UART firmware is unchanged.
+option(IQ_SPI_RX_PROFILE "Fixed channel8 CI8 captures over PMOD SPI (separate image)" OFF)
+if(IQ_SPI_RX_PROFILE)
+    list(APPEND sources "${CMAKE_CURRENT_LIST_DIR}/../../firmware/esp32_spi_probe/main/iq_spi_slave.c" "${CMAKE_CURRENT_LIST_DIR}/../../firmware/esp32_spi_probe/main/iq_spi_packet.c")
+endif()
+
 option(RING_PROBE "Build bounded experimental ring diagnostics (never package)" OFF)
 if(IDF_TARGET STREQUAL "esp32c61" OR IDF_TARGET STREQUAL "esp32c6")
     list(APPEND sources "common/ring_capture.c")
@@ -66,6 +72,11 @@ idf_component_register(SRCS "${receiver}" ${sources} "rf_mode.c" "monitor_mode.c
     LDFRAGMENTS ${fragments}
     PRIV_INCLUDE_DIRS "." "common" ${target_includes} "diagnostics"
     REQUIRES ${dependencies})
+
+if(IQ_SPI_RX_PROFILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE IQ_SPI_RX_PROFILE=1)
+    target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../firmware/esp32_spi_probe/main")
+endif()
 
 # Regenerate at build time (not only CMake configure time). The embedded record
 # is also the artifact exporter's source of revision and UTC build time.

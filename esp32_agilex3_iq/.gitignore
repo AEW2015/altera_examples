@@ -58,3 +58,16 @@ firmware/modem_tx/build/
 firmware/esp32_tx_probe/sdkconfig*
 !firmware/esp32_tx_probe/sdkconfig.defaults
 firmware/esp32_tx_probe/build/
+
+# Separate SPI transport qualification profile
+/build-esp32-spi-probe/
+firmware/esp32_spi_probe/sdkconfig*
+!firmware/esp32_spi_probe/sdkconfig.defaults
+firmware/esp32_spi_probe/build/
+/build-esp32-spi-rx/
+/simulation/spi/
+/fpga_hub/iq_bridge/spi_transport/output_files/
+/fpga_hub/iq_bridge/spi_transport/*.qsf.backup
+/simulation/spi_meter/
+/fpga_hub/iq_bridge/spi_meter/output_files/
+/fpga_hub/iq_bridge/spi_meter/*.qsf.backup

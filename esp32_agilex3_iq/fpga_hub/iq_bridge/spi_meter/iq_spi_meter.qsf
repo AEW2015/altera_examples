@@ -1,0 +1,30 @@
+set_global_assignment -name FAMILY "Agilex 3"
+set_global_assignment -name DEVICE A3CZ135BB18AE7S
+set_global_assignment -name TOP_LEVEL_ENTITY iq_spi_meter_top
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+set_global_assignment -name SYSTEMVERILOG_FILE ../spi_transport/rtl/iq_spi_master.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_spi_meter_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../vds_demo_01_raw/rtl/uart_fractional.sv
+set_global_assignment -name SDC_FILE iq_spi_meter.sdc
+set_location_assignment PIN_A8 -to CLOCK1_50
+set_location_assignment PIN_L1 -to HOST_RX
+set_location_assignment PIN_T6 -to HOST_TX
+# Atum System CD golden_top.qsf TMD1_D[0..4] = PMOD1 J1.1/2/3/4/7.
+set_location_assignment PIN_AR2 -to SPI_CS_N
+set_location_assignment PIN_AJ6 -to SPI_MOSI
+set_location_assignment PIN_AK1 -to SPI_MISO
+set_location_assignment PIN_AR1 -to SPI_SCK
+set_location_assignment PIN_AL12 -to SPI_READY
+set_global_assignment -name LAST_QUARTUS_VERSION "26.1.1 Pro Edition"
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to CLOCK1_50 -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to HOST_RX -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to HOST_TX -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI_CS_N -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI_MOSI -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI_MISO -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI_SCK -entity iq_spi_meter_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI_READY -entity iq_spi_meter_top
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_spi_capture_meter.sv

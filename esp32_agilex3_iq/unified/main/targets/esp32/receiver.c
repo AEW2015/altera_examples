@@ -8,6 +8,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "burst_serial.h"
+#ifdef IQ_SPI_RX_PROFILE
+#include "iq_spi_slave.h"
+#endif
 #include "rf_mode.h"
 #include "burst_gpio.h"
 #include "burst_version.h"
@@ -43,7 +46,11 @@ SOC_RESERVE_MEMORY_REGION(0x3ffe8000, 0x3fff8000, esp32_rf_dump);
 static uint32_t *const samples = (void *)0x3ffe8000;
 static unsigned gain_max, gain_code = 40;
 static bool hardware_agc = true;
+#ifdef IQ_SPI_RX_PROFILE
+static unsigned frequency_mhz = 2447; // Channel8 qualification profile, passive RX.
+#else
 static unsigned frequency_mhz = 2412;
+#endif
 /* Original ESP32 BBTOP RX filter: registers 1/2, seven-bit capacitor DAC.
  * Preserve bit 7 and restore PHY calibration before any retune or transfer. */
 static int rx_filter = -1;
@@ -271,5 +278,32 @@ void rf_sdr_main(void) {
     REG_CLR_BIT(RX_GAIN, BIT(23)); /* Hardware AGC is the default. */
     fflush(stdout);
     burst_serial_init();
+#ifdef IQ_SPI_RX_PROFILE
+    (void)command; // This separate passive profile uses a fixed capture configuration.
+    // Starts with synthetic transport only. SPI first-byte R requests real RX;
+    // T returns to the deterministic pattern, applied at a chunk boundary.
+    ESP_ERROR_CHECK(iq_spi_init(true));
+    for(uint32_t sequence=0;;sequence++) {
+        bool synthetic=iq_spi_requested_synthetic();
+        iq_spi_set_capture_synthetic(synthetic);
+        unsigned elapsed=0;
+        bool acquired=true;
+        if(synthetic) {
+            uint8_t *bytes=(uint8_t *)samples;
+            for(size_t n=0;n<MAX_SAMPLES*2;n++)bytes[n]=(uint8_t)(n*37+11);
+        } else {
+            acquired=acquire_iq(MAX_SAMPLES,0,0,&elapsed);
+            if(acquired)pack_iq8(MAX_SAMPLES);
+        }
+        if(acquired) {
+            esp_err_t status=iq_spi_publish((const int8_t *)samples,
+                MAX_SAMPLES*2,2,sequence,5000);
+            if(status!=ESP_OK && status!=ESP_ERR_INVALID_STATE)
+                reply("SPI_RX_ERROR %u %d\n",sequence,status);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+#else
     burst_serial_serve(command);
+#endif
 }
