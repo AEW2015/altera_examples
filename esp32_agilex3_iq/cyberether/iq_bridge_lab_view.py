@@ -12,7 +12,7 @@ def font(n):return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSa
 def text(d,x,y,s,n=20,color=INK):d.text((x,y),str(s),font=font(n),fill=color)
 def card(d,box,title):d.rounded_rectangle(box,12,fill=CARD,outline=LINE,width=2);text(d,box[0]+18,box[1]+13,title,22,CYAN)
 def short(s,n=16):return str(s)[:n]
-def plot(d,box,series,labels,title,xlabel,ylim=None,scatter=False,primary_on_top=False):
+def plot(d,box,series,labels,title,xlabel,ylim=None,scatter=False,primary_on_top=False,colors=None):
     card(d,box,title);l,t,r,b=box;l+=65;t+=62;r-=24;b-=47
     vals=[float(v)for row in series for v in (np.asarray(row).flatten() if scatter else row)]
     if ylim:lo,hi=ylim
@@ -21,7 +21,7 @@ def plot(d,box,series,labels,title,xlabel,ylim=None,scatter=False,primary_on_top
         pad=max(.5,(hi-lo)*.12);lo-=pad;hi+=pad
     for tick in range(5):
         y=t+(b-t)*tick/4;d.line((l,y,r,y),fill=LINE);text(d,l-60,y-10,f'{hi-(hi-lo)*tick/4:.0f}',14,MUTED)
-    traces=list(zip(series,labels,(CYAN,GOLD)))
+    traces=list(zip(series,labels,colors or (CYAN,GOLD)))
     if primary_on_top:traces.reverse()
     for row,label,color in traces:
         if scatter:
@@ -198,6 +198,7 @@ def render_ddc(state,image,d):
 
 def render_focus(state):
     lesson=int(os.getenv('ATUM_LESSON','0'))
+    if lesson in (1,3,4,5):return render_diagnostic(state,lesson)
     if lesson==2:
         image=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(image)
         text(d,28,20,'2 · NIOS V TRANSFER MONITOR',32,CYAN)
@@ -218,14 +219,59 @@ def render_focus(state):
         card(d,(1150,415,1772,865),'Coherent counters · no sample DSP')
         for j,line in enumerate([f"Window sequence: {telemetry.get('seq','—')}",f"Capture errors: {telemetry.get('capture_errors','—')}",f"UART errors: {telemetry.get('radio_errors','—')}",f"Logger drops: {telemetry.get('log_drops','—')}",'50 MHz counter clock','Nios software division: RV32I','FPGA samples are not CPU-filtered']):text(d,1175,480+45*j,line,21,MUTED)
         usage(d,state.get('fpga',{}));return image
-    image=render(state)
-    d=ImageDraw.Draw(image)
-    if lesson==1:
-        d.rectangle((0,80,W,183),fill=BG)
-        for j,(title,sub)in enumerate([('ESP32 ADC','Sparse CI8 RF bursts'),('FPGA UART + CRC','Framing and validation'),('FPGA capture RAM','Frozen IQ snapshot'),('Host + CyberEther','Display FFT / plots')]):
-            x=28+j*440;d.rounded_rectangle((x,91,x+415,178),10,fill=CARD,outline=CYAN,width=2);text(d,x+15,105,title,23,CYAN);text(d,x+15,143,sub,18,MUTED)
-    if lesson==4:
-        d.rectangle((25,560,883,870),fill=BG);card(d,(28,564,880,865),'Frequency translation → FIR II → decimation')
-        c=state.get('latest',{}).get('ddc',{});m=c.get('ddc',{})
-        for j,line in enumerate(['FPGA clean two-tone input',f"Decimation: {m.get('decimation','—')}",f"Output nominal rate: {m.get('output_rate',0)/1e6:g} MS/s",f"Output pairs: {m.get('output_samples','—')}",f"Independent integer error: {m.get('max_reference_error','—')} LSB",'Gain/meter hardware is added in lesson 5']):text(d,55,630+33*j,line,23,MUTED)
-    return image
+    return render(state)
+
+
+def render_diagnostic(state,lesson):
+    """Native CyberEther canvas uses the same evidence contract as the browser."""
+    from lesson_evidence import evidence,plot_data,NAMES
+    proof=evidence(state,lesson);capture=proof['result']
+    image=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(image)
+    text(d,28,20,f'{lesson} · {NAMES[lesson].upper()}',30,CYAN)
+    color=GREEN if proof['status']=='VERIFIED'else RED if proof['status']in ('ERROR','MISMATCH')else GOLD
+    text(d,1300,25,proof['status'],27,color)
+    card(d,(28,79,1772,180),'FPGA TEST SIGNAL · no RF transmission'if proof.get('synthetic')else'ESP32 RF · sparse burst capture')
+    text(d,50,126,proof['reason'][:140],19,color)
+    if not capture:
+        text(d,50,260,'Use the browser quick-check buttons for a deterministic input and readback proof.',25,MUTED)
+        usage(d,state.get('fpga',{}));return image
+    p=plot_data(capture);a=p['input_spectrum'];b=p['output_spectrum']
+    # Put both FFTs on the same physical frequency interval, leaving out-of-band gaps.
+    fs=p['input_rate'];outfs=p['output_rate'];count=max(256,len(a))
+    grid=np.linspace(-fs/2,fs/2,count,endpoint=False)
+    def align(values,rate):
+        if not values:return []
+        x=np.linspace(-rate/2,rate/2,len(values),endpoint=False)
+        return np.interp(grid,x,values,left=np.nan,right=np.nan).tolist()
+    traces=[align(a,fs)]+([align(b,outfs)]if b else[])
+    peak=max(a+b,default=0)
+    diagnostic_plot(d,(28,205,1128,543),traces,['Input','FPGA output']if b else['Input'],
+        'Spectrum · common frequency axis · HOST FFT',f'Offset: −{fs/2e6:g} to +{fs/2e6:g} MHz · dB re 1 CI8 count',(max(-120,peak-80),peak+6))
+    wave=p['waveform'];out=p['output_waveform'];limit=max(16,max((abs(v)for row in wave+out for v in row),default=1))*1.1
+    plot(d,(28,566,570,865),[[v[0]for v in wave]],[''],'Input I waveform',f'{len(wave)/fs*1e6:.2f} µs · CI8 counts',(-limit,limit))
+    if out:plot(d,(590,566,1128,865),[[v[0]for v in out]],[''],'Output I waveform',f'{len(out)/outfs*1e6:.2f} µs · CI8-equivalent',(-limit,limit),colors=(GOLD,))
+    else:plot(d,(590,566,1128,865),[p['scatter']],['Input'],'IQ sample orbit','I / Q counts · no symbol recovery',(-limit,limit),True)
+    card(d,(1150,205,1772,865),'Requested → applied / observed')
+    for j,row in enumerate(proof['rows'][:15]):
+        y=260+j*37
+        c=GREEN if row['ok']is True else RED if row['ok']is False else MUTED
+        text(d,1170,y,row['label'],16,MUTED)
+        want='Exact FPGA fixture'if row['label']=='Pattern identity'else str(row['requested']);actual=str(row['applied'])
+        text(d,1415,y,(want+' → '+actual)[:33],15,c)
+    text(d,32,883,f'Age {proof.get("age_seconds",0):.1f}s · CRC + metadata + integer reference · host preview is separate from hardware proof',18,MUTED)
+    usage(d,state.get('fpga',{}));return image
+
+def diagnostic_plot(d,box,series,labels,title,xlabel,ylim):
+    # Split finite runs so missing/out-of-band bins do not join across gaps.
+    card(d,box,title);l,t,r,b=box;l+=68;t+=62;r-=24;b-=47;lo,hi=ylim
+    for k in range(5):
+        y=t+(b-t)*k/4;d.line((l,y,r,y),fill=LINE);text(d,l-60,y-10,f'{hi-(hi-lo)*k/4:.0f}',14,MUTED)
+    for values,color in zip(series,(CYAN,GOLD)):
+        pts=[]
+        for j,v in enumerate(values):
+            if not math.isfinite(v):
+                if len(pts)>1:d.line(pts,fill=color,width=2)
+                pts=[];continue
+            pts.append((l+j*(r-l)/max(1,len(values)-1),b-min(1,max(0,(v-lo)/(hi-lo)))*(b-t)))
+        if len(pts)>1:d.line(pts,fill=color,width=2)
+    text(d,l,box[3]-30,xlabel,16,MUTED);text(d,box[2]-285,box[1]+18,' / '.join(labels),16,GOLD)

@@ -22,10 +22,12 @@ def atomic_json(path,value):
     temp=path.with_suffix('.tmp');temp.write_text(json.dumps(value,allow_nan=False)+'\n');temp.replace(path)
 
 def validate_settings(body):
-    if not isinstance(body,dict) or set(body)-{'view','source','channel','round','continuous','once','export','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','new_snapshot','reference','digital_gain_q8','digital_gain_bypass'}:raise ValueError('Unknown control')
+    if not isinstance(body,dict) or set(body)-{'view','source','channel','round','continuous','once','export','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','new_snapshot','reference','digital_gain_q8','digital_gain_bypass','input_kind'}:raise ValueError('Unknown control')
     result={}
     for key,value in body.items():
-        if key=='view':
+        if key=='input_kind':
+            if value not in ('live','fpga-impulse','fpga-tones'):raise ValueError('Unknown FIR input')
+        elif key=='view':
             if value not in PAGES:raise ValueError('Unknown lesson')
         elif key in ('source','channel'):
             if type(value)is not int or value not in (range(3)if key=='source'else range(1,12)):raise ValueError('Invalid radio/channel')
@@ -82,11 +84,11 @@ class Lab:
     def __init__(self,run):
         self.run=run;run.mkdir(parents=True,exist_ok=True)
         self.lock=threading.RLock();self.stop=threading.Event();self.latest={};self.buffers={};self.history=collections.deque(maxlen=60)
-        self.settings=dict(view='hamming',source=0,channel=2,round=True,continuous=True,rate=16000000,samples=16380,gain_mode='HARDWARE',gain_code=40,tuning_hz=500000,decimation=4,ddc_bypass=0,ddc_input='live',digital_gain_q8=256,digital_gain_bypass=True)
+        self.settings=dict(view='hamming',source=0,channel=2,round=True,continuous=True,rate=16000000,samples=16380,gain_mode='HARDWARE',gain_code=40,tuning_hz=500000,decimation=4,ddc_bypass=0,ddc_input='live',digital_gain_q8=256,digital_gain_bypass=True,input_kind='live')
         if LESSON:
             self.settings.update(source=0,channel=2,rate=16000000,samples=4096,continuous=True)
             if LESSON<=2:self.settings.update(view='raw')
-            elif LESSON==3:self.settings.update(view='hamming')
+            elif LESSON==3:self.settings.update(view='hamming',input_kind='fpga-impulse')
             elif LESSON==4:self.settings.update(view='ddc',ddc_input='two-tone',tuning_hz=500000,decimation=4,ddc_bypass=0)
             else:self.settings.update(view='ddc',ddc_input='single-tone',tuning_hz=0,decimation=1,ddc_bypass=2,digital_gain_q8=256,digital_gain_bypass=False)
         self.reference=None;self.reference_payload=None;self.reference_requested=None;self.new_snapshot=False;self.revision=0;self.once=False;self.export_requested=False;self.export_count=0
@@ -105,10 +107,11 @@ class Lab:
     def update(self,body):
         body=validate_settings(body)
         with self.lock:
+            if body.get('input_kind','live')!='live'and (LESSON in (1,2)or not self.state['fpga'].get('fpga_fir')):raise ValueError('FPGA FIR test input requires a FIR checkpoint')
             candidate=self.settings|{k:v for k,v in body.items()if k in self.settings}
             nios_ddc.phase_increment(candidate['tuning_hz'],16000000 if candidate['ddc_input']in PATTERNS else candidate['rate'])
             if body.get('reference')=='pin'and 'ddc'not in self.latest:raise ValueError('Run a DDC result before pinning')
-            for key in ('view','source','channel','round','continuous','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','digital_gain_q8','digital_gain_bypass'):
+            for key in ('view','source','channel','round','continuous','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','digital_gain_q8','digital_gain_bypass','input_kind'):
                 if key in body:self.settings[key]=body[key]
             if body.get('reference'):
                 self.reference_requested=body['reference']
@@ -149,7 +152,14 @@ class Lab:
                             with self.lock:
                                 config=self.settings.copy();once=self.once;self.once=False
                             if not config['continuous']and not once:
-                                bridge.idle_status();self.state['status']='PAUSED';self.publish();self.stop.wait(.3);continue
+                                bridge.idle_status()
+                                with self.lock:
+                                    telemetry=dict(monitor.value)if monitor else {}
+                                    self.state.update(status='PAUSED',telemetry=telemetry)
+                                    previous=self.history[-1].get('telemetry',{})if self.history else {}
+                                    if monitor and telemetry.get('seq')is not None and telemetry.get('seq')!=previous.get('seq'):
+                                        self.history.append(dict(time=time.time(),Bps=0,mode='raw',paused=True,telemetry=telemetry))
+                                self.publish();self.stop.wait(.3);continue
                             if prepared!=(config['source'],config['channel'],config['rate']):
                                 bridge.prepare_sdr(config['source'],2407+5*config['channel'],config['rate'])
                                 prepared=config['source'],config['channel'],config['rate']
@@ -197,7 +207,8 @@ class Lab:
                         acquiring=mode
                         with self.lock:self.state.update(status='CONFIGURING',acquiring=mode,error=None)
                         self.publish()
-                        synthetic=mode=='ddc'and config['ddc_input']in PATTERNS
+                        fir_test=mode in ('boxcar','hamming')and config['input_kind']!='live'
+                        synthetic=(mode=='ddc'and config['ddc_input']in PATTERNS)or fir_test
                         if mode!='ddc':frozen=None
                         if not synthetic and prepared!=(config['source'],config['channel'],config['rate']):
                             if prepared and prepared[0]in(1,2)and prepared[0]!=config['source']:
@@ -237,14 +248,22 @@ class Lab:
                             nios_ddc.run(nios,raw.rate,config['tuning_hz'],config['decimation'],config['ddc_bypass'],config['digital_gain_q8'],config['digital_gain_bypass'])
                             ddc_meta,ddc_raw,ddc_out=nios_ddc.dump(nios)
                             if ddc_raw.tobytes()!=raw.payload or (ddc_meta['job'],ddc_meta['source'],ddc_meta['samples'],ddc_meta['rate'],ddc_meta['frequency'],ddc_meta['raw_crc'])!=(raw.job,raw.source,raw.samples,raw.rate,raw.frequency,raw.raw_crc):raise ValueError('DDC raw capture provenance mismatch')
+                        elif fir_test:
+                            bridge.idle_status()
+                            from lesson_evidence import capture_fir_test
+                            raw,filtered,fir_test_meta=capture_fir_test(nios,config)
+                            self.state['pattern_generations']+=1
                         elif mode=='raw':raw=next(bridge.captures(1,source=config['source'],samples=config['samples'],rate=config['rate'],pipeline=False));filtered=None
                         else:raw,filtered=bridge.paired_capture(config['source'],config['samples'],config['rate'])
-                        if mode!='ddc':self.state['radio_acquisitions']+=1
+                        if mode!='ddc'and not synthetic:self.state['radio_acquisitions']+=1
                         elapsed=time.monotonic()-started;status=nios.status()
                         coeff=PROFILES[1 if mode=='boxcar'else 2]if mode in ('boxcar','hamming')else None
-                        if filtered and filtered.aux&0xffffffff!=(0x80010000|(int(config['round'])<<8)|(1 if mode=='boxcar'else 2)):
+                        if filtered and not fir_test and filtered.aux&0xffffffff!=(0x80010000|(int(config['round'])<<8)|(1 if mode=='boxcar'else 2)):
                             raise ValueError('Applied coefficient/rounding descriptor differs from requested settings')
                         result=summarize(raw,filtered,coeff,config['round'],status,elapsed)
+                        if fir_test:
+                            result.update(pattern_identity_verified=True,snapshot_crc_verified=True,transport_crc_verified=False,fir_readback=fir_test_meta)
+                            configured=None  # TEST disables pairing; restore configuration before the next live capture.
                         if not synthetic and(raw.samples!=config['samples']or raw.rate!=config['rate']):raise ValueError('Capture length/rate metadata mismatch')
                         if mode=='ddc':
                             result.update(input_id=frozen['id'],input_created_unix=frozen['created_unix'],input_kind=config['ddc_input'],snapshot_reused=reused,transport_crc_verified=not synthetic,snapshot_crc_verified=True)
@@ -258,8 +277,8 @@ class Lab:
                             result['ddc_fft_startup_samples_excluded']=skip
                             edges=np.linspace(0,len(db),min(1024,len(db))+1,dtype=int)
                             result.update(payload_Bps=(2*len(raw.payload)+ddc_out.nbytes)/max(elapsed,1e-9),payload_rate_scope='Raw IQB1 acquisition plus raw/processed JTAG readback; payload bytes only',ddc=ddc_meta,ddc_spectrum_db=[float(np.max(db[x:y]))for x,y in zip(edges[:-1],edges[1:])],ddc_wave=v[:256].tolist())
-                        result.update(acquisition=config.copy(),receiver_gain=frozen['gain']if mode=='ddc'else gain_readback,rate_scope='Nominal CAP16 mode; IQB1 rate is configured metadata, not independent clock measurement',cap16_mode={16000000:6,40000000:1,80000000:0}[config['rate']])
-                        result.update(mode=mode,source_name=('FPGA '+config['ddc_input']+' · SYNTHETIC')if synthetic else SOURCES[raw.source],image_sha256=active['sha256'])
+                        result.update(acquisition=config.copy(),receiver_gain=None if synthetic else frozen['gain']if mode=='ddc'else gain_readback,rate_scope='Nominal CAP16 mode; IQB1 rate is configured metadata, not independent clock measurement',cap16_mode={16000000:6,40000000:1,80000000:0}[config['rate']])
+                        result.update(mode=mode,source_name=('FPGA '+(config['input_kind']if fir_test else config['ddc_input'])+' · SYNTHETIC')if synthetic else SOURCES[raw.source],image_sha256=active['sha256'])
                         with self.lock:
                             self.latest[mode]=result;self.buffers[mode]=(raw.payload,filtered.payload if filtered else ddc_out.tobytes()if mode=='ddc'else None,result)
                             self.history.append(dict(time=time.time(),Bps=result['payload_Bps'],mode=mode))
@@ -308,6 +327,15 @@ def handler(lab,token,public_url):
                 except Exception:return self.respond(503,dict(error='Native viewer is starting'))
             if not self.authenticated():return self.respond(403,dict(error='Lab token required'))
             if path=='/api/state':return self.respond(200,lab.snapshot())
+            if path in ('/api/evidence','/api/preview'):
+                from lesson_evidence import evidence,plot_data,preview
+                state=lab.snapshot()
+                lesson=LESSON or 5
+                if path=='/api/preview':return self.respond(200,preview(lesson,state['settings']))
+                proof=evidence(state,lesson)
+                result=proof.pop('result')
+                proof['plots']=plot_data(result)if result else None
+                return self.respond(200,proof)
             if path=='/api/viewer':
                 p=lab.run/'remote-join.json'
                 return self.respond(200,json.loads(p.read_text())if p.exists()else dict(remote_viewer_url=None))

@@ -29,6 +29,8 @@ RTL, Nios firmware and the native VDS construction/connection Tcl definitions ar
 
 Learn the radio side in the [ESP32 SDR firmware notebook](notebooks/07_esp32_sdr_firmware.ipynb): offline controls, IQ simulation, packing and UART bandwidth.
 
+The five notebook pages now include [visual feature checks](docs/NOTEBOOK_DEMOS.md): aligned before/after graphs, requested/applied evidence, FPGA test-input buttons where available, and clearly separate software previews.
+
 ## Demo night: RF Arcade
 
 Open the [RF Arcade setup notebook](notebooks/06_rf_arcade.ipynb) for the guided build → program → launch workflow and the demo sequence.

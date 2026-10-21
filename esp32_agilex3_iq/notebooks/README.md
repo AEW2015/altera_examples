@@ -41,6 +41,8 @@ On this rig, the host has the stable by-id UART link; the current container expo
 
 For a remote browser add `--ip=0.0.0.0`; use the Jupyter token printed in the terminal. Container users also need its ports reachable from the host. CyberEther uses 8687/8768 and TCP 40100–40103 by default. Set the notebook's `HOST` to the reachable host/container IP if automatic discovery returns an internal address.
 
+See [visual experiment and verification guide](../docs/NOTEBOOK_DEMOS.md) for the one-click FPGA checks, graph meanings and requested/applied settings ledger.
+
 ## Demo sequence
 
 1. Open notebook 01 and select **Atum A3 IQ Demos**.
@@ -53,7 +55,7 @@ For a remote browser add `--ip=0.0.0.0`; use the Jupyter token printed in the te
 
 Stop unrelated board acquisition services first. One physical board runs one checkpoint at a time. Existing compatible ESP32 firmware needs no reset-button presses; notebooks do not flash the radios.
 
-The simulations test the named RTL/IP, not a complete Wi-Fi receiver or Nios instruction execution. Real DSP runs on the FPGA; the host handles transport, independent reference checks, plotting and display FFT. The final two lessons use FPGA-generated clean signals without RF transmission.
+The simulations test the named RTL/IP, not a complete Wi-Fi receiver or Nios instruction execution. Real DSP runs on the FPGA; the host handles transport, independent reference checks, plotting and display FFT. The FIR lesson opens with a known FPGA impulse and can switch to live RF. FIR quick checks and the final two lessons use FPGA-generated clean signals without RF transmission.
 
 Saved [GUI previews](diagrams/README.md) are included for all five lessons. Fresh native PDFs/PNGs, full GUI screenshots, simulation waves, builds and captures remain under each checkpoint's ignored `results/` and `run/` directories. Live invitation tokens stay in ignored runtime files. Authored notebooks contain no tokens or captured network data.
 
