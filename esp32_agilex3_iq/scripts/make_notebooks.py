@@ -682,11 +682,38 @@ The upper graph is the offline AWGN experiment. The separate RF audit below it p
 ![RF Link Lab BER experiment and separate physical evidence](screenshots/08_rf_link_lab_ber.png)'''),
  nb.v4.new_markdown_cell('''### QPSK · two coded bits per recovered symbol
 
-The original ESP32 can now send a compact QPSK phase-pulse frame: 32 known training states, 22 coded payload/CRC symbols and 10 guards. Host synchronization estimates carrier, timing and phase from training. The FPGA can separately demap/decode the recovered symbols; it does not yet synchronize raw IQ.
+The original ESP32 can send a compact QPSK phase-pulse frame: 32 known training states, 22 coded payload/CRC symbols and 10 guards. Host synchronization estimates carrier, timing and phase from training. The FPGA can separately demap/decode recovered symbols; it does not yet synchronize raw IQ.
 
-Physical v5 tests recovered 21 CRC-valid frames from 32 captures at **12 µs symbols**, with 0/924 coded and 0/168 payload errors. Eleven captures did not acquire a frame. The 8 µs transmitter completed no frames; at 10 µs, acquired frames sometimes failed CRC. Those failures remain counted. A clean waveform model has no CPU scheduling interruptions and cannot establish that a firmware symbol period works.
+Two limits apply: the capture window must contain the 54 training and coded symbols needed for acquisition and decode, and the transmitter must meet its symbol deadlines. The graphic below estimates only the first limit. It assumes a uniformly unknown frame phase and an ideal usable window; it is theory, not a measured phase distribution. It does not model DSP errors or explain individual acquisition failures.
+
+The latest v6 RF run at 12 µs acquired and CRC-validated 34 frames in 64 captures. A separate v6 run at 10 µs acquired 30/32 captures and CRC-validated all 30, with 0/1320 coded and 0/240 payload errors. At 8 µs, 32 captures yielded no acquisition because TX completed zero frames: that is a timing failure, not zero BER. These outcomes are examples, not a fit to the bars: capture phase is request-coupled and was not measured as uniform. The 10 µs result does not disprove the uniform-phase geometry model or establish its assumed distribution. Keep acquisition and CRC failures in their own denominators.
 
 The offline example below uses a longer two-frame software record. Real ESP32/FPGA snapshots remain 16,380 samples. Known payloads enter error measurement only after acquisition. [QPSK controls, results and limits](../docs/QPSK_QUALIFICATION.md).'''),
+ nb.v4.new_code_cell('''from notebook_progress import progress
+with progress("Estimate sparse-capture coverage · theory only"):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    capture_us = 16380 / 16e6 * 1e6
+    symbol_periods_us = np.array([8, 9, 10, 12], dtype=float)
+    frame_symbols = 64
+    training_symbols, coded_symbols, guard_symbols = 32, 22, 10
+    needed_symbols = training_symbols + coded_symbols
+    coverage = np.clip((capture_us - needed_symbols * symbol_periods_us) /
+                       (frame_symbols * symbol_periods_us), 0, 1)
+    fig, ax = plt.subplots(figsize=(7, 3.5))
+    bars = ax.bar([f"{period:g} µs" for period in symbol_periods_us],
+                  coverage * 100, color="#159dab")
+    ax.bar_label(bars, labels=[f"{value:.1f}%" for value in coverage * 100], padding=3)
+    ax.set(ylim=(0, 110), ylabel="Idealized full-window coverage (%)",
+           xlabel="QPSK symbol period",
+           title="THEORY ONLY · uniform unknown frame phase")
+    ax.grid(axis="y", alpha=.25)
+    ax.text(.99, .97, f"W = {capture_us:.2f} µs · {needed_symbols} useful / {frame_symbols} total",
+            transform=ax.transAxes, ha="right", va="top", fontsize=8)
+    plt.show()
+    print("Model only: uniform relative phase; no DSP errors or measured phase distribution.")
+''',metadata={'tags':['theory','offline','qpsk-window']}),
  nb.v4.new_code_cell('''from rf_qpsk import synthesize as qpsk_samples, receive as qpsk_receive
 import matplotlib.pyplot as plt
 from notebook_progress import progress
@@ -732,7 +759,7 @@ if START_RF_LINK_LAB:
     print("RF remains idle until Capture RF is clicked in the page.")
 else:
     print("RF Link Lab viewer skipped. Set START_RF_LINK_LAB=True to start its idle service.")''',metadata={'tags':['browser','optional-hardware']}),
- nb.v4.new_markdown_cell("### CyberEther · measured and synthetic RF Link Lab views\n\nThe synthetic page screenshot preserves the software-only Clean reference and FEC challenge controls. The physical RF screenshot shows four direct RF bursts, the paired raw/FIR spectrum, FPGA FIR reference checks, and the separate symbol/FEC replay. Its summary panel reports the `0xA5` run. The RF page is idle in the screenshot; only **Capture RF** requests a bounded RF job.\n\n![RF Link Lab synthetic example](screenshots/08_rf_link_lab_synthetic.png)\n\n[Open the full-resolution synthetic screenshot](screenshots/08_rf_link_lab_synthetic.png).\n\n![RF Link Lab physical capture, FIR check and FPGA replay](screenshots/08_rf_link_lab_rf.png)\n\n[Open the full-resolution physical RF screenshot](screenshots/08_rf_link_lab_rf.png)."),
+ nb.v4.new_markdown_cell("### CyberEther · measured and synthetic RF Link Lab views\n\nThe synthetic page screenshot preserves the software-only Clean reference and FEC challenge controls. The physical RF screenshot shows four direct RF bursts, the paired raw/FIR spectrum, FPGA FIR reference checks, and the separate symbol/FEC replay. Its summary panel reports the `0xA5` run. The RF page is idle in the screenshot; only **Capture RF** requests a bounded RF job.\n\nLatest v6 QPSK GUI check: 10 µs symbols, payload `0x3C`, four captures contained five acquired frames: three passed CRC and two failed. The plot retains a CRC-valid capture; the counters include failures. The acknowledgement reports the actual TX job, channel 8, attenuation code 120 and 500 ms bound. RF power is uncalibrated. This is a finite functional check, not a BER qualification.\n\n![Live v6 QPSK and actual transmitter acknowledgement](screenshots/08_rf_link_lab_v6.png)\n\n![RF Link Lab synthetic example](screenshots/08_rf_link_lab_synthetic.png)\n\n[Open the full-resolution synthetic screenshot](screenshots/08_rf_link_lab_synthetic.png).\n\n![RF Link Lab physical capture, FIR check and FPGA replay](screenshots/08_rf_link_lab_rf.png)\n\n[Open the full-resolution physical RF screenshot](screenshots/08_rf_link_lab_rf.png)."),
  nb.v4.new_markdown_cell("## 7 · FPGA path and its current boundary\n\nCheckpoint 06 implements symbol-rate encoding/mapping, max-log soft demapping and Viterbi FEC. Run the actual Questa assertions, then optionally generate the native VDS project and build a SOF using the executable cells below. Each action is controlled by a default-false switch so **Run All** stays offline. Generation/build use the project progress helper and log output. They do not program a board or flash a radio. The saved PNG is an actual Quartus VDS GUI export from checkpoint 06. Python waveform shaping, burst acquisition, carrier/timing recovery and equalization are not implemented in this RTL. Future work is integrating the full raw-waveform receiver in FPGA, evaluating higher-throughput SPI transport and extending beyond BPSK."),
  nb.v4.new_markdown_cell("### Saved native Quartus VDS GUI export\n\n![Checkpoint 06 modem block design exported from the actual VDS GUI](diagrams/08_vds_gui.png)\n\nThis is the native design GUI export, not a Python topology drawing. The executable generate cell can recreate the project and export a fresh diagram locally."),
  nb.v4.new_code_cell('''from IPython.display import Image, display

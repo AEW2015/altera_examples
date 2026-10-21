@@ -308,8 +308,9 @@ The probe-only profile now enables `CONFIG_ESP_TASK_WDT_PANIC=y`. Its existing
 prints then reboots. This provides automatic recovery from the observed PHY
 setup hang that starves that idle task; previously it printed a backtrace and
 continued with `busy=1`. It is **not a PHY wakeup fix**, does not make ROM setup
-a 500 ms operation, and is not a hardware RF kill timer. Reboot behavior and RF
-startup still require hardware qualification of this newly built image.
+a 500 ms operation, and is not a hardware RF kill timer. Normal boot now passed
+with the expected MAC and `busy=0`; automatic watchdog recovery and RF startup
+still require separate hardware qualification.
 
 The interrupt mask still covers only an individual frequency pulse. UART STOP,
 missed-slot restart, tone-off and register restoration retain their existing
@@ -323,6 +324,13 @@ v6 compilation by itself is not a new RF qualification.
 
 The v6 build with watchdog panic enabled has application SHA-256
 `baac3d3881539cb4321c09bda7245b7a3823762d2b3639e6e21c7d9579fc1dbb`. The generated `build-esp32-tx-probe/FIRMWARE_BUILD.json`
-records the matching flash images and recovery configuration. This build passed
-the native parser/encoder and cycle-deadline checks; it has not yet been flashed
-or RF-qualified.
+records the matching flash images and recovery configuration. The v5 image was
+backed up (2 MiB) and MAC/application verified before v6 was flashed; separate
+verify-flash passed. Normal boot then passed as `TX_PROBE,v=6,rev=300` with the
+expected MAC and `busy=0`. Subsequent strict channel-8 / attenuation-code-120
+TX acknowledgement and RFS2 capture checks passed. v6 BPSK produced eight CRC
+passes and one CRC failure from nine acquired frames across eight captures.
+QPSK results by symbol period are recorded in
+`docs/QPSK_QUALIFICATION.md`: the 9 µs group has seven CRC failures; 8 µs
+completed zero frames and has undefined BER. The 100,000-bit RF target and
+automatic watchdog recovery remain unqualified.

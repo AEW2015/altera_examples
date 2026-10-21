@@ -72,8 +72,9 @@ class CaptureManager:
             out = run / 'ber-qualification'
             command = [sys.executable, str(self.root / 'scripts/check_rf_ber.py'),
                        '--output', str(out), '--frames', '1000', '--payload-bytes', '16']
-            for proof in sorted(run.glob('*/proof.json')):
-                command += ['--proof', str(proof)]
+            # Explicit lab runtime root, recursively: extended batches are nested.
+            # Offline aggregation rejects other proof kinds and deduplicates CI8 SHA.
+            command += ['--proof-dir', str(run)]
             self.job = dict(busy=True, status='running', started_at=time.time(),
                             output=str(out), requested={'experiment': 'AWGN BER simulation + saved RF audit',
                                                         'frames_per_point': 1000, 'hardware': False})

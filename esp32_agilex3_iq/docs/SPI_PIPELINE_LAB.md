@@ -20,7 +20,7 @@ RAM and FIR II. The host verifies both IQB1 frames, capture identity, CRCs and
 FIR output against an independent integer reference, then calculates the
 display FFT. The plot is an analysis view of normalized CI8 samples, not a
 calibrated power measurement. Final checkpoint07 SOF
-`19ff94b02e3670587ada244a3ce6eb41aed2dbd0f21970a0db17c9dc8a06fa2b` passed a
+`91a0b547a3c5b0ae8b780c89c31a19940dbf20e660f2ceea5ad602845e9e7881` passed a
 fresh-boot capture. All 16 default taps read back as 2048; an exact Hamming
 profile run matched the integer reference for 16,380 complex samples, and
 settings restoration passed. The boot-fixed proof is
@@ -28,11 +28,13 @@ settings restoration passed. The boot-fixed proof is
 
 Checkpoint07 control guards were physically tested: 40 MHz / 2417 MHz returns
 error128; a 1024-sample request returns error32 without arming. A valid SPI raw
-capture and four passive RFS2 UART0 captures then passed, recorded in
-`spi-profile-rejection-recovery-001`. PMOD A UART INFO responds, but its known v5
-TX attempt hangs in PHY setup before `FRAME_CFG`; this produced no RF capture and
-is not a SPI result. Its separate v6 WDT-recovery/timing build is not flashed or
-hardware-qualified.
+capture and four passive RFS2 UART0 captures then passed on that earlier image,
+recorded in `spi-profile-rejection-recovery-001`. The current image adds a
+four-line whole-line status FIFO. It passed hardware `TX_ON` acknowledgement
+with zero text drops (`tx-status-fifo-hardware-001`). Resource use is 27,988 /
+45,800 ALMs (61%), 120 M20Ks and 16 reported DSP units; added ALMs are queue and
+control logic, not RF processing. Current v6 has bounded RF captures; watchdog
+recovery remains unqualified.
 
 ## Start the page
 
@@ -98,22 +100,40 @@ continuous sampling, and gaps between them have no inferred RF drop/delivery
 rate. Single-capture buttons remain available for one requested source. The
 checker verifies that raw and filtered representations belong to the same
 capture, validates CRCs and applied coefficients, and compares the result to an
-independent integer reference. The final checkpoint07 image passed bounded
-hardware checks, including fresh-boot coefficient readback and exact FIR
-comparison. The viewer's selected profile is still only a requested setting;
-use the captured coefficient readback and independent integer result as proof.
-The latest final-image 12-capture GUI batch (`spi-gui-1792618348955853001`)
-verified its first synthetic pair, then failed the required PMOD A INFO liveness
-check. Cleanup verified the host UART returned to 2 Mbaud and FIR settings were
-restored. This is a failed soak, not an SPI/FIR failure; the known v5 PHY setup
-watchdog leaves PMOD A UART-unresponsive until manual reset. Repeat the batch
-after transmitter recovery; do not weaken its liveness check.
+independent integer reference. The previous checkpoint07 SOF `19ff94b02e3670587ada244a3ce6eb41aed2dbd0f21970a0db17c9dc8a06fa2b` passed fresh-boot coefficient readback and exact FIR comparison. The current SOF `91a0b547a3c5b0ae8b780c89c31a19940dbf20e660f2ceea5ad602845e9e7881` adds the status FIFO and passes the exact same-capture checks below. The viewer's selected profile is only a requested setting; use the coefficient readback and independent integer result as proof.
+An earlier GUI attempt (`spi-gui-1792618348955853001`) verified one synthetic
+pair, then failed PMOD A INFO liveness; retain this historical failure. After v6
+normal boot, a 19ff-image 12-capture run passed all steps, UART checks, cleanup
+and exact raw/FIR comparison over 196,560 complex samples. The current 91a0 image
+also passed its 12-capture GUI regression: six synthetic and six RF snapshots,
+exact Hamming integer-reference checks, settings and host 2-Mbaud restoration,
+both UART liveness checks, and no JavaScript errors. Proofs:
+`cyberether/run/spi-gui-1792621578444678407/proof.json` and
+`cyberether/run/spi-fir-browser-fifo-final.json`; screenshot shows the 12-row
+view. These are bounded snapshots, not continuous coverage or modem BER.
 
-A separate one-shot browser RF capture (`browser-final-single-001`) on the final
-SOF passed the actual Hamming profile at 4 Mbaud: raw and FIR payloads matched
-bit-for-bit, with no JavaScript errors. This proves that bounded capture path,
-not the failed 12-capture liveness soak or PMOD A transmitter. The saved view is
-![A verified 4-Mbaud RF capture through the checkpoint07 Hamming FIR](images/spi_pipeline_fir_lab.png)
+Separately, a v6 A→B BPSK SPI/FIR attempt acquired one frame but failed CRC in
+both raw and filtered data (10/44 coded errors, 0/8 payload errors); the FIR
+reported 725 clipped samples. TX stopped at 90 ms after 119 completed frames and
+64 misses; the radio then idled quietly. Thus the exact transport/FIR result above does not
+imply a valid modem frame. v6 RFS2 batches have separate BPSK/QPSK results; the
+9 µs QPSK group has seven CRC failures, while the 8 µs group has no TX frames so
+BER is undefined. The 100,000-bit target and watchdog recovery remain open; see
+[QPSK qualification](QPSK_QUALIFICATION.md).
+
+The saved view is
+![Twelve alternating synthetic and RF captures through the checkpoint07 Hamming FIR](images/spi_pipeline_fir_lab.png)
+
+The separate RF Link Lab 10 µs QPSK browser run completed four captures and
+acquired five frames: three CRC passed, two failed, with 35/220 coded errors →
+6/40 soft payload errors and no acquisition failures. Combined with the 32-run
+CLI batch, these 36 captures had 35 acquisitions, 33 CRC passes, two CRC
+failures, two no-acquisition captures and 35/1540 coded → 6/280 soft payload
+errors. The independent saved-raw audit passed integrity and blind re-decode
+for all 172 unique v6 captures. This small grouped result does not replace the
+100,000-bit qualification.
+Proofs: `cyberether/run/rf-link-browser-v6-final.json` and
+`cyberether/run/rf-link-20261021-222650-1792621610926103009/proof.json`.
 
 The integrated checker requires explicit acknowledgement that the correct
 checkpoint07 image is already loaded, saves proof/raw results to a new run

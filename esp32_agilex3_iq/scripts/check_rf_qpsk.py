@@ -14,6 +14,7 @@ import numpy as np
 from common import ROOT
 sys.path.insert(0, str(ROOT/'cyberether'))
 from rf_qpsk import frame_states, receive, synthesize
+from tx_job_readback import validate_tx_on
 
 
 def atomic_json(path, value):
@@ -94,10 +95,10 @@ def main():
         parser.error('--synthetic-coded-flips requires --synthetic')
     args.output.mkdir(parents=True, exist_ok=False)
     requested = dict(channel=args.channel, payload=args.payload, symbol_us=args.symbol_us,
-                     pulse_cycles=args.pulse_cycles,half_cycles=args.half_cycles,three_cycles=args.three_cycles, rx_gain=args.rx_gain, source=args.source)
+                     pulse_cycles=args.pulse_cycles,half_cycles=args.half_cycles,three_cycles=args.three_cycles, rx_gain=args.rx_gain, source=args.source,backoff_qdb=args.backoff_qdb)
     requested['synthetic_coded_flips']=args.synthetic_coded_flips if args.synthetic else None
     proof = dict(kind='synthetic_qpsk' if args.synthetic else 'physical_rf_qpsk',
-                 completed=False, rows=[], processing='Host synchronization/demapping/FEC; FPGA capture transport only')
+                 completed=False, rows=[], requested=requested, processing='Host synchronization/demapping/FEC; FPGA capture transport only')
 
     def publish(status, error=None):
         atomic_json(args.output/'proof.json', proof)
@@ -163,11 +164,15 @@ def main():
                         config = fields(bridge.wait_text(1, 'QFRAME_CFG,', 10))
                         if (config['payload'], config['period_us'], config['quarter_cycles'], config['half_cycles'],config['three_cycles'],config['symbols'], config['step']) != (args.payload, args.symbol_us, pulse, args.half_cycles,args.three_cycles,64, 3):
                             raise RuntimeError('TX frame settings readback mismatch')
-                        # QFRAME_CFG follows successful tone setup in v5. The hub
-                        # may drop redundant back-to-back diagnostic lines.
-                        config['capture_trigger']='Matched QFRAME_CFG after RF setup'
                         started = time.monotonic()
                         try:
+                            acknowledgement=validate_tx_on(bridge.wait_text(1,'TX_ON,',.4),config,
+                                channel=args.channel,backoff_qdb=args.backoff_qdb,limit_ms=500)
+                            config['tx_on_readback']=acknowledgement
+                            config['channel']=acknowledgement['channel']
+                            config['backoff']=acknowledgement['backoff_qdb']
+                            config['capture_trigger']='Matched QFRAME_CFG and actual TX_ON job/channel/backoff/duration'
+                            proof['last_tx_on_readback']=acknowledgement
                             frame = next(bridge.captures(1, args.source, 16380, 16000000, pipeline=False))
                         finally:
                             bridge.radio_write(1, 'STOP\n')
@@ -200,8 +205,9 @@ def main():
         proof['completed'] = True
         publish('complete')
     except BaseException as error:
-        proof['error'] = str(error)
-        publish('error', str(error))
+        proof['completed'] = False
+        proof['error'] = str(error) or type(error).__name__
+        publish('error', proof['error'])
         raise
 
 

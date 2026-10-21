@@ -14,6 +14,7 @@ import numpy as np
 from common import ROOT
 sys.path.insert(0, str(ROOT/'cyberether'))
 from rf_bpsk import frame_bits, receive, synthesize
+from tx_job_readback import validate_tx_on
 
 
 def atomic_json(path, value):
@@ -160,11 +161,15 @@ def main():
                         config = fields(bridge.wait_text(1, 'FRAME_CFG,', 10))
                         if (config['payload'], config['period_us'], config['pulse_cycles'], config['bits'], config['step']) != (args.payload, args.symbol_us, pulse, 64, 3):
                             raise RuntimeError('TX frame settings readback mismatch')
-                        # FRAME_CFG follows successful tone setup in v4. The hub
-                        # may drop redundant back-to-back diagnostic lines.
-                        config['capture_trigger']='Matched FRAME_CFG after RF setup'
                         started = time.monotonic()
                         try:
+                            acknowledgement=validate_tx_on(bridge.wait_text(1,'TX_ON,',.4),config,
+                                channel=args.channel,backoff_qdb=args.backoff_qdb,limit_ms=500)
+                            config['tx_on_readback']=acknowledgement
+                            config['channel']=acknowledgement['channel']
+                            config['backoff']=acknowledgement['backoff_qdb']
+                            config['capture_trigger']='Matched FRAME_CFG and actual TX_ON job/channel/backoff/duration'
+                            proof['last_tx_on_readback']=acknowledgement
                             frame = next(bridge.captures(1, args.source, 16380, 16000000, pipeline=False))
                         finally:
                             bridge.radio_write(1, 'STOP\n')
@@ -197,8 +202,9 @@ def main():
         proof['completed'] = True
         publish('complete')
     except BaseException as error:
-        proof['error'] = str(error)
-        publish('error', str(error))
+        proof['completed'] = False
+        proof['error'] = str(error) or type(error).__name__
+        publish('error', proof['error'])
         raise
 
 

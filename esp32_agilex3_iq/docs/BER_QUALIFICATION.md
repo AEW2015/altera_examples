@@ -46,20 +46,22 @@ The Python API is in `cyberether/ber_qualification.py`:
 
 The fixed 1,000-frame, 16-byte simulation produced 704 hard-decision payload errors and 8 soft-decision payload errors at 4 dB, both over the same 128,000 payload bits. At 6 dB soft decoding observed zero errors. Its one-sided 95% bit-error upper bound is **2.3404 × 10⁻⁵**, assuming independent bit errors. Post-FEC bit errors are correlated, so also report the separate frame-error bound: zero erroneous frames among 1,000 gives an exact one-sided 95% upper bound of about **0.299%**, under an independent-frame assumption. Neither bound describes RF performance.
 
-The earlier BPSK and QPSK totals below are preserved as historical audit snapshots; the extended audit now includes additional independently captured files. Do not combine modulation totals or repeated settings as if they were one calibrated BER curve.
+The historical BPSK and QPSK audit totals are preserved. The current v6 run audit is reported separately and also included in the recursive aggregate. Do not combine modulation totals or repeated settings as if they were one calibrated BER curve.
 
 ### Extended RF evidence
 
-The new audit contains 580 captures: 320 BPSK and 260 QPSK. All 580 raw files independently re-decoded without a known payload oracle. The combined audit covers 744 unique raw captures across old and new records; every file passed length, CRC and SHA-256 integrity checks. Saved historical decoder results remain preserved. Counts are grouped by modulation and payload; repeated payloads/settings do not establish a calibrated BER-versus-SNR curve.
+The v6 audit adds 172 unique captures (8 BPSK and 164 QPSK) to the 744-capture historical baseline. The recursive combined audit covers 916 unique raw captures; all passed length, CRC and SHA-256 checks and blind re-decode. Counts are grouped by modulation, payload and settings; the aggregate is not an operating-point BER curve.
 
 |Audit scope|Modulation|Captures|Acquired frames|CRC pass / fail|No acquisition|Coded errors / bits|Payload errors / bits|
 |---|---|---:|---:|---:|---:|---:|---:|
-|New captures|BPSK|320|340|337 / 3|0|257 / 14960|1 / 2720|
-|New captures|QPSK|260|126|122 / 4|134|88 / 5544|18 / 1008|
-|All historical + new|BPSK|420|441|438 / 3|0|337 / 19404|1 / 3528|
-|All historical + new|QPSK|324|163|153 / 10|161|200 / 7172|37 / 1304|
+|Historical baseline|BPSK|420|441|438 / 3|0|337 / 19404|1 / 3528|
+|Historical baseline|QPSK|324|163|153 / 10|161|200 / 7172|37 / 1304|
+|New v6 captures|BPSK|8|9|8 / 1|—|16 / 396|0 / 72|
+|New v6 captures|QPSK|164|99|90 / 9|66|206 / 4356|33 / 792|
+|Historical + v6 aggregate|BPSK|428|450|446 / 4|—|353 / 19800|1 / 3600|
+|Historical + v6 aggregate|QPSK|488|262|243 / 19|227|406 / 11528|70 / 2096|
 
-The BPSK and QPSK tables remain separate; no claim of all-zero errors or a soft-decision RF advantage follows from these results. The new and combined evidence is recorded in `cyberether/run/rf-final-new-audit/qualification.json` and `cyberether/run/ber-qualification/qualification.json`, respectively. These finite, grouped captures still fall short of the 100,000-payload-bit qualification target per operating point, and do not establish continuous delivery.
+BPSK and QPSK remain separate; the aggregate combines operating points and is not suitable for comparing BER by symbol period. No claim of all-zero errors or a soft-decision RF advantage follows. The v6 audit is in `cyberether/run/rf-v6-independent-audit/qualification.json`; the refreshed recursive aggregate is in `cyberether/run/ber-qualification/qualification.json`. These finite, grouped captures remain below the 100,000-payload-bit target per operating point and do not establish continuous delivery.
 
 The earlier QPSK-002 aggregate uses the original proof's four valid frames; the later blind 54-symbol reanalysis recovered a fifth frame from the same captures but is not counted again. Empty failed QPSK configuration jobs are listed separately and add no RF bits. See [QPSK qualification](QPSK_QUALIFICATION.md) for run-level timing results.
 

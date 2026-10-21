@@ -187,6 +187,28 @@ class BERQualificationTests(unittest.TestCase):
             self.assertEqual(rf['totals'][name]['frames']['errors'],1)
             self.assertEqual(rf['totals'][name]['crc_failures'],1)
 
+    def test_transmitter_versions_and_actual_acknowledgement_never_merge(self):
+        row=dict(config={'payload':165,'job':4,'channel':8,'backoff':120,'period_us':8},
+            transport={'source':0,'payload_sha256':'a'*64},report={'candidates':[]})
+        ack=dict(id=4,channel=8,backoff_qdb=120,limit_ms=500,
+            line='TX_ON,id=4,channel=8,backoff_qdb=120,limit_ms=500')
+        with tempfile.TemporaryDirectory() as temp:
+            paths=[]
+            for index,(version,acknowledgement) in enumerate([('v=5',None),('v=6',ack),('v=6',dict(ack,id=99))]):
+                r=json.loads(json.dumps(row));r['transport']['payload_sha256']=str(index)*64
+                if acknowledgement:r['config']['tx_on_readback']=acknowledgement
+                path=Path(temp)/f'{index}.json'
+                path.write_text(json.dumps(dict(kind='physical_rf_bpsk',identity='TX_PROBE,'+version+',busy=0',requested={'backoff_qdb':120},rows=[r])))
+                paths.append(path)
+            groups=aggregate_rf(paths)['setting_groups']
+        self.assertEqual(len(groups),3)
+        self.assertEqual([(g['settings']['tx_firmware'],g['settings']['tx_ack_verified']) for g in groups],[('v5',False),('v6',True),('v6',False)])
+        self.assertTrue(all(g['settings']['backoff']==120 for g in groups))
+        from ber_qualification import transmitter_settings
+        bad=dict(row['config'],tx_on_readback=dict(ack,line='TX_ON,id=4,channel=8,backoff_qdb=119,limit_ms=500'))
+        self.assertFalse(transmitter_settings({},bad)['tx_ack_verified'])
+        self.assertEqual(transmitter_settings({},row['config'])['tx_firmware'],'unknown')
+
     def test_missing_hash_is_excluded_and_missing_reference_not_zero_ber(self):
         row = dict(transport={'payload_sha256':'a'*64},report={'candidates':[dict(sync_errors=0,crc_ok=True)]})
         with tempfile.TemporaryDirectory() as temp:

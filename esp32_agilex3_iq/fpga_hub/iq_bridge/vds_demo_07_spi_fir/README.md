@@ -102,12 +102,16 @@ rerunning, use `vsim -view pipeline.wlf -do view.do`. Zoom to the CS bursts,
 `cap_commit`, FIR valid/result pairs, then the matched host frames. This is an
 RTL plus actual vendor-IP simulation; the Nios CPU is not simulated.
 
-The guarded build uses 16,731/45,800 ALMs (37%), 120/353 M20Ks (34%) and 16/368
-Quartus-reported DSP units (4%). The 50 MHz setup slack is +7.154 ns and hold
-slack +0.015 ns; the generated 5 MHz SPI clock has +88.321 ns setup / +18.410 ns hold.
-Reported system-clock Fmax is 77.85 MHz; the design runs at 50 MHz. The unconstrained
-paths report contains zero unconstrained clocks, ports or path pairs. These are
-compile results and timing budgets, not a higher-clock hardware qualification.
+The four-line status-queue build uses 27,988/45,800 ALMs (61%), 120/353 M20Ks
+(34%) and 16/368 Quartus-reported DSP units (4%). The ALM increase is whole-line
+status storage and mux/control logic, **not additional RF DSP processing or
+throughput**. A RAM-backed byte queue is a future resource optimization; this
+revision prioritizes bounded, atomic status delivery and qualification.
+The 50 MHz setup slack is +6.296 ns and hold slack +0.035 ns; the generated
+5 MHz SPI clock has +88.647 ns setup / +18.283 ns hold. Reported system-clock
+Fmax is 72.97 MHz; the design runs at 50 MHz. The unconstrained paths report
+contains zero unconstrained clocks, ports or path pairs. These are compile
+results and timing budgets, not a higher-clock hardware qualification.
 
 Compilation retains the baseline reset-release IP-count warning despite the
 explicit configuration-reset endpoint feeding POR, vendor FIR constant and

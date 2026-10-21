@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 from modem_reference import conv_encode, viterbi_decode
 from rf_bpsk import crc8, frame_bits, int_bits
+from tx_job_readback import validate_tx_on
 
 
 def error_metric(errors, trials, confidence=.95):
@@ -110,6 +111,25 @@ def run_sweep(ebn0_db=(-2., 0., 2., 4., 6.), *, frames=100, payload_bytes=16,
                 points=points)
 
 
+def transmitter_settings(proof,config):
+    """Separate firmware/actual acknowledgements; requested defaults prove nothing."""
+    identity=proof.get('identity') or 'unknown'
+    firmware='unknown'
+    if isinstance(identity,str) and identity.startswith('TX_PROBE,'):
+        firmware=next((part for part in identity.split(',') if part.startswith('v=') and part[2:].isdigit()),'unknown')
+        if firmware!='unknown':firmware='v'+firmware[2:]
+    verified=False
+    acknowledgement=config.get('tx_on_readback')
+    if isinstance(acknowledgement,dict):
+        try:
+            actual=validate_tx_on(acknowledgement['line'],config,channel=config['channel'],
+                backoff_qdb=config['backoff'],limit_ms=500)
+            verified=all(acknowledgement.get(key)==actual[key] for key in ('id','channel','backoff_qdb','limit_ms'))
+        except (KeyError,TypeError,ValueError):
+            pass
+    return dict(tx_identity=identity,tx_firmware=firmware,tx_ack_verified=bool(verified))
+
+
 def aggregate_rf(proof_paths, *, reference_payload=None, confidence=.95, modulation='BPSK'):
     """Aggregate physical RF proofs of ONE modulation, deduplicated by raw CI8 SHA256.
 
@@ -144,7 +164,7 @@ def aggregate_rf(proof_paths, *, reference_payload=None, confidence=.95, modulat
             report = row.get('report', {})
             source = row.get('transport', {}).get('source', 'unknown')
             config = row.get('config', {})
-            settings = dict(modulation=modulation, payload=config.get('payload'), source=source, channel=config.get('channel'), backoff=config.get('backoff',proof.get('requested',{}).get('backoff_qdb')),
+            settings = dict(transmitter_settings(proof,config),modulation=modulation, payload=config.get('payload'), source=source, channel=config.get('channel'), backoff=config.get('backoff',proof.get('requested',{}).get('backoff_qdb')),
                 rx_gain=proof.get('gain_readback'), symbol_us=config.get('period_us'), pulse_cycles=config.get('pulse_cycles'),
                 quarter_cycles=config.get('quarter_cycles'),half_cycles=config.get('half_cycles'),three_cycles=config.get('three_cycles'))
             setting_key = json.dumps(settings, sort_keys=True)
@@ -198,4 +218,4 @@ def aggregate_rf(proof_paths, *, reference_payload=None, confidence=.95, modulat
                 reference='configured transmitted payload' if reference_payload is None else f'explicit payload byte {reference_payload}',
                 totals=totals, receivers=list(groups.values()), setting_groups=list(groups.values()), duplicate_captures_excluded=duplicates,
                 non_rf_proofs_excluded=excluded, skipped=skipped,
-                note='Setting groups keep modulation/payload/receiver/channel/gain/symbol/pulse/backoff distinct; null means unrecorded, never inferred. Hard/soft use the same saved LLR. Frame errors include wrong payload OR failed CRC. Totals are evidence audit, not a controlled cross-setting comparison. Deduplicated by raw CI8 SHA256. Saved metrics audited; raw IQ not re-decoded. Capture gaps are unobserved. Bit confidence limits assume independent errors; captures/frames may correlate.')
+                note='Setting groups keep transmitter identity/firmware/actual TX acknowledgement/modulation/payload/receiver/channel/gain/symbol/pulse/backoff distinct; null means unrecorded, never inferred. Hard/soft use the same saved LLR. Frame errors include wrong payload OR failed CRC. Totals are evidence audit, not a controlled cross-setting comparison. Deduplicated by raw CI8 SHA256. Saved metrics audited; raw IQ not re-decoded. Capture gaps are unobserved. Bit confidence limits assume independent errors; captures/frames may correlate.')

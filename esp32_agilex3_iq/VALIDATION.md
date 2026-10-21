@@ -475,7 +475,7 @@ PMOD B was subsequently backed up privately (2 MiB), MAC-checked, flashed with
 the combined SPI image and hash-verified. With SPI ON and BOOT OFF, the basic
 image received exact synthetic bytes and a fresh passive channel-8 RF capture.
 All packet CRCs passed; each capture contained 16,380 CI8 samples.
-Current working-tree host suite: **172 tests passed**.
+Current working-tree host suite: **205 tests passed**.
 
 The SPIQ0002 meter image also completed a no-edit consistency rebuild, with
 1,237 ALMs, 1,940 registers, one RAM and one reported DSP block. Setup/hold
@@ -506,9 +506,10 @@ The subsequent v6 TX build replaces per-symbol wall-clock calls with a checked,
 wrap-safe CPU-cycle deadline. Returned setup elapsed time is checked against the
 original 500 ms phase-work budget after blocking PHY setup; ROM/PHY setup itself
 is not bounded by that limit. Dynamic frequency scaling is rejected; short pulse
-interrupt masking, STOP and restoration remain. Native deadline tests pass and the app builds:
-`6da0772f01bc853e20424aa2b1ed681929163b68389225d7d600dd659cff3b78`.
-It is not flashed and does not establish faster QPSK or improved RF BER.
+interrupt masking, STOP and restoration remain. Native deadline tests passed for this earlier candidate:
+`6da0772f01bc853e20424aa2b1ed681929163b68389225d7d600dd659cff3b78`. It was
+superseded by the later v6 app recorded below; neither build establishes faster
+QPSK or improved RF BER without qualified RF measurements.
 
 ## Final checkpoint07 boot, FIR and recovery qualification — 2026-10-21
 
@@ -537,25 +538,41 @@ B/s at 4 Mbaud. These exclude Nios setup and host verification; CS-active SPI
 ingress stayed about 591,134 B/s. Do not compare the earlier 4-Mbaud synthetic
 result with RF throughput.
 
-PMOD A UART INFO responds, but its known v5 TX attempt fails before
-`FRAME_CFG`: a task-watchdog backtrace hangs in
+Before v6 programming, PMOD A UART INFO responded, but the known v5 TX attempt
+failed before `FRAME_CFG`: a task-watchdog backtrace hung in
 `chip_sleep_prot_en` → `esp_phy_wifi_tx_tone`, before any RF samples. This is a
-transmitter setup failure, not an SPI failure. A subsequent GUI batch verified
-one synthetic SPI/FIR pair, then timed out on the required A INFO liveness check
-because A was unresponsive; this is not a 12-pair soak pass. Cleanup verified
-host UART restoration to 2 Mbaud and FIR settings restoration. The next run
-requires A reset and transmitter recovery; keep its liveness gate intact. The
-v6 WDT-recovery/timing
-application SHA `baac3d3881539cb4321c09bda7245b7a3823762d2b3639e6e21c7d9579fc1dbb`
-is built but not flashed. Its automatic reboot recovery is not hardware-proven;
-the 500 ms job bound starts after blocking PHY setup and does not include setup.
+transmitter setup failure, not an SPI failure; A then became UART-unresponsive.
+An earlier GUI batch verified one synthetic SPI/FIR pair, then timed out on the
+required A INFO liveness check; retain it as a historical failure. After v6
+normal boot, the later 12-capture GUI batch passed all progress steps, both UART
+liveness checks (TX_PROBE v6 `busy=0`, RFS2 SDR), six synthetic and six passive
+RF captures, and cleanup. Raw/FIR matched exactly over 196,560 complex samples;
+FIR settings and host UART 2-Mbaud state were restored, with no JavaScript
+errors. Proof is `cyberether/run/spi-gui-1792619816548480098/proof.json` and
+`cyberether/run/spi-fir-browser-v6-live-001.json`; the updated 12-row screenshot
+is `docs/images/spi_pipeline_fir_lab.png`. This is bounded GUI evidence, not
+continuous coverage or BER qualification.
 
-An independent single passive-RF browser capture on the same final SOF then
-passed the actual Hamming profile at 4 Mbaud: raw/FIR data matched bit-for-bit
-and the browser reported no JavaScript errors. Proof is
-`cyberether/run/browser-final-single-001`; viewer screenshot is
-`docs/images/spi_pipeline_fir_lab.png`. This is one successful RF pair and does
-not override the failed liveness soak or qualify PMOD A TX.
+A separate A→B v6 BPSK SPI/FIR attempt acquired one frame but raw and filtered
+CRC both failed: 10/44 coded errors, 0/8 payload errors, and 725 clipped FIR
+samples. TX stopped at 90 ms after 119 completed frames and 64 misses, then
+verified idle quiet. This does not negate transport/FIR arithmetic evidence and does not qualify a
+modem frame. Later v6 RFS2 results are recorded below.
+
+PMOD A was then backed up privately (2 MiB) and verified against MAC
+`78:21:84:d4:4f:98`; the backup application's SHA matches preserved v5
+`057dda48dcd6621d9bfd09d06eb565767265ee50b661535e45d22746bca315ef`. The v6
+WDT-recovery/timing application
+`baac3d3881539cb4321c09bda7245b7a3823762d2b3639e6e21c7d9579fc1dbb` was flashed
+successfully; separate verify-flash passed for all images. Install evidence is
+`cyberether/run/tx-probe-private/v6-watchdog-install/install-record.json` and
+its logs. After the separate manual reset, normal boot passed as
+`TX_PROBE,v=6,rev=300,mac=78:21:84:d4:4f:98`, with `busy=0` and CPU 160 MHz;
+proof is `cyberether/run/pmod-a-v6-watchdog-boot.json`. The boot record has
+`iq=unverified` and explicitly covers startup/identity only. Do not claim RF
+output or watchdog recovery from flash verification or normal boot. Automatic
+reboot recovery is not hardware-proven. The 500 ms phase-work budget starts
+after blocking PHY setup and does not include setup.
 
 Notebook09 passed all 23 offline/default cells; the actual VDS GUI export passed
 with 13 blocks. Official checkpoint07 BSP/apps and the portable Quartus ZIP were
@@ -564,3 +581,14 @@ host suite passes: **201 tests**. No FPGA programming or radio flash was part of
 these software/package checks. Continuous capture, the final-image soak result,
 PMOD A TX recovery, 100,000-bit RF BER, raw-IQ FPGA synchronization and QAM RF
 qualification remain open.
+
+
+## Current checkpoint07 status FIFO and v6 RF evidence — 2026-10-21
+
+The current checkpoint07 SOF `91a0b547a3c5b0ae8b780c89c31a19940dbf20e660f2ceea5ad602845e9e7881` has source fingerprint `e35b970c093464de6fab3a149e8a603938435d3ca05215e551a16925f1e93db7`. Its four-line whole-line status FIFO fixes the dropped `TX_ON` response. Hardware proof `cyberether/run/tx-status-fifo-hardware-001.json` records the actual acknowledgement for job 4, channel 8, attenuation code 120 and 50 ms, with zero text drops, command/framing/capture errors. Attenuation code is not calibrated RF output power. Quartus reports 27,988/45,800 ALMs (61%), 120 M20Ks and 16 DSP units; the added logic is status queue/control, not RF DSP.
+
+The current-image GUI regression passed 12 alternating pairs (six synthetic, six RF; 196,560 complex samples), exact Hamming integer-reference checks, settings restoration, both UART liveness checks and no JavaScript errors. Proofs: `cyberether/run/spi-gui-1792621578444678407/proof.json` and `cyberether/run/spi-fir-browser-fifo-final.json`. Screenshot: `docs/images/spi_pipeline_fir_lab.png`. The separate RF Link Lab 10 µs QPSK browser run completed four captures and acquired five frames: three CRC passed and two failed, with 35/220 coded errors → 6/40 soft payload errors. Combined with the 32-capture CLI batch, the observed 10 µs group is 36 captures, 35 acquired, 33 CRC pass / 2 fail, 2 no-acquisition, 35/1540 coded → 6/280 soft payload errors.
+
+The independent saved-raw audit passed integrity checks and blind re-decode for all 172 unique v6 captures. BPSK: eight captures, nine acquired frames, eight CRC passes / one fail, 16/396 coded errors → 0/72 soft payload errors (hard decoder 1/72). QPSK: at 12 µs, 34 CRC-valid frames from 64 captures, 30 no-acquisition and 0/1496 coded → 0/272 payload errors; at 10 µs CLI, 30 valid from 32, two no-acquisition and 0/1320 → 0/240; at 9 µs, 23 CRC-valid from 32, seven failures, two no-acquisition, 171/1320 → 27/240 soft payload errors (hard 21/240); at 8 µs, 32 captures produced zero acquired frames because TX completed zero frames. BER is undefined at 8 µs. The 9 µs sample does not show a soft-FEC benefit.
+
+Proofs and grouped denominators are under `cyberether/run/rf-v6-independent-audit/qualification.json`, `rf-v6-bpsk-rfs2-002/proof.json`, `rf-v6-qpsk-{8us,9us,10us,12us}-001/proof.json`, `rf-link-browser-v6-final.json` and `rf-link-20261021-222650-1792621610926103009/proof.json`. The 100,000-payload-bit target, continuous coverage and automatic watchdog recovery remain open. No 16/64-QAM RF or arbitrary-IQ claim follows from these measurements.
