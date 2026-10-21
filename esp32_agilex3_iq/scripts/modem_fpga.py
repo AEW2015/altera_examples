@@ -58,7 +58,7 @@ class ModemFPGA:
         llr=np.asarray(self._indexed(8,(count+6)*2),dtype=np.uint32).view(np.int32)
         return dict(bits=bits,llr=llr,raw_errors=self.read(12),decoded_errors=self.read(13),cycles=self.read(11),origin='FPGA max-log demapper + soft Viterbi')
 
-def program(cable=None):
+def _program(cable=None):
     """Explicitly program source-matched checkpoint06; refuse active device owners.
 
     Stops only this checkout's recorded notebook demo. Other checkouts and
@@ -99,6 +99,15 @@ if owners:raise SystemExit('Release devices before programming: '+', '.join(sort
     (run/'active-fpga.json').write_text(json.dumps(meta,indent=2)+'\n')
     print('Loaded checkpoint06:',image)
     return meta
+
+def program(cable=None):
+    """Serialize programming with every RF/replay acquisition owner."""
+    import fcntl
+    run=ROOT/'cyberether/run';run.mkdir(parents=True,exist_ok=True)
+    with (run/'rf-link-capture.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        return _program(cable)
+
 
 def build(generate_only=False):
     from notebook_progress import progress

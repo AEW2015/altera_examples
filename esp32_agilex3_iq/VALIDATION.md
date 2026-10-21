@@ -633,3 +633,47 @@ zero amplitude fields for both tones (both disabled); RFS2 host UART is at 2 Mba
 against this bounded synthetic, saved and passive data; they do not prove exact
 TX boundary recovery, payload decode, BER, continuous reception or a full QPSK
 FPGA receiver.
+
+
+## FPGA 64-QAM 100k-bit-per-point symbol replay
+
+Full checkpoint06 Quartus build and programming passed for SOF
+`4297a6c946a7bb1381523eccd53ee99864871fb5a66c83edef6c90eb8b2f5441`,
+source fingerprint `791fe8cb6fecc0d967d78960f6960e92009f6d3d6e5fdf4db69b2ae772006d68`.
+Resources: 28,058 ALMs, 146 M20Ks, 32/368 reported DSP units; clk50 setup
++1.194 ns, hold +0.026 ns. RTL modem structure is unchanged; the new Nios
+monitor adds bounded `MSRUN` replay and packed `MSGET` snapshot controls.
+The native VDS checkpoint06 diagram still describes this design.
+
+The real-browser sweep processed 391 complete 256-payload-bit frames per point:
+
+| Es/N0 | Pre-FEC errors / coded bits | Post-FEC errors / payload bits |
+|---|---:|---:|
+| 12dB | 23,559 / 204,884 | 176 / 100,096 |
+| 16dB | 10,121 / 204,884 | 0 / 100,096 |
+| 20dB | 1,679 / 204,884 | 0 / 100,096 |
+
+Every frame's raw/decoded FPGA counters matched independent Nios comparisons.
+All three final-frame snapshots passed exact host checks of payload, coded
+bits, mapper IQ, noisy IQ, LLRs and Viterbi output. Noise is the explicitly
+labeled sum of twelve uniform PRNG bytes, an approximate Gaussian generated
+on Nios; it is not exact AWGN or a real RF signal. No frame failures are
+dropped from BER. The run took 36.2337 seconds; FPGA encode/decode work per
+level totaled 136,850 / 15,818,296 cycles at 50MHz, excluding Nios/JTAG/audits.
+The source tag and actual block ID `0x4d440601` are recorded separately from
+the host image hash. No RF acquisition, waveform synchronization or TX occurs.
+
+Run/selectors/browser plotting pass with no JavaScript errors. All 237 host
+tests, actual Questa modem tests and notebook08 offline execution passed.
+Official checkpoint06 BSP/Hello World/IQ monitor apps rebuilt successfully;
+no separate ELF download occurred. The full project ZIP passes CRC integrity
+checks and contains the new monitor header (no extracted-project recompile).
+TX idle is verified before/after with both tone amplitudes zero and `busy=0`.
+
+The first short run failed because the host parsed hexadecimal `next_bits`
+as decimal. It is retained as `qam64-hw-short-001`; the parser regression fix,
+`qam64-hw-short-002` and full `qam64-gui-1792626056550406835` proof pass on the
+same FPGA image. `qam64-browser-hardware.json` records actual button/selector
+checks. See [the guide](docs/FPGA_64QAM_BER.md) for formats, plots and limits.
+The 95% zero-error bit bound assumes independent trials and is educational;
+convolutional decoder errors may be bursty. No RF BER claim follows.

@@ -90,7 +90,7 @@ if p.exists():
             parts=self.line(deadline).split(',')
             if len(parts)<4 or parts[:2]!=['FIR',str(ident)]:continue
             if parts[2]!='OK':raise RuntimeError('Nios: '+','.join(parts))
-            values={key:int(value,16 if key.endswith('crc') or key=='bits' else 10) for key,value in (v.split('=',1) for v in parts[4:] if '=' in v)}
+            values={key:int(value,16 if key.endswith('crc') or key in ('bits','next_bits') else 10) for key,value in (v.split('=',1) for v in parts[4:] if '=' in v)}
             return dict(id=ident,verb=parts[3],**values)
         raise TimeoutError(f'Nios did not acknowledge {verb}')
     def status(self):return self.command('STATUS')
@@ -120,7 +120,7 @@ if p.exists():
             if ident not in pending:continue
             if ident in results or parts[2]!='OK' or parts[3]!=pending[ident]:
                 raise RuntimeError('Invalid/failed/duplicate batched Nios reply: '+','.join(parts))
-            values={key:int(value,16 if key.endswith('crc') or key=='bits' else 10) for key,value in (v.split('=',1) for v in parts[4:] if '=' in v)}
+            values={key:int(value,16 if key.endswith('crc') or key in ('bits','next_bits') else 10) for key,value in (v.split('=',1) for v in parts[4:] if '=' in v)}
             results[ident]=dict(id=ident,verb=parts[3],**values)
         return [results[ident] for ident in pending]
     def wait(self,mask,timeout=12):

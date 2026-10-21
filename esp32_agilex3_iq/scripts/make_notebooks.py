@@ -803,6 +803,38 @@ else:
 else:
     print("No Modem Lab server is running from this kernel.")''',metadata={'tags':['cleanup']})
 ]
+modem_cells += [
+ nb.v4.new_markdown_cell("""## FPGA 64-QAM · constellation and 100k-bit BER sweep
+
+**Added:** actual FPGA encoding/mapping, noisy symbol replay, soft demapping and Viterbi, with constellation and error counters together.
+
+**Useful:** compare coded-bit BER with decoded-payload BER over at least 100,000 payload bits per noise level.
+
+**Implemented:** checkpoint06 RTL performs modem DSP; Nios provides a seeded payload and approximate Gaussian noise, moves the IQ through Avalon and independently audits FPGA counters. Python verifies a saved frame from every noise level and draws the plots. No RF TX or raw-waveform synchronization occurs. The default test covers 100,096 payload bits at each of 12, 16, 20 dB Es/N0. See [the FPGA BER guide](../docs/FPGA_64QAM_BER.md)."""),
+ nb.v4.new_code_cell('''RUN_FPGA_64QAM_SWEEP = False
+if RUN_FPGA_64QAM_SWEEP:
+    sweep_output = ROOT / "cyberether/run" / ("qam64-notebook-" + str(time.time_ns()))
+    with progress("FPGA 64-QAM BER sweep · 100k payload bits per level · no RF TX"):
+        subprocess.run([sys.executable, str(ROOT / "scripts/check_qam64_sweep.py"),
+                        "--output", str(sweep_output)], cwd=ROOT, check=True)
+    proof = json.loads((sweep_output / "proof.json").read_text())
+    for row in proof["rows"]:
+        print(row["esn0_db"], "dB:", row["raw_errors"], "/", row["coded_bits"],
+              "coded errors →", row["decoded_errors"], "/", row["payload_bits"], "payload errors")
+else:
+    print("Skipped. Explicitly build/program checkpoint06 before enabling the hardware sweep.")''', metadata={'tags':['optional-tools','hardware']}),
+ nb.v4.new_code_cell('''START_FPGA_64QAM_PAGE = False
+if START_FPGA_64QAM_PAGE:
+    subprocess.run([sys.executable, str(ROOT / "scripts/start_qam64_lab.py"), "start"], cwd=ROOT, check=True)
+else:
+    print("Viewer launch skipped. It starts idle and never programs or transmits.")''', metadata={'tags':['optional-tools','browser']})
+]
+modem_cells.append(nb.v4.new_markdown_cell("""### Measured FPGA 64-QAM example
+
+The physical Agilex 3 sweep tested 100,096 payload bits per noise level. At 12 dB: 23,559/204,884 coded errors → 176/100,096 payload errors. At 16 and 20 dB: 10,121 and 1,679 coded errors respectively, with no payload errors observed. These are FPGA symbol-replay measurements with Nios-generated approximate Gaussian noise, not RF captures. Each plotted constellation shows the last audited frame at that noise level, while the BER table includes all 391 frames; that individual frame may be error-free even if the aggregate has errors.
+
+![FPGA 64-QAM constellation and BER](screenshots/08_fpga_64qam_ber.png)
+"""))
 modem_notebook = nb.v4.new_notebook(cells=modem_cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
 write_notebook(modem_notebook, ROOT/'notebooks/08_modem_lab.ipynb')
 

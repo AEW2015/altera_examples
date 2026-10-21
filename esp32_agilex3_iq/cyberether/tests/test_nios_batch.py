@@ -16,6 +16,14 @@ class NiosBatchTests(unittest.TestCase):
             except StopIteration:raise TimeoutError('No further replies')
         c.line=line;return c
 
+    def test_sweep_hex_state_and_decimal_payload_counts(self):
+        line='FIR,41,OK,MSRUN,next_bits=111c3951,payload_bits=256'
+        for batched in (False,True):
+            c=self.client([line])
+            r=c.commands([('MSRUN',407,918,1)])[0] if batched else c.command('MSRUN',407,918,1)
+            self.assertEqual(r['next_bits'],0x111c3951)
+            self.assertEqual(r['payload_bits'],256)
+
     def test_reordered_replies_match_ids_and_unrelated_logger_is_ignored(self):
         c=self.client(['IQMON,seq=4','FIR,39,OK,OLD,written=0','FIR,42,OK,PLOAD,written=32','FIR,41,OK,PLOAD,written=16'])
         result=c.commands([('PLOAD',0,'0102'),('PLOAD',16,'0304')])

@@ -24,6 +24,7 @@ static int integer(const char *s,int32_t *out){
 static void hexbyte(uint32_t n){const char *h="0123456789abcdef";line[used++]=h[(n>>4)&15];line[used++]=h[n&15];}
 static void reply_save(void){reply_used=used;for(uint32_t i=0;i<used;i++)reply[i]=line[i];}
 static void prefix(uint32_t id,const char *status){used=0;text("FIR,");number(id);text(",");text(status);}
+#include "modem_sweep.h"
 static void fir_command(void){
  char *tokens[6];uint32_t nt=0;char *p=input_line;
  while(*p && nt<6){while(*p==' ')p++;if(!*p)break;tokens[nt++]=p;while(*p && *p!=' ')p++;if(*p)*p++=0;}
@@ -31,7 +32,9 @@ static void fir_command(void){
  if(nt<3 || !equal(tokens[0],"FIR") || !integer(tokens[1],&id) || id<0)return;
  prefix((uint32_t)id,"ERR");
  uint32_t state=FIR(1);
- if(equal(tokens[2],"STATUS") && nt==3){
+ if(equal(tokens[2],"MSVERSION")||equal(tokens[2],"MSRUN")||equal(tokens[2],"MSGET")){
+  ms_command((uint32_t)id,tokens,nt);
+ }else if(equal(tokens[2],"STATUS") && nt==3){
   prefix((uint32_t)id,"OK,STATUS");field("state",state);field("samples",FIR(3));field("job",FIR(4));field("source",FIR(5));
   field("mode",FIR(2));field("cycles",FIR(9));field("errors",FIR(10));text(",raw_crc=");hexword(FIR(11));text(",filtered_crc=");hexword(FIR(12));field("rate",FIR(13));field("frequency",FIR(14));field("clips",FIR(17));field("pair",FIR(18));field("round",FIR(21));field("profile",FIR(22));field("configured_round",FIR(19));field("configured_profile",FIR(20));
  }else if(equal(tokens[2],"MREAD") && nt==4 && integer(tokens[3],&a) && a>=0 && a<16){

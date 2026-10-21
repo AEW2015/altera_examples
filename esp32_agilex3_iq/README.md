@@ -293,3 +293,13 @@ See [NOTICES.md](NOTICES.md). CyberEther, ESP-IDF, ESP-DSP, ESP-SDR and the prop
 Planned extension: [two-ESP32 Wi-Fi gateway through Agilex 3](docs/WIFI_GATEWAY_FPGA_PLAN.md), including packet forwarding and a separately gated raw-IQ PHY/MAC track.
 
 Planned modem demo: [three-ESP32 modulation, demodulation and FEC](docs/SDR_MODEM_FEC_PLAN.md), with TX/RX/monitor roles, recovered constellations and measured BER comparisons.
+
+### FPGA 64-QAM constellation and BER
+
+[The FPGA 64-QAM BER guide](docs/FPGA_64QAM_BER.md) runs checkpoint06's actual
+encoder/mapper → Nios noisy symbol replay → FPGA soft demapper/Viterbi. The
+viewer puts the constellation and pre-/post-FEC counters together, with a
+100,096-payload-bit sweep at each of 12, 16 and 20 dB. Build/program explicitly,
+then run `python scripts/start_qam64_lab.py start` (port 8773). This needs no
+ESP32 changes and transmits no RF. Notebook08 includes optional launch and
+hardware sweep cells. Noise is explicitly labeled approximate Gaussian.

@@ -6,6 +6,7 @@
 </style></head><body>
 <header><div><h1>MODEM LAB <span>· BPSK → 64-QAM</span></h1><div class="sub">See what synchronization and decoding change, one impairment at a time.</div></div><div class="badges"><div class="pill">PYTHON PLOTS · SIMULATION SOURCE</div><div class="pill blocked">RF TX QUALIFICATION · BLOCKED · ORIGINAL ESP32 / NO ARBITRARY-IQ TX</div></div></header>
 <main class="wrap">
+<p><a id="qam64Link" style="color:var(--cyan)" href="#">FPGA 64-QAM constellation + 100k-bit BER sweep ↗</a></p>
 <section class="controls" aria-label="Simulation controls">
 <div class="control"><label for="modulation">Modulation</label><select id="modulation"><option>BPSK</option><option>QPSK</option><option>16QAM</option><option selected>64QAM</option></select></div>
 <div class="control"><label for="snr">SNR · dB</label><div class="range"><input id="snr" type="range" min="0" max="30" value="18"><output id="snrOut">18</output></div></div>
@@ -38,7 +39,7 @@
 <p class="foot">EVM is normalized to the known transmitted symbols after simulated gain/phase alignment. Hard and soft BER use the same frame and channel realization. A zero-error observation is reported with its tested bit count; it does not mean true BER is zero.</p>
 </main>
 <script>
-const $=id=>document.getElementById(id);for(const [a,b,fmt] of [['snr','snrOut',x=>x],['cfo','cfoOut',x=>x],['timing','timingOut',x=>Number(x).toFixed(2)]])$(a).addEventListener('input',()=>$(b).value=fmt($(a).value));
+const $=id=>document.getElementById(id);$('qam64Link').href=`http://${location.hostname}:8773/`;for(const [a,b,fmt] of [['snr','snrOut',x=>x],['cfo','cfoOut',x=>x],['timing','timingOut',x=>Number(x).toFixed(2)]])$(a).addEventListener('input',()=>$(b).value=fmt($(a).value));
 const colors={cyan:'#56dfda',gold:'#ffc66d',blue:'#7eb8ff',muted:'#71869d',grid:'#263b52',ink:'#dce9f7'};
 function axes(c,labels){const dpr=window.devicePixelRatio||1,r=c.getBoundingClientRect();c.width=r.width*dpr;c.height=r.height*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,r.width,r.height);x.strokeStyle=colors.grid;x.lineWidth=1;for(let i=0;i<=4;i++){let xx=28+(r.width-42)*i/4, yy=12+(r.height-36)*i/4;x.beginPath();x.moveTo(xx,12);x.lineTo(xx,r.height-24);x.stroke();x.beginPath();x.moveTo(28,yy);x.lineTo(r.width-14,yy);x.stroke()}x.fillStyle=colors.muted;x.font='10px system-ui';x.fillText(labels||'I',5,17);x.fillText('Q',r.width-18,r.height-7);return{x,w:r.width,h:r.height}}
 function scatter(id,pts,ideal=[],raw=false){const c=$(id),{x,w,h}=axes(c,'I');let all=[...(pts||[]),...(ideal||[])];if(!all.length)return;let lim=Math.max(1,...all.map(p=>Math.max(Math.abs(p[0]),Math.abs(p[1]))))*1.12;let X=a=>28+(a/lim+1)*(w-42)/2,Y=a=>h-24-(a/lim+1)*(h-36)/2;x.strokeStyle='#536b83';x.beginPath();x.moveTo(X(0),12);x.lineTo(X(0),h-24);x.moveTo(28,Y(0));x.lineTo(w-14,Y(0));x.stroke();for(const p of ideal){x.strokeStyle=colors.gold;x.lineWidth=1.5;x.beginPath();x.arc(X(p[0]),Y(p[1]),5,0,Math.PI*2);x.stroke()}x.fillStyle=raw?colors.gold:colors.cyan;x.globalAlpha=.68;for(const p of pts||[]){x.beginPath();x.arc(X(p[0]),Y(p[1]),raw?1.2:1.7,0,Math.PI*2);x.fill()}x.globalAlpha=1}
