@@ -3,7 +3,7 @@
 A private Xvfb display isolates GUI automation from the presenter's desktop.
 No FPGA programming, synthesis, diagram reconstruction or GUI source edits occur.
 """
-import json,os,select,shutil,signal,subprocess,time
+import json,os,select,shutil,signal,subprocess,tempfile,time
 from pathlib import Path
 from common import tool_exe,tool_env,local_tools
 
@@ -16,8 +16,10 @@ def export_gui(stage,out,expected_cells):
  if not system.exists():raise RuntimeError('Generate the native VDS system first.')
  ready=out/'vds-gui-cells.txt';pdf=out/'vds_diagram.pdf';png=out/'vds_diagram.png'
  for p in(ready,pdf,png,out/'vds_gui_window.png',out/'vds_gui_error.png'):p.unlink(missing_ok=True)
- # A separate project wrapper prevents locks or focus changes in an already-open user project.
- work=out/'gui_project';work.mkdir(exist_ok=True)
+ # Never reopen a previous export project: Quartus can retain its project lock
+ # after an interrupted GUI run and block startup with a modal warning.
+ # A unique copy also keeps concurrent exports away from the user's open project.
+ work=Path(tempfile.mkdtemp(prefix='gui_project-',dir=out))
  from quartus_project import prepare_project
  prepare_project(stage,work)
  gui_system=work/'src/vds/iq_bridge_system/iq_bridge_system.vds'

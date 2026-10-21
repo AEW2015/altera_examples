@@ -157,3 +157,9 @@ Actual Chromium controls passed selection/preview isolation, named and custom re
 Notebooks 01–06 now end with static browser screenshots from the previously recorded physical hardware tests, including the FIR notch and custom coefficient editor. Captions distinguish live ESP32 RF from FPGA-generated test inputs. The offline firmware notebook has no CyberEther section and remains unchanged. Seven PNG assets are checked in beside the notebooks; links resolve relative to each notebook for local and GitHub rendering.
 
 All seven notebooks pass schema, Python syntax and clean-output checks. HTML export includes the expected screenshot links, all seven PNG assets decode successfully, unchanged cell IDs are retained, and regeneration is byte-for-byte stable. This documentation update did not open hardware devices or rerun acquisition.
+
+## Local native GUI export lock regression — 2026-10-21
+
+A failed checkpoint-1 diagram export left Quartus blocked by its “project already open in another instance” dialog. The saved error screenshot showed this modal warning while the helper waited for the loaded-project window title. The VDS/IP generation step had succeeded.
+
+The export helper now prepares a uniquely named `gui_project-*` copy for each run, avoiding reuse of the locked project directory. Two consecutive checkpoint-1 exports passed with six native VDS cells and validated PDF/PNG output; all 73 host tests passed. This check did not program the FPGA, download CPU/ESP32 firmware or start hardware acquisition.
