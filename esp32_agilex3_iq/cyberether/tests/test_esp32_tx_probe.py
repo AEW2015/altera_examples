@@ -3,7 +3,7 @@ import ctypes,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 class Job(ctypes.Structure):
-    _fields_=[('channel',ctypes.c_uint32),('duration_ms',ctypes.c_uint32),('backoff_qdb',ctypes.c_uint32)]
+    _fields_=[('channel',ctypes.c_uint32),('duration_ms',ctypes.c_uint32),('backoff_qdb',ctypes.c_uint32),('nco_step',ctypes.c_uint32),('nco',ctypes.c_bool)]
 @unittest.skipUnless(shutil.which('cc'),'native C compiler required')
 class ProbeParser(unittest.TestCase):
     @classmethod
@@ -19,6 +19,12 @@ class ProbeParser(unittest.TestCase):
         for command,expected in [(b'TONE 3 3000 96',(3,3000,96)),(b'TONE 11 50 120',(11,50,120))]:
             job=Job();self.assertTrue(self.parse(command,ctypes.byref(job)))
             self.assertEqual((job.channel,job.duration_ms,job.backoff_qdb),expected)
+    def test_nco_steps_are_bounded_positive_codes(self):
+        for step in [0,1,8,32]:
+            job=Job();self.assertTrue(self.parse(f'NCO 8 500 96 {step}'.encode(),ctypes.byref(job)))
+            self.assertTrue(job.nco);self.assertEqual(job.nco_step,step)
+        for command in [b'NCO 8 500 96 -1',b'NCO 8 500 96 33',b'NCO 8 500 96 65535',b'NCO 8 500 96 1 x']:
+            self.assertFalse(self.parse(command,ctypes.byref(Job())))
     def test_rejects_unbounded_malformed_and_high_power(self):
         for command in [b'TONE 1 0 96',b'TONE 1 3001 96',b'TONE 1 50 0',b'TONE 12 50 96',b'TONE -1 50 96',b'TONE 1 50 -1',b'TONE 1 50 96 START',b'TONE 1 50',b'TONE 1 9999999999999999999999 96',b'TONE 1x 50 96']:
             self.assertFalse(self.parse(command,ctypes.byref(Job())),command)
@@ -45,3 +51,18 @@ class ToneMetrics(unittest.TestCase):
         sys.path.insert(0,str(ROOT/'scripts'))
         from check_esp32_ook import decide_ook
         self.assertEqual(decide_ook([-16,45,3,15,45,-18],14).astype(int).tolist(),[0,1,0,1,1,0])
+
+    def test_nco_readback_checks_mode_gain_enable_and_extension_bits(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        from check_esp32_nco import verify_controls,state
+        base=(1<<29)|(1<<18)|(176<<10)
+        before={'tone1':base,'tone2':0x20000000,'ext':0x12340000,'mode12':1}
+        after={'tone1':base|2,'tone2':0x20000002,'ext':0x12340000,'mode12':1}
+        verify_controls(before,after,8)
+        with self.assertRaisesRegex(ValueError,'readback'):
+            verify_controls(before,after,9)
+        wrong=dict(after,tone1=after['tone1']^(1<<10))
+        with self.assertRaisesRegex(ValueError,'attenuation'):
+            verify_controls(before,wrong,8)
+        self.assertEqual(state('NCO_STATE,tone1=2006c002,tone2=20000002,ext=12340000,mode12=1')['ext'],0x12340000)

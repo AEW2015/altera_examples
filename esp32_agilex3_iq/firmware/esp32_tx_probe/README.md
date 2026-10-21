@@ -72,3 +72,32 @@ The detector trains on separate off/on captures and compares measured bits with
 the requested payload. The host coordinates each capture slot; this does not
 provide independent frame/symbol synchronization or FPGA detection/FEC. Actual
 qualification and saved plots: [bring-up results](../../docs/ESP32_TX_BRINGUP_RESULTS.md).
+
+## v2 NCO frequency probe
+
+The v2 image adds `STATE` (read-only, after RF initialization) and
+`NCO channel duration_ms backoff_qdb raw_step`. The raw step is limited to
+**0..32**, not a signed IQ value or a frequency in Hz. Original-chip SDK DWARF
+identifies the ROM function as **two tone-generator enable/frequency/attenuation
+triples**. The code preserves the vendor enables, attenuation and resolution
+mode; it rejects unexpected enable/reserved fields. The same positive step is
+written to both generators, including the frequency field of a disabled one.
+Original frequency/extension values are restored through the ROM routine before
+the vendor stop sequence; their exact before/after/restored words are logged.
+
+The predicted grid is 156.25 kHz or 39.0625 kHz per step, depending on the existing
+mode. That is a source-derived prediction until an independent RF sweep passes.
+There is no phase argument and no Cartesian I/Q injection in this interface.
+[Evidence and exact offline model](../../docs/ESP32_NCO_PROBE_EVIDENCE.md).
+
+After explicitly installing v2 and restoring the FPGA hub:
+
+```bash
+.venv-notebooks/bin/python scripts/check_esp32_nco.py \
+  --port /dev/ttyUSB0 --output cyberether/run/nco-new
+```
+
+The checker rejects v1, captures seven raw step settings, checks mode/gain/enable
+and step readback, checks restoration, and compares measured RF frequency shifts
+with the nominal grid. The plots use host FFTs. Until measured successfully,
+**v2 NCO control is built software, not qualified RF operation**.

@@ -5,9 +5,10 @@
 #include <ctype.h>
 #include <errno.h>
 bool probe_parse_tone(const char *line, probe_job_t *job) {
-    if (strncmp(line, "TONE ", 5)) return false;
-    const char *p=line+5; unsigned long values[3];
-    for (unsigned i=0;i<3;i++) {
+    bool nco=!strncmp(line,"NCO ",4);
+    if (!nco && strncmp(line, "TONE ", 5)) return false;
+    const char *p=line+(nco?4:5); unsigned long values[4]={0};
+    for (unsigned i=0;i<(nco?4:3);i++) {
         while (*p==' ') p++;
         if (!isdigit((unsigned char)*p)) return false;
         errno=0; char *end;
@@ -17,6 +18,6 @@ bool probe_parse_tone(const char *line, probe_job_t *job) {
     }
     while (*p==' ') p++;
     if (*p || values[0]<1 || values[0]>11 || values[1]<50 || values[1]>3000 ||
-        values[2]<80 || values[2]>120) return false;
-    *job=(probe_job_t){values[0],values[1],values[2]}; return true;
+        values[2]<80 || values[2]>120 || (nco && values[3]>32)) return false;
+    *job=(probe_job_t){.channel=values[0],.duration_ms=values[1],.backoff_qdb=values[2],.nco_step=values[3],.nco=nco}; return true;
 }
