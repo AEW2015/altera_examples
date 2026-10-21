@@ -16,6 +16,8 @@ Python model → VDS GUI diagram → Questa waveform → SOF → Atum A3 Nano �
 
 For a presentation using checkpoint 5, open [06 RF Arcade setup](06_rf_arcade.ipynb): verify/build, program, launch the showreel, then stop and release the hardware. It is not a sixth FPGA checkpoint.
 
+Explore [07 ESP32 SDR firmware](07_esp32_sdr_firmware.ipynb) offline: firmware flow, tuning/gain/bandwidth controls, synthetic IQ plots, byte packing/CRC and UART limits. This is a Python lesson, not another FPGA checkpoint.
+
 ## Install once
 
 From the example root:

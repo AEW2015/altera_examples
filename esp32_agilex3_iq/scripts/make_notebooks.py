@@ -188,3 +188,193 @@ Run this cell **when finished presenting**. It stops this checkout's notebook-ow
 ]
 arcade = nb.v4.new_notebook(cells=arcade_cells, metadata=notebook.metadata)
 write_notebook(arcade, ROOT/'notebooks/06_rf_arcade.ipynb')
+
+# Offline firmware lesson: intentionally no serial, FPGA programming or GUI launch.
+firmware_cells = [
+ nb.v4.new_markdown_cell("""# ESP32 SDR firmware · from airwaves to bytes
+
+**What is added:** an explanation of the original ESP32 receiver firmware, plus an editable Python model of its controls and binary samples.
+
+**Why it is useful:** understand what reaches the FPGA, what each radio setting changes, and why fast sampling still produces sparse captures over UART.
+
+**How it works:** the ESP32 RF/PHY capture hardware fills reserved SRAM; firmware checks the capture, packs I/Q, computes a CRC and sends bytes. Agilex 3 receives those bytes before applying the lesson's DSP.
+
+**Everything in this notebook is offline.** Run All is safe: no serial access, firmware build/flash, FPGA programming or live viewer. Simulated tones are not RF transmissions. The model follows selected command/packing rules, but its RF filter, gain curve and AGC are teaching approximations, not an ESP32 hardware emulator."""),
+ nb.v4.new_markdown_cell("""## 1 · Setup
+
+Use **Atum A3 IQ Demos** or `.venv-notebooks/bin/python`. If needed, run `bash scripts/install_local.sh` from the example root first; see [installation](README.md#install-once). This notebook needs NumPy/Matplotlib, not Quartus or connected hardware.
+
+Source of truth: [mode dispatch](../unified/main/rf_mode.c), [ESP32 receiver](../unified/main/targets/esp32/receiver.c), [capture packing](../unified/main/common/burst_capture.h), [shared commands](../unified/main/common/burst_commands.h), [UART transport](../unified/main/common/burst_serial.c). Python model: [esp32_sdr_model.py](../scripts/esp32_sdr_model.py)."""),
+ nb.v4.new_code_cell('''from pathlib import Path
+import sys
+ROOT = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "scripts/esp32_sdr_model.py").exists())
+sys.path.insert(0, str(ROOT / "scripts"))
+import numpy as np
+import matplotlib.pyplot as plt
+from esp32_sdr_model import ReceiverModel, Capture, RATES, bandwidth_code, pack_samples
+print("Python:", sys.executable)
+print("OFFLINE — no hardware connection")
+''',metadata={'tags':['setup']}),
+ nb.v4.new_markdown_cell("""## 2 · One firmware, three different measurements
+
+```text
+Boot → read mode from NVS
+           ├─ MONITOR → Wi-Fi packet metadata / SSID inventory       · 115200 baud
+           ├─ CSI     → associated AP → channel-state measurements  · 115200 baud
+           └─ SDR     → RF capture SRAM → raw I/Q bursts             · 2000000 baud
+```
+
+`MODE?` reports the current mode. `MODE SDR` saves the selection in NVS, replies `RF_MODE_ACK,SDR,rebooting` and restarts the ESP32. It is not an instantaneous concurrent mode switch. A fresh NVS defaults to MONITOR. SDR baud changes are session-only; the next SDR boot returns to the configured 2 Mbaud default.
+
+SSID/decoded header information comes from the built-in Wi-Fi receiver in monitoring mode. SDR gives samples, not SSIDs; these notebooks' FPGA DSP does not decode Wi-Fi packets. CSI is channel-state information, not the same data as an IQ recording.
+
+### SDR capture lifecycle
+
+The receiver reserves a 64 KiB SRAM aperture (16,384 32-bit words), permitting **256–16,380 samples** per burst. The extra four words remain outside the requested capture. Before capture it fills the whole aperture with sentinel `0xa55aa55a`; after capture it verifies the written region and untouched tail. A hardware completion/status check has a 20 ms timeout. It restores the memory ownership and filter state before transferring bytes.
+
+The next diagram is a schematic of the source sequence, not a Quartus VDS export."""),
+ nb.v4.new_code_cell('''fig, ax = plt.subplots(figsize=(12, 3))
+labels = ["Tune / calibrate\\napply gain", "Fill SRAM sentinel\\ntrigger RF dump", "Check done / count\\ncheck SRAM bounds", "Pack I/Q\\nCRC + DATA header", "UART → FPGA\\nCRC / RAM / DSP"]
+for j, label in enumerate(labels):
+    ax.text(j*2.5, 0.5, label, ha="center", va="center", fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.6", facecolor="#dff3ff", edgecolor="#13799a"))
+    if j < len(labels)-1:
+        ax.annotate("", xy=(j*2.5+1.5,0.5), xytext=(j*2.5+1,0.5), arrowprops=dict(arrowstyle="->", lw=2))
+ax.set(xlim=(-1.4,11.5), ylim=(0,1)); ax.axis("off")
+fig.tight_layout(); plt.show()
+''',metadata={'tags':['theory','diagram']}),
+ nb.v4.new_markdown_cell("""## 3 · Controls and their meaning
+
+| Firmware command | Effect | Important distinction |
+|---|---|---|
+| `INFO`, `CAPS`, `LIMITS?` | Discover identity, features and bounds | Read the actual device; gain maximum is read from a register at boot |
+| `FREQ 2417` | Retune LO to channel-2 center | MHz, not channel number; retuning can require calibration |
+| `RANGE?` | Reports accepted software range 100–6000 MHz | Acceptance is not proof of PLL lock, useful sensitivity or 5 GHz reception on these original ESP32 boards; use the demonstrated 2.4 GHz region |
+| `GAIN HARDWARE` | Let RF hardware AGC control gain | Default; relative amplitude can change across bursts |
+| `GAIN MANUAL 40` | Force a gain code | Code is not calibrated dB; different from downstream FPGA digital gain |
+| `BANDWIDTH 20` | Approximate analog full-width selection | Original ESP32 accepts 0 or 12–67 MHz; 0 selects code 0; actual response is approximate |
+| `LPF AUTO`, `LPF 64`, `LPF?` | Restore calibrated filter / select raw capacitor code / query | `AUTO` is distinct from `BANDWIDTH 0`; the model only simulates BANDWIDTH |
+| `CAP16 8192 6` | One burst, signed CI8 output | 8-bit I + 8-bit Q, 16 bits per complex sample |
+| `CAP20 8192 6` | One burst, packed IQ10 | 10-bit I + 10-bit Q, not 20 bits per component |
+| `CAP 8192 6` | One burst, raw 32-bit words | Includes bits outside the low-20-bit IQ fields |
+| `RXRUN 8192 6 10 16` | Ten independent CI8 captures, then `END` | RF gaps during transfers; not continuous streaming |
+| `BAUD?`, `BAUD 1000000` | Query/change UART baud | ACK at old baud; host and FPGA receiver must then agree on new baud |
+| `SYNC 123`, `RELEASE` | Echo marker / release transport ownership | SYNC does not synchronize RF sample phase between radios |
+
+**Valid capture rate codes for this target:** 0 → 80 MS/s, 1 → 40 MS/s, 6 → 16 MS/s. Codes 2–5 are rejected by the original ESP32 capture backend even though the shared parser allows codes up to 6. These are hardware sampling clocks, inferred in the firmware from capture-duration slopes, not a software decimation setting.
+
+The shared transport parser bounds command lines to 127 characters and holds a five-second ownership lease after a transaction. The original ESP32 modules here use UART; native USB handling in shared source serves other chips. Additional on-device spectrum commands exist, but the current FPGA IQ bridge requests **CAP16**; it does not use compressed spectrum output.
+
+The model below implements only the listed examples for tuning, gain, bandwidth, baud, queries and single captures. It deliberately omits mode restarts, LPF, RXRUN, leases and calibration."""),
+ nb.v4.new_code_cell('''radio = ReceiverModel(gain_max=72)  # Example limit, not a device measurement.
+for command in ["MODE?", "INFO", "RANGE?", "FREQ 2417", "GAIN MANUAL 40", "BANDWIDTH 20", "BAUD?", "CAP16 8192 2"]:
+    print(f"> {command}\\n{radio.command(command)}")
+print("BANDWIDTH 20 maps to capacitor code:", bandwidth_code(20))
+''',metadata={'tags':['theory','controls']}),
+ nb.v4.new_markdown_cell("""## 4 · Try the controls: tune, narrow, amplify, sample
+
+Edit the parameters, then rerun this cell. Synthetic fixed RF tones sit at **2416 and 2426 MHz**. Changing center frequency changes their baseband offsets. At 16 MS/s the displayed complex band is −8 to +8 MHz: out-of-band content can alias if analog rejection is insufficient.
+
+Try `(center, bandwidth, gain, rate)` values `(2417, 0, 40, 6)`, `(2417, 12, 40, 6)`, `(2422, 20, 40, 1)`, and `(2417, 20, 72, 6)`. Compare movement, interferer attenuation and clipping. Set hardware AGC to see a simplified RMS-level controller.
+
+**Model assumptions:** smooth illustrative analog low-pass response before sampling; gain doubles every 16 codes solely for this illustration; AGC targets a fixed RMS; additive noise is synthetic. These are not measured ESP32 transfer curves. The firmware's numeric bandwidth-to-capacitor interpolation and IQ packing are reproduced separately."""),
+ nb.v4.new_code_cell('''CENTER_MHZ = 2417
+BANDWIDTH_MHZ = 20       # 0 or 12..67
+GAIN_CODE = 40          # 0..72 in this illustrative instance
+HARDWARE_AGC = False
+RATE_CODE = 6           # 0=80, 1=40, 6=16 MS/s
+SAMPLES = 8192           # 256..16380
+FORMAT = 16             # 0=raw32, 16=CI8, 20=IQ10
+radio = ReceiverModel(gain_max=72)
+for command in [f"FREQ {CENTER_MHZ}", f"BANDWIDTH {BANDWIDTH_MHZ}",
+                "GAIN HARDWARE" if HARDWARE_AGC else f"GAIN MANUAL {GAIN_CODE}"]:
+    answer=radio.command(command)
+    if answer != "OK": raise ValueError(f"{command}: {answer}")
+cap = radio.capture(SAMPLES, RATE_CODE, FORMAT)
+if FORMAT == 16:
+    pair = np.frombuffer(cap.payload, dtype=np.int8).reshape(-1,2).astype(float)/128
+else:
+    pair = cap.iq10.astype(float)/512
+x = pair[:,0] + 1j*pair[:,1]
+f = np.fft.fftshift(np.fft.fftfreq(len(x),1/cap.fs))/1e6
+power = 20*np.log10(np.maximum(abs(np.fft.fftshift(np.fft.fft(x*np.hanning(len(x)))))/len(x),1e-9))
+fig, axes = plt.subplots(1,3,figsize=(14,3.8))
+axes[0].plot(np.arange(160)/cap.fs*1e6,pair[:160,0],label="I")
+axes[0].plot(np.arange(160)/cap.fs*1e6,pair[:160,1],label="Q",alpha=.7)
+axes[0].set(xlabel="Time (µs)",ylabel="Normalized amplitude",ylim=(-1.1,1.1)); axes[0].legend()
+axes[1].plot(f,power,color="#168eab"); axes[1].set(xlabel="Offset from LO (MHz)",ylabel="Relative FFT magnitude (dB)",ylim=(-100,0))
+axes[2].scatter(pair[:2000,0],pair[:2000,1],s=2,alpha=.3)
+axes[2].set(xlabel="I",ylabel="Q",xlim=(-1.1,1.1),ylim=(-1.1,1.1)); axes[2].set_aspect("equal")
+fig.suptitle("SIMULATED receiver output — sample scatter, not decoded symbols")
+fig.tight_layout(); plt.show()
+print(cap.header.strip(), "← simulated elapsed time excludes firmware overhead")
+print("Payload bytes:",len(cap.payload),"Clipped I/Q components:",cap.clipped_components)
+''',metadata={'tags':['theory','controls']}),
+ nb.v4.new_markdown_cell("""## 5 · The byte contract: ESP32 → FPGA → Python
+
+```text
+ESP32 radio UART:
+  ASCII DATA <sample_count> <payload_crc_hex> <capture_us> + newline
+  followed immediately by binary payload (no newline terminator)
+                         ↓
+Agilex 3: parse / length / CRC → capture RAM → optional DSP
+                         ↓
+Host UART: IQB1 binary envelope + payload + envelope CRC
+```
+
+These are **two different protocols**. The host also sends binary `IQBC` commands to the FPGA; firmware commands are ASCII forwarded to a selected radio. See [host bridge implementation](../cyberether/iq_bridge.py). FPGA host UART supports qualified 2/4 Mbaud profiles; ESP32 SDR UART supports 1/2 Mbaud. A host UART speed change does not automatically change the ESP32 link.
+
+The FPGA bridge currently uses **CAP16**: signed I then Q, keeping the upper eight bits of each signed ten-bit field (discard two low bits). IQ10 packs two complex samples into five bytes; an odd tail uses three. CAP uses four bytes per word. The model's raw32 format sets unused upper bits to zero; actual raw register words need not.
+
+The firmware CRC covers the packed payload, not the ASCII header. Capture microseconds measure the firmware trigger-to-completion interval, not UART transfer time or a shared multi-radio RF timestamp."""),
+ nb.v4.new_code_cell('''import zlib
+example = np.array([[-512,511],[-1,0],[4,-4]],dtype=np.int16)
+for fmt in (0,20,16):
+    payload=pack_samples(example,fmt)
+    print(f"Format {fmt:2}: {len(payload):2} bytes  {payload.hex(' ')}")
+print("CAP16 decoded:",np.frombuffer(pack_samples(example,16),np.int8).reshape(-1,2).tolist())
+fields=cap.header.split()
+assert fields[0]=="DATA" and int(fields[1])==SAMPLES
+assert zlib.crc32(cap.payload)==int(fields[2],16)
+bad=bytearray(cap.payload); bad[0]^=1
+print("Good CRC:",f"{zlib.crc32(cap.payload):08x}")
+print("Corrupted payload rejected:",zlib.crc32(bad)!=int(fields[2],16))
+''',metadata={'tags':['theory','protocol']}),
+ nb.v4.new_markdown_cell("""## 6 · Why the UART limits live acquisition
+
+For 8N1 UART, one byte costs **10 wire bits**. CI8 costs two bytes per sample, so 2 Mbaud carries at most **100,000 complex samples/s**, before headers and overhead. An 8192-sample burst at 16 MS/s spans just **512 µs** of RF; its CI8 payload alone takes **81.92 ms** over 2 Mbaud.
+
+The graph shows ideal capture-plus-transfer timing only. Calibration, sentinel writes/checks, task scheduling, FPGA→host transfer and display work add more gaps. RXRUN repeats this sparse sequence. A faster RF sample clock makes each capture shorter, not the UART faster. Separate FPGA and host links add constraints; do not add the three radios' RF sample clocks and call that host throughput."""),
+ nb.v4.new_code_cell('''n=8192
+fig, axes=plt.subplots(1,2,figsize=(12,3.5))
+for fmt,label in [(16,"CI8"),(20,"IQ10"),(0,"raw32")]:
+    byte_count=len(pack_samples(np.zeros((n,2),np.int16),fmt))
+    wire_ms=byte_count*10/2_000_000*1000
+    axes[0].bar(label,wire_ms)
+    axes[0].text(label,wire_ms,f"{wire_ms:.2f} ms",ha="center",va="bottom")
+axes[0].set(ylabel="Payload-only UART time (ms)",title="8192 samples at 2 Mbaud",ylim=(0,190))
+for j,code in enumerate((6,1,0)):
+    sample_ms=n/RATES[code]*1000
+    wire_ms=n*2*10/2_000_000*1000
+    axes[1].barh(j,sample_ms,color="#24b6a8",label="RF capture" if j==0 else None)
+    axes[1].barh(j,wire_ms,left=sample_ms,color="#f5ab49",label="CI8 transfer" if j==0 else None)
+    print(f"{RATES[code]/1e6:2.0f} MS/s: RF {sample_ms*1000:.1f} µs, transfer {wire_ms:.2f} ms, ideal RF duty {100*sample_ms/(sample_ms+wire_ms):.3f}%")
+axes[1].set(yticks=range(3),yticklabels=["16 MS/s","40 MS/s","80 MS/s"],xlabel="Ideal elapsed time (ms)",title="Capture → transfer → gap before next burst")
+axes[1].legend(); fig.tight_layout(); plt.show()
+''',metadata={'tags':['theory','bandwidth']}),
+ nb.v4.new_markdown_cell("""## 7 · Firmware, FPGA and host responsibilities
+
+| Stage | Runs where | How to test it independently |
+|---|---|---|
+| LO/PHY setup, calibration, dump clocks, capture completion | ESP32 RF hardware + firmware | Physical known RF source and timed captures; the Python model cannot validate registers or sensitivity |
+| SRAM bounds, packing, DATA framing | ESP32 firmware | Known signed sample vectors / byte comparison; timeout/bounds checks in receiver source |
+| UART framing, CRC, burst RAM | Agilex 3 FPGA | [Lesson 01](01_raw_iq_bridge.ipynb): UART module simulation, then hardware capture |
+| FIR / DDC / gain / meters | Agilex 3 FPGA | [Lessons 03–05](README.md): generated IP/RTL assertions and clean FPGA test patterns |
+| Independent reference / display FFT / plots | Host Python + CyberEther | Host unit tests and synthetic references; [RF Arcade](06_rf_arcade.ipynb) for presentation |
+
+To build the **real** firmware later, follow [firmware build/program instructions](../docs/ESP32_FIRMWARE.md). RFS2 application TX/RX uses GPIO1/3; Digilent Pmod application TX/RX uses GPIO17/16. Pmod ROM flashing instead uses J2 GPIO1/3; it is a different route. No build or flash is performed here.
+
+Python examples above model **this checkout's original ESP32 backend**. Other ESP32 families have different rate codes, analog paths and capabilities; shared source listings are not proof that these three modules implement every target's features."""),
+]
+firmware_notebook=nb.v4.new_notebook(cells=firmware_cells,metadata=notebook.metadata)
+write_notebook(firmware_notebook,ROOT/'notebooks/07_esp32_sdr_firmware.ipynb')

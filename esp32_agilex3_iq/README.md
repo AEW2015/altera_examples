@@ -27,6 +27,8 @@ This example includes the **five checkpoints and IQ Pipeline Lab**. The earlier 
 
 RTL, Nios firmware and the native VDS construction/connection Tcl definitions are included. The editable `.vds` diagrams and vendor IP parameter caches are regenerated from those definitions. Vendor HDL, synthesis databases, bitfiles, SDKs, Python environments, captures and credentials are generated/downloaded locally. The small CI8 files under `cyberether/samples/clean-ddc` are deterministic synthetic test fixtures, not RF recordings.
 
+Learn the radio side in the [ESP32 SDR firmware notebook](notebooks/07_esp32_sdr_firmware.ipynb): offline controls, IQ simulation, packing and UART bandwidth.
+
 ## Demo night: RF Arcade
 
 Open the [RF Arcade setup notebook](notebooks/06_rf_arcade.ipynb) for the guided build → program → launch workflow and the demo sequence.

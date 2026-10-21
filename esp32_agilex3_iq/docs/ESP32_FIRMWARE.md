@@ -1,5 +1,7 @@
 # ESP32 firmware and programmer
 
+Start with the [offline firmware notebook](../notebooks/07_esp32_sdr_firmware.ipynb) for diagrams and editable control/signal simulations. It does not access hardware.
+
 The complete original-ESP32 RF-suite source is included in [`unified/`](../unified/). One application supports **Wi-Fi monitoring**, **CSI on a known 2.4 GHz network**, and **ESP-SDR IQ capture**. The five FPGA lessons and RF Arcade use its SDR burst mode. It is ESP-SDR-derived GPLv3 code; the license and upstream revision pins are included.
 
 ```mermaid
