@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate the authored lessons and RF Arcade setup notebook; outputs are produced by local execution."""
 import ast
+import textwrap
 from pathlib import Path
 import nbformat as nb
 from common import ROOT,stages
@@ -33,6 +34,10 @@ tries=[
  'Try **Clean 1× → Boost 2× → Clip 16×**. Check amplitude, harmonics, measured FPGA power change and clipped samples. Gain readback and zero integer-reference error must match the current request before the badge says VERIFIED.',
 ]
 def write_notebook(notebook, path):
+ for cell in notebook.cells:
+  if cell.cell_type=='code' and 'theory' in cell.metadata.get('tags',[]) and not cell.source.startswith('from notebook_progress import progress'):
+   last_summary=cell.source.rstrip().endswith('\nsummary')
+   cell.source='from notebook_progress import progress\nwith progress("Run Python example / render graphs"):\n'+textwrap.indent(cell.source,'    ')+('\nsummary'if last_summary else '')
  # Keep authored cell IDs stable when regenerating unchanged content.
  if path.exists():
   previous = nb.read(path, as_version=4)
@@ -44,7 +49,7 @@ def write_notebook(notebook, path):
 
 for i,name in enumerate(NAMES,1):
  cells=[nb.v4.new_markdown_cell(f'# {i} · {name}\n\n**Local Quartus workflow · host or container · one active FPGA design at a time**\n\n`{introductions[i-1][0]}`\n\n**What is added:** {lesson_intros[i-1][0]}\n\n**Why it is useful:** {lesson_intros[i-1][1]}\n\n**How it works:** {lesson_intros[i-1][2]}\n\n```text\n{lesson_intros[i-1][3]}\n```\n\nPython model → native VDS diagram → real RTL/IP simulation → SOF → board → focused CyberEther page.'),
- nb.v4.new_markdown_cell('## Setup\n\nOnce, from this example folder: `bash scripts/install_local.sh --system` (Linux system packages need sudo), then select **Atum A3 IQ Demos** as the notebook kernel. Quartus/Questa/Nios tools must already be installed. Set the optional paths below if they are not on PATH. No Docker commands are needed.'),
+ nb.v4.new_markdown_cell('## Setup\n\nOnce, from this example folder: `bash scripts/install_local.sh --system` (Linux system packages need sudo), then select **Atum A3 IQ Demos** as the notebook kernel. Quartus/Questa/Nios tools must already be installed. Set the optional paths below if they are not on PATH. No Docker commands are needed. Long-running cells show an animated activity bar, elapsed time and the active step/log; a full bar means successful completion, not an estimated compile percentage.'),
  nb.v4.new_code_cell(f'''from pathlib import Path
 import os, sys
 ROOT = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "scripts/lessons.py").exists())
@@ -145,7 +150,7 @@ bash scripts/install_local.sh --system
 
 Omit `--system` if system prerequisites are already installed. That option needs sudo. The installer creates the venv/kernel and downloads the pinned CyberEther runtime; install/license Quartus, device support, Questa and Nios separately. See [installation details](README.md#install-once).
 
-Select **Atum A3 IQ Demos**, or `.venv-notebooks/bin/python` in VS Code. Keep the desktop's `DISPLAY`. Set UART and JTAG overrides below for your board; the current container uses `/dev/ttyUSB0`. No Docker-specific commands are required. These configuration checks do not open the serial device."""),
+Select **Atum A3 IQ Demos**, or `.venv-notebooks/bin/python` in VS Code. Keep the desktop's `DISPLAY`. Set UART and JTAG overrides below for your board; the current container uses `/dev/ttyUSB0`. No Docker-specific commands are required. Long-running cells show an activity bar, elapsed time and the current step/log. The bar fills on successful completion; it does not guess a tool percentage. These configuration checks do not open the serial device."""),
  nb.v4.new_code_cell(arcade_setup, metadata={'tags':['setup']}),
  nb.v4.new_markdown_cell("""## 2 · See the FPGA design
 
@@ -208,7 +213,7 @@ firmware_cells = [
 **Everything in this notebook is offline.** Run All is safe: no serial access, firmware build/flash, FPGA programming or live viewer. Simulated tones are not RF transmissions. The model follows selected command/packing rules, but its RF filter, gain curve and AGC are teaching approximations, not an ESP32 hardware emulator."""),
  nb.v4.new_markdown_cell("""## 1 · Setup
 
-Use **Atum A3 IQ Demos** or `.venv-notebooks/bin/python`. If needed, run `bash scripts/install_local.sh` from the example root first; see [installation](README.md#install-once). This notebook needs NumPy/Matplotlib, not Quartus or connected hardware.
+Use **Atum A3 IQ Demos** or `.venv-notebooks/bin/python`. If needed, run `bash scripts/install_local.sh` from the example root first; see [installation](README.md#install-once). This notebook needs NumPy/Matplotlib, not Quartus or connected hardware. Python examples show an activity bar and elapsed time while computing and rendering plots.
 
 Source of truth: [mode dispatch](../unified/main/rf_mode.c), [ESP32 receiver](../unified/main/targets/esp32/receiver.c), [capture packing](../unified/main/common/burst_capture.h), [shared commands](../unified/main/common/burst_commands.h), [UART transport](../unified/main/common/burst_serial.c). Python model: [esp32_sdr_model.py](../scripts/esp32_sdr_model.py)."""),
  nb.v4.new_code_cell('''from pathlib import Path

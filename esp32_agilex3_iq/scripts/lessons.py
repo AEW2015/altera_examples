@@ -2,6 +2,7 @@
 import hashlib,json,os,re,signal,socket,subprocess,sys,time,shlex
 from pathlib import Path
 from common import ROOT,stages,tool_command,tool_path,local_tools,tool_exe
+from notebook_progress import progress,task
 NAMES=['Raw IQ bridge','Nios V transfer monitor','FIR II filtering','Frequency translation and decimation','Digital gain and power meters']
 def lan_ip():
  s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -16,6 +17,7 @@ def fingerprint(stage):
  qsf=(stage/'iq_bridge_vds.qsf').read_text().splitlines()
  h.update('\n'.join(sorted(set(re.sub(r'\s+-entity\s+iq_bridge_vds_top\b','',l).strip() for l in qsf if 'set_location_assignment'in l or 'IO_STANDARD'in l or '-name DEVICE 'in l or '-name FAMILY 'in l))).encode())
  return h.hexdigest()
+@task("Stop demo and release UART / JTAG")
 def stop_demo():
  p=ROOT/'cyberether/run/notebook-demo.json'
  if not p.exists():return
@@ -30,13 +32,20 @@ class Lesson:
   if n not in range(1,6):raise ValueError('Checkpoint 1–5 required')
   self.n=n;self.name=NAMES[n-1];self.stage=stages()[n-1];self.out=self.stage/'results/notebook';self.out.mkdir(parents=True,exist_ok=True)
  def command(self,args,log,cwd=None,timeout=1800):
-  with Path(log).open('w')as f:
-   p=subprocess.run(list(map(str,args)),cwd=cwd or ROOT,stdout=f,stderr=subprocess.STDOUT,timeout=timeout)
-  tail='\n'.join(Path(log).read_text(errors='replace').splitlines()[-8:]);print(tail)
-  if p.returncode:raise RuntimeError(f'Command failed ({p.returncode}); inspect {log}')
+  script=next((Path(str(a)).name for a in args if str(a).endswith('.py')),Path(str(args[0])).name)
+  logs=[log,self.stage/'run/build.log',self.out/'simulation/questa.log']
+  software=ROOT/'software'/f'checkpoint_{self.n:02d}'
+  if software.exists():logs+=list(software.glob('*.log'))
+  with progress('Running '+script,logs=logs):
+   with Path(log).open('w')as f:
+    p=subprocess.run(list(map(str,args)),cwd=cwd or ROOT,stdout=f,stderr=subprocess.STDOUT,timeout=timeout)
+   tail='\n'.join(Path(log).read_text(errors='replace').splitlines()[-8:]);print(tail)
+   if p.returncode:raise RuntimeError(f'Command failed ({p.returncode}); inspect {log}')
+ @task("Generate native VDS design and diagram")
  def generate(self):
   self.command([sys.executable,ROOT/'scripts/build.py',self.n,'--generate-only','--display',os.getenv('DISPLAY',':0')],self.out/'generate.log')
   png=self.diagram();self.project();return png
+ @task("Package complete Quartus project")
  def project(self):
   from quartus_project import export_project
   qpf,archive=export_project(self.stage)
@@ -44,13 +53,18 @@ class Lesson:
   display(FileLink(os.path.relpath(qpf,Path.cwd()),result_html_prefix='Quartus project: '))
   display(FileLink(os.path.relpath(archive,Path.cwd()),result_html_prefix='Download complete project ZIP: '))
   return dict(qpf=qpf,archive=archive)
+ @task("Export native VDS GUI diagram")
  def diagram(self):
   from vds_gui_export import export_gui
-  return export_gui(self.stage,self.out,[6,11,13,16,17][self.n-1])
+  with progress('Open VDS GUI → export PDF → render PNG',logs=[self.out/'vds-gui.log']) as feedback:
+   feedback.message('Waiting for the private Quartus GUI and native diagram export; this can take a few minutes.')
+   return export_gui(self.stage,self.out,[6,11,13,16,17][self.n-1])
+ @task("Generate Nios BSP and build applications")
  def software(self):
   if self.n==1:raise ValueError('Checkpoint 1 has no Nios V processor; use checkpoints 2–5.')
   self.command([sys.executable,ROOT/'scripts/nios_software.py',self.n],self.out/'software.log')
   return ROOT/'software'/f'checkpoint_{self.n:02d}'
+ @task("Render FPGA topology")
  def topology(self):
   export=self.stage/'scripts/iq_bridge_system_export.tcl'
   if not export.exists():raise RuntimeError('Generate the native VDS system first')
@@ -78,12 +92,15 @@ class Lesson:
   from IPython.display import SVG,display
   display(SVG(filename=str(self.out/'block_diagram.svg')))
   return self.out/'block_diagram.png'
+ @task("Run RTL / vendor IP simulation")
  def simulate(self):
   self.command([sys.executable,ROOT/'scripts/simulate_lesson.py',self.n],self.out/'simulation-command.log',timeout=900)
   result=json.loads((self.out/'simulation/result.json').read_text());assert result['status']=='PASS';return result
+ @task("Plot simulator results")
  def simulation_plot(self):
   from notebook_plots import simulation_plot
   return simulation_plot(self)
+ @task("Build / verify FPGA bitstream")
  def build(self,force=False):
   p=self.stage/'BUILD_RESULT.json';sof=self.stage/'iq_bridge_vds.sof';sig=fingerprint(self.stage)
   if not force and p.exists()and sof.exists():
@@ -92,9 +109,11 @@ class Lesson:
     print('Reusing source-matched cached SOF:',d['sha256'][:16],'; set FORCE_REBUILD=True to compile again.');self.project();return d
   self.command([sys.executable,ROOT/'scripts/build.py',self.n,'--display',os.getenv('DISPLAY',':0')],self.out/'build-command.log')
   d=json.loads(p.read_text());d['source_fingerprint']=fingerprint(self.stage);p.write_text(json.dumps(d,indent=2)+'\n');self.project();return d
+ @task("Program FPGA checkpoint")
  def program(self):
   stop_demo()
   self.command([sys.executable,ROOT/'scripts/run.py','load','--checkpoint',self.n],self.out/'program.log')
+ @task("Start CyberEther and wait for fresh acquisition")
  def start_demo(self,host=None,demo_night=False):
   stop_demo();host=host or lan_ip();run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
   env=dict(os.environ,ATUM_LESSON='0'if demo_night else str(self.n),ATUM_DEMO_NIGHT='1'if demo_night else'0',ATUM_CONTAINER_ROOT=tool_path(ROOT))
@@ -103,20 +122,23 @@ class Lesson:
   args=[sys.executable,str(ROOT/'cyberether/start_iq_bridge_lab.py'),'--host',host]
   p=subprocess.Popen(args,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True);log.close()
   (run/'notebook-demo.json').write_text(json.dumps(dict(pid=p.pid,lesson=self.n,host=host)))
-  end=time.monotonic()+100
-  while time.monotonic()<end:
-   if p.poll()is not None:raise RuntimeError('Viewer exited; inspect cyberether/run/notebook-launch.log')
-   state=run/'iq-bridge-lab/state.json'
-   if state.exists():
-    s=json.loads(state.read_text())
-    if s.get('completed',0)>0 and s.get('fpga',{}).get('stage_relative')==str(self.stage.relative_to(ROOT))and s.get('updated_unix',0)>=launched and s.get('updated_unix',0)>time.time()-4:break
-   time.sleep(.3)
-  else:raise RuntimeError('No live result; inspect the acquisition log')
+  with progress('Wait for viewer and fresh FPGA acquisition') as feedback:
+   end=time.monotonic()+100
+   while time.monotonic()<end:
+    if p.poll()is not None:raise RuntimeError('Viewer exited; inspect cyberether/run/notebook-launch.log')
+    state=run/'iq-bridge-lab/state.json'
+    if state.exists():
+     s=json.loads(state.read_text())
+     feedback.message('Acquisition: '+str(s.get('status','STARTING'))+' · '+str(s.get('completed',0))+' result(s); waiting for a fresh matching checkpoint.')
+     if s.get('completed',0)>0 and s.get('fpga',{}).get('stage_relative')==str(self.stage.relative_to(ROOT))and s.get('updated_unix',0)>=launched and s.get('updated_unix',0)>time.time()-4:break
+    time.sleep(.3)
+   else:raise RuntimeError('No live result; inspect the acquisition log')
   invite=run/'iq-bridge-lab/control-invite.json';self.url=json.loads(invite.read_text())['url']
   from IPython.display import HTML,display
   import html
   display(HTML('<a target="_blank" href="'+html.escape(self.url,quote=True)+'">Open '+str(self.n)+' · '+self.name+' in CyberEther</a>'))
   return dict(status=s['status'],results=s['completed'],checkpoint=self.n)
+ @task("Run Python model and plots")
  def theory(self):
   from notebook_plots import theory
   return theory(self.n)

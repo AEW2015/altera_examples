@@ -43,6 +43,12 @@ For a remote browser add `--ip=0.0.0.0`; use the Jupyter token printed in the te
 
 See [visual experiment and verification guide](../docs/NOTEBOOK_DEMOS.md) for the one-click FPGA checks, graph meanings and requested/applied settings ledger.
 
+## Progress feedback
+
+Long-running cells show a live activity bar, elapsed seconds, the active step and a log path/latest tool message where available. This covers VDS/IP generation and GUI export, Nios BSP/apps, simulation, bitstream build or cache verification, programming, viewer startup and cleanup. Python plot cells also show activity. No extra widget package is required.
+
+The moving bar is indeterminate: Quartus/Questa do not supply a reliable overall percentage here. It fills only after success; failures and interruptions show **FAILED** or **CANCELLED** and retain their exceptions. Nested steps share one row. In a terminal the same helpers print periodic status lines. Reload the notebook kernel after updating this checkout to load the new helpers.
+
 ## Demo sequence
 
 1. Open notebook 01 and select **Atum A3 IQ Demos**.
