@@ -66,3 +66,15 @@ The simulations test the named RTL/IP, not a complete Wi-Fi receiver or Nios ins
 Saved [GUI previews](diagrams/README.md) are included for all five lessons. Fresh native PDFs/PNGs, full GUI screenshots, simulation waves, builds and captures remain under each checkpoint's ignored `results/` and `run/` directories. Live invitation tokens stay in ignored runtime files. Authored notebooks contain no tokens or captured network data.
 
 After generation or build, use the **Quartus project** or **complete project ZIP** links in the output. The ZIP contains the SDC and generated IP sources: extract it and open `iq_bridge_vds.qpf`, then choose **Processing → Start Compilation**. Each lesson also links its tracked SDC. See [complete project instructions](../README.md#linked-complete-quartus-projects).
+
+## Repeat the physical notebook checks
+
+Run beside the installed tools with the board connected. This explicitly programs the selected checkpoint and starts actual acquisition; it stops this checkout's demo when finished and releases its UART/JTAG readers:
+
+```bash
+# Use your UART path; this is the current container's mapping:
+export ATUM_UART=/dev/ttyUSB0
+.venv-notebooks/bin/python scripts/check_notebook_hardware.py 3 --host <reachable-IP>
+```
+
+Select 1–5 for each FPGA lesson, or 6 for RF Arcade using checkpoint 5. The checker executes the authored programming/launch cells in Jupyter, verifies live progress updates and checks the corresponding physical feature. Add `--browser` if the optional Playwright/Chromium development tools are installed to capture the rendered live page. Stop unrelated device owners before running. Executed notebooks and evidence stay in ignored `cyberether/run/notebook-hardware-retest/`; they can include private viewer links and should not be published wholesale.
