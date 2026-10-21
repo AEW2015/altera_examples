@@ -35,7 +35,7 @@ def plot(d,box,series,labels,title,xlabel,ylim=None,scatter=False,primary_on_top
     text(d,box[2]-310,box[1]+18,' / '.join(labels),16,GOLD)
 
 def pipeline(d,mode):
-    nodes=[('ESP32','2.4 GHz RF / ADC'),('UART + CRC','CI8 · 2 Mbaud'),('FPGA RAM','Frozen raw snapshot'),('FIR II DSP',{'raw':'BYPASS','boxcar':'16-tap boxcar','hamming':'16-tap Hamming'}[mode]),('Quantize / clip','Q15 → CI8'),('Host viewer','Plot + reference')]
+    nodes=[('ESP32','2.4 GHz RF / ADC'),('UART + CRC','CI8 · 2 Mbaud'),('FPGA RAM','Frozen raw snapshot'),('FIR II DSP',{'raw':'BYPASS','boxcar':'16-tap boxcar','hamming':'16-tap Hamming','custom':'Custom 16-tap Q15'}[mode]),('Quantize / clip','Q15 → CI8'),('Host viewer','Plot + reference')]
     for i,(label,sub)in enumerate(nodes):
         x=28+i*294;active=not(mode=='raw'and i in(3,4));c=CYAN if active else MUTED
         d.rounded_rectangle((x,91,x+270,178),10,fill=CARD,outline=c,width=2)
@@ -63,7 +63,7 @@ HISTORY=design_rows()
 
 def render(state,view=None):
     view=view or state.get('settings',{}).get('view','hamming');image=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(image)
-    names={'raw':'RAW IQ BRIDGE','boxcar':'BOXCAR FIR','hamming':'HAMMING FIR','ddc':'TUNE / FILTER / DECIMATE','compare':'COMPARE DESIGNS'}
+    names={'raw':'RAW IQ BRIDGE','boxcar':'BOXCAR FIR','hamming':'HAMMING FIR','custom':'CUSTOM FIR','ddc':'TUNE / FILTER / DECIMATE','compare':'COMPARE DESIGNS'}
     text(d,28,18,names.get(view,view),32,CYAN)
     status=state.get('status','WAITING');text(d,1160,25,status,23,GREEN if status=='LIVE'else GOLD)
     text(d,1390,27,f"Results  {state.get('completed',0)}",20,MUTED)

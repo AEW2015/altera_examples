@@ -2,6 +2,7 @@
 import time
 import numpy as np
 from nios_fir import PROFILES, fixed_reference
+from fir_filters import resolve_filter,coefficient_hash
 import nios_ddc
 from iq_lab_samples import load_sample
 
@@ -31,6 +32,7 @@ def evidence(state,lesson,now=None):
     keys=['view']
     if mode=='ddc':keys+=['ddc_input','tuning_hz','decimation','ddc_bypass']
     elif lesson==3:keys+=['input_kind','round']
+    if mode=='custom':keys+=['fir_filter','fir_coefficients']
     if not synthetic:keys+=['source','channel','rate','samples','gain_mode','gain_code']
     if lesson==5:keys+=['digital_gain_q8','digital_gain_bypass']
     matches=all(cfg.get(k, 'live'if k=='input_kind'else None)==settings.get(k,'live'if k=='input_kind'else None)for k in keys)
@@ -48,9 +50,12 @@ def evidence(state,lesson,now=None):
         if settings.get('gain_mode')=='MANUAL':add('Receiver gain code',settings.get('gain_code'),gain.get('manual_code'),settings.get('gain_code')==gain.get('manual_code'))
     add('Input samples',expected_samples,raw.get('samples'),expected_samples==raw.get('samples'))
     add('Nominal sample rate',expected_rate,raw.get('rate'),expected_rate==raw.get('rate'))
-    if mode in ('boxcar','hamming'):
-        coeff=PROFILES[1 if mode=='boxcar'else 2]
-        add('FIR coefficients',mode+' / 16 taps','16 coefficients verified'if c.get('coefficients')==coeff else'not verified',c.get('coefficients')==coeff)
+    if mode in ('boxcar','hamming','custom'):
+        spec=resolve_filter(settings);coeff=spec['coefficients']
+        add('FIR coefficients',spec['title'],'16 coefficients verified'if c.get('coefficients')==coeff else'not verified',c.get('coefficients')==coeff)
+        if mode=='custom':
+            add('Coefficient readback',spec['sha256'][:12],coefficient_hash(c['fir_coefficients_readback'])[:12]if c.get('fir_coefficients_readback')else None,c.get('fir_coefficients_readback')==coeff)
+            add('Filter profile',spec['profile'],c.get('fir_profile'),spec['profile']==c.get('fir_profile'))
         add('Rounding',settings.get('round'),c.get('round_nearest'),settings.get('round')==c.get('round_nearest'))
     if meta:
         rate=raw.get('rate',16000000)
@@ -99,7 +104,7 @@ def plot_data(c):
         input_rate=fs,output_rate=meta.get('output_rate',fs),waveform=c.get('waveform',[[]])[0],output_waveform=output,
         scatter=c.get('scatter',[[]])[0],output_scatter=output,
         coefficients=c.get('coefficients')or(nios_ddc.COEFFICIENTS.tolist()if meta and not meta.get('bypass_flags',0)&2 else []),
-        tones=(c.get('tone_measurements')or {}).get('tones',[]),meters=meta.get('gain_meters',{}))
+        tones=(c.get('tone_measurements')or {}).get('tones',[]),meters=meta.get('gain_meters',{}),fir_clips=c.get('clips'))
 
 def preview(lesson,settings):
     """HOST reference preview. Never labelled as measured/verified FPGA output."""
@@ -107,7 +112,7 @@ def preview(lesson,settings):
     if lesson not in NAMES:raise ValueError('Lesson must be 1..5')
     if lesson==3:
         raw=fir_fixture('fpga-impulse'if settings.get('input_kind')=='fpga-impulse'else'fpga-tones')
-        coeff=PROFILES[1 if settings.get('view')=='boxcar'else 2]
+        coeff=resolve_filter(settings)['coefficients']
         out=fixed_reference(raw,coeff,settings.get('round',True));meta={}
     else:
         raw,_=load_sample('single-tone'if lesson==5 else'two-tone');coeff=None;out=None;meta={}
@@ -132,10 +137,10 @@ def capture_fir_test(nios,config):
     nios.command('TEST',1 if kind=='fpga-impulse'else 2);nios.wait(2)
     nios.run(1)
     meta,raw,filtered=nios.dump()
-    coeff=PROFILES[1 if config['view']=='boxcar'else 2]
+    spec=resolve_filter(config);coeff=spec['coefficients']
     if (meta['source'],meta['samples'],meta['rate'],meta['frequency'],meta['mode'],meta['round'])!=(3,128,16000000,0,1,int(config['round'])):
         raise ValueError('FIR test configuration readback mismatch')
-    if raw.tobytes()!=expected.tobytes()or meta['coefficients_current']!=coeff or meta['profile']!=(1 if config['view']=='boxcar'else 2):
+    if raw.tobytes()!=expected.tobytes()or meta['coefficients_current']!=coeff or meta['profile']!=spec['profile']:
         raise ValueError('FIR fixture/coefficient identity mismatch')
     if not np.array_equal(filtered,fixed_reference(raw,coeff,config['round'])):
         raise ValueError('FIR test integer reference mismatch')

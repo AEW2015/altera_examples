@@ -41,6 +41,8 @@ On this rig, the host has the stable by-id UART link; the current container expo
 
 For a remote browser add `--ip=0.0.0.0`; use the Jupyter token printed in the terminal. Container users also need its ports reachable from the host. CyberEther uses 8687/8768 and TCP 40100–40103 by default. Set the notebook's `HOST` to the reachable host/container IP if automatic discovery returns an internal address.
 
+The [FIR filter library](../docs/FIR_FILTER_LIBRARY.md) adds 15 examples, Python reloads and a CyberEther coefficient editor to notebook 03.
+
 See [visual experiment and verification guide](../docs/NOTEBOOK_DEMOS.md) for the one-click FPGA checks, graph meanings and requested/applied settings ledger.
 
 ## Progress feedback

@@ -15,6 +15,8 @@ flowchart LR
 
 This example includes the **five checkpoints and IQ Pipeline Lab**. The earlier Wi-Fi packet/header receiver and XDNA demo are separate designs and are outside this branch.
 
+The [FIR notebook](notebooks/03_fir_filter.ipynb) includes [15 reloadable filter examples](docs/FIR_FILTER_LIBRARY.md), response plots, Python controls and a browser coefficient editor. Try the 4 MHz notch on the clean FPGA two-tone input; the page verifies the applied taps and measured output.
+
 ## Contents
 
 | Checkpoint | Folder under `fpga_hub/iq_bridge/` | VDS blocks | Adds |

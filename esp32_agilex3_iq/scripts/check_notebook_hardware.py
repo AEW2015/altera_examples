@@ -90,6 +90,53 @@ def check_features(number,host):
     return len(cases)
 
 
+def check_fir_notch():
+    from fir_controls import FIRControls
+    import numpy as np
+    client=FIRControls();result=client.apply('notch-4mhz',input_kind='fpga-tones')
+    capture=client.state()['latest']['custom'];raw,filtered=map(np.asarray,capture['waveform'])
+    frequencies=np.array([-500000,4000000]);n=np.arange(len(raw))[16:]
+    basis=np.exp(2j*np.pi*n[:,None]*frequencies/16000000)
+    amplitudes=[]
+    for a in (raw,filtered):
+        amplitudes.append(abs(np.linalg.lstsq(basis,(a[:,0]+1j*a[:,1])[16:],rcond=None)[0]))
+    attenuation=20*np.log10(np.maximum(amplitudes[0],1e-12)/np.maximum(amplitudes[1],1e-12))
+    assert attenuation[1]>30,attenuation
+    assert abs(attenuation[0])<1,attenuation
+    output=ROOT/'cyberether/run/notebook-hardware-retest'
+    (output/'fir-notch-evidence.json').write_text(json.dumps(dict(status='PASS_HARDWARE',result=result,
+        tone_frequencies_hz=frequencies.tolist(),attenuation_db=attenuation.tolist(),measurement='Host sinusoid fit on FPGA raw/filtered data; first 16 startup samples excluded'),indent=2)+'\n')
+    print('PASS physical FIR notch: +4 MHz attenuation',round(attenuation[1],2),'dB; wanted −0.5 MHz loss',round(attenuation[0],3),'dB',flush=True)
+
+
+def check_filter_library():
+    from fir_controls import FIRControls
+    from fir_filters import CATALOG
+    client=FIRControls();results=[]
+    for name in CATALOG:
+        result=client.apply(name,input_kind='fpga-tones')
+        assert result['readback_verified']and result['max_reference_error']==0,result
+        results.append(result);print('PASS physical coefficient reload:',name,flush=True)
+    custom=[4096]*8+[0]*8
+    results.append(client.apply(coefficients=custom,input_kind='fpga-impulse'))
+    # Confirm the worker does not restore its old preset on the following capture.
+    before=client.state()['completed'];end=time.monotonic()+25
+    while time.monotonic()<end:
+        state=client.state()
+        if state['completed']>before:
+            c=state['latest']['custom'];assert c['fir_coefficients_readback']==custom and c['max_reference_error']==0
+            print('PASS custom coefficients persist across subsequent captures',flush=True);break
+        time.sleep(.3)
+    else:raise TimeoutError('No subsequent custom-filter capture')
+    client._api('control',dict(continuous=False))
+    results.append(client.apply('identity',input_kind='fpga-impulse'))
+    client._api('control',dict(continuous=True))
+    results.append(client.apply('notch-4mhz',input_kind='live'))
+    output=ROOT/'cyberether/run/notebook-hardware-retest'
+    (output/'filter-library-evidence.json').write_text(json.dumps(dict(status='PASS_HARDWARE',tested_unix=time.time(),results=results),indent=2)+'\n')
+    return len(results)
+
+
 def browser_capture(number,host,output):
     from playwright.sync_api import sync_playwright
     invite=json.loads((ROOT/'cyberether/run/iq-bridge-lab/control-invite.json').read_text())['url']
@@ -101,6 +148,27 @@ def browser_capture(number,host,output):
             page.goto(invite)
             if number<=5:
                 page.wait_for_function("document.getElementById('badge').textContent==='VERIFIED'",timeout=45000)
+                if number==3:
+                    from fir_filters import CATALOG,coefficient_hash
+                    def wait_filter(name,coefficients):
+                        digest=coefficient_hash(coefficients)
+                        page.wait_for_function("expected => state.settings.fir_filter===expected.name && state.latest.custom?.fir_coefficient_sha256===expected.hash && document.getElementById('badge').textContent==='VERIFIED' && proof.rows.some(r=>r.label==='Coefficient readback' && r.requested===expected.hash.slice(0,12) && r.applied===r.requested && r.ok)",arg=dict(name=name,hash=digest),timeout=45000)
+                    previous=page.evaluate('state.settings.fir_filter')
+                    page.locator('#choice').select_option('highpass')
+                    assert page.evaluate('state.settings.fir_filter')==previous,'Preview changed the hardware'
+                    page.locator('#apply-filter').click()
+                    wait_filter('highpass',CATALOG['highpass']['coefficients'])
+                    page.locator('#filter-editor summary').click()
+                    page.locator('#filter-coefficients').fill('[1,2]')
+                    page.locator('#preview-coefficients').click()
+                    assert '16 signed Q15' in page.locator('#filter-pending').inner_text()
+                    page.locator('#filter-coefficients').fill(json.dumps([4096]*8+[0]*8))
+                    page.locator('#apply-coefficients').click()
+                    wait_filter('custom',[4096]*8+[0]*8)
+                    page.screenshot(path=str(output/'custom-filter-gui-live.png'),full_page=True)
+                    page.locator('#choice').select_option('notch-4mhz');page.locator('#apply-filter').click()
+                    wait_filter('notch-4mhz',CATALOG['notch-4mhz']['coefficients'])
+                    print('PASS physical browser: preview separation, named/custom reload, validation and readback',flush=True)
             else:page.wait_for_function("document.getElementById('viewer').dataset.lessonReady==='true'",timeout=65000)
             page.screenshot(path=str(output/f'checkpoint-{number}-live.png'),full_page=True)
             assert not errors,errors
@@ -108,13 +176,16 @@ def browser_capture(number,host,output):
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('checkpoint',type=int,choices=range(1,7));p.add_argument('--host',default=lan_ip());p.add_argument('--browser',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('checkpoint',type=int,choices=range(1,7));p.add_argument('--host',default=lan_ip());p.add_argument('--browser',action='store_true');p.add_argument('--filter-library',action='store_true',help='Also test every FIR example (checkpoint 3 only)');a=p.parse_args()
+    if a.filter_library and a.checkpoint!=3:p.error('--filter-library requires checkpoint 3')
     import nbformat
     from nbclient import NotebookClient
     paths=sorted((ROOT/'notebooks').glob(f'{a.checkpoint:02d}_*.ipynb'))
     book=nbformat.read(paths[0],as_version=4)
-    selected=[copy.deepcopy(c)for c in book.cells if c.cell_type=='code'and set(c.metadata.get('tags',[]))&{'setup','build','program','live'}]
+    selected=[copy.deepcopy(c)for c in book.cells if c.cell_type=='code'and set(c.metadata.get('tags',[]))&({'setup','build','program','live'}|({'filter-library','filter-preview','filter-apply','filter-custom'}if a.checkpoint==3 else set()))]
     selected.append(nbformat.v4.new_code_cell(f'from check_notebook_hardware import check_features\nchecked_cases = check_features({a.checkpoint}, HOST)\nprint("Physical checks:", checked_cases)'))
+    if a.checkpoint==3:selected.append(nbformat.v4.new_code_cell('from check_notebook_hardware import check_fir_notch\ncheck_fir_notch()'))
+    if a.filter_library:selected.append(nbformat.v4.new_code_cell('from check_notebook_hardware import check_filter_library\nprint("Physical library checks:", check_filter_library())'))
     # Explicit host override after the authored configuration cell.
     selected.insert(1,nbformat.v4.new_code_cell(f'HOST = {a.host!r}'))
     test=nbformat.v4.new_notebook(cells=selected,metadata=book.metadata)

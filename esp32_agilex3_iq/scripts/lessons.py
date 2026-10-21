@@ -142,6 +142,10 @@ class Lesson:
  def theory(self):
   from notebook_plots import theory
   return theory(self.n)
+ def fir_controls(self):
+  if self.n<3:raise ValueError('Load a FIR-capable checkpoint first')
+  from fir_controls import FIRControls
+  return FIRControls()
  def questa_gui(self):
   p=self.out/'simulation'
   print(f"Desktop terminal (on the machine running the tools):\ncd {shlex.quote(str(p))}\n{shlex.quote(str(tool_exe('vsim')))} -gui -view wave.wlf -do view.do")

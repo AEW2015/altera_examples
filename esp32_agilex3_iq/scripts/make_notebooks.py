@@ -110,6 +110,36 @@ summary
    nb.v4.new_markdown_cell('### Official Nios V BSP and applications\n\nGenerate a HAL BSP from this actual VDS system, plus editable **Hello World** and **IQ monitor** CMake applications. This builds software only; it does not download or replace the running firmware. Open both BSP and app with **RiscFree → File → Import Nios V CMake Project**, then build with Ctrl+B. See [Nios V IDE guide](../software/README.md) for BSP Editor, JTAG download and restore steps.'),
    nb.v4.new_code_cell('software_dir = lesson.software()\nprint("BSP:", software_dir / "bsp")\nprint("Hello World:", software_dir / "hello_world")\nprint("IQ monitor:", software_dir / "iq_monitor")',metadata={'tags':['software']}),
   ]
+ if i==3:
+  at=next(j for j,c in enumerate(cells)if c.cell_type=='markdown'and c.source.startswith('## 2 ·'))
+  cells[at:at]=[
+   nb.v4.new_markdown_cell("""### Filter library · preview without hardware
+
+There are **15 examples** stored in Python and one active 16-tap coefficient set in the FPGA. The same real coefficients filter I and Q. Selecting another example reloads the coefficients through Nios V; it does not rebuild the bitfile.
+
+Try **narrow low-pass**, **high-pass**, **band-pass**, or the **4 MHz notch** with the FPGA two-tone input. The short filters have broad transition regions. Frequencies scale with sample rate: the matching FIR test notch is at 0.25 Fs, so it is 4 MHz only at 16 MS/s.
+
+Q15 represents each coefficient divided by 32768. All examples contain exactly 16 integers; shorter designs have trailing zeros. The example's L1 gain bounds worst-case amplification, so some arbitrary inputs can clip even when a sinusoidal passband is near unity. [Filter guide](../docs/FIR_FILTER_LIBRARY.md)."""),
+   nb.v4.new_code_cell('from IPython.display import Markdown, display\nfrom fir_filters import catalog, plot_filter, q15\nrows = ["| Python name | Example | What to observe |", "|---|---|---|"]\nrows += [f"| `{f[\'id\']}` | {f[\'title\']} | {f[\'description\']} |" for f in catalog()]\ndisplay(Markdown("\\n".join(rows)))',metadata={'tags':['theory','filter-library']}),
+   nb.v4.new_code_cell('from fir_filters import plot_catalog\nplot_catalog(rate=16_000_000)',metadata={'tags':['theory','filter-gallery']}),
+   nb.v4.new_code_cell('FILTER = "notch-4mhz"  # Change to any Python name in the table.\npreview = plot_filter(FILTER, rate=16_000_000)\nprint(preview)',metadata={'tags':['theory','filter-preview']}),
+  ]
+  at=next(j for j,c in enumerate(cells)if c.cell_type=='markdown'and c.source.startswith('Leave the page running'))
+  cells[at:at]=[
+   nb.v4.new_markdown_cell("""### Load a filter through Python · keep CyberEther running
+
+Run this after the launch cell. Python sends a request to the **existing acquisition owner**; it does not open a second UART/JTAG client. The call waits for a fresh FPGA result, verifies all coefficients, CRC/readback and zero integer-reference error, and reports clipping. The selected filter remains active across captures until you choose another filter or restart the demo. The shared progress row shows application/verification feedback.
+
+In the browser choose an example, then **Apply selected example**. Open **Filter design** to preview the candidate or edit all 16 Q15 integers. Previewing or editing alone never changes the FPGA. Optional: embed the same page below; its output contains a private invite, just like the launch cell."""),
+   nb.v4.new_code_cell('from fir_controls import FIRControls\nfir = FIRControls()\nresult = fir.apply(FILTER, input_kind="fpga-tones")\nprint(result)',metadata={'tags':['hardware','filter-apply']}),
+   nb.v4.new_markdown_cell("""#### Your own coefficients
+
+Edit the 16 integers below, then run the cell. This eight-sample average uses eight Q15 taps of 4096 and eight zeros. To design using real-valued taps, call `q15([0.25] * 4)`; the helper pads shorter filters and rejects overflow. Positive 1.0 is not representable in signed Q15; use 32767/32768 for a near-unity tap. `plot_filter(coefficients=CUSTOM_Q15)` previews your actual quantized design without changing hardware.
+
+Change `input_kind` to `fpga-impulse` to inspect its impulse response, or `live` for real RF. Real RF uses the notebook's current radio/channel/rate. These reloads affect the 16-tap FIR, not the separate fixed 127-tap DDC filters."""),
+   nb.v4.new_code_cell('CUSTOM_Q15 = [4096] * 8 + [0] * 8\nprint(fir.apply(coefficients=CUSTOM_Q15, input_kind="fpga-impulse"))',metadata={'tags':['hardware','filter-custom']}),
+   nb.v4.new_code_cell('# Interactive GUI: the same acquisition owner and filter settings as the browser.\nfir.show_gui(height=1050)',metadata={'tags':['hardware','filter-gui']}),
+  ]
  for cell in cells:
   if cell.cell_type=='markdown'and cell.source.startswith('## 2 ·'):
    sdc=stages()[i-1].relative_to(ROOT)/'iq_bridge_vds.sdc'

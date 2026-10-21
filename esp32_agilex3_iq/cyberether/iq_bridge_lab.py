@@ -8,11 +8,12 @@ from urllib.parse import urlsplit
 import numpy as np
 from capture_quality import configure_receiver_gain
 import nios_ddc
+from fir_filters import CATALOG,resolve_filter,validate_coefficients,catalog
 from iq_lab_samples import PATTERNS,load_sample,synthetic_snapshot,tone_measurements,DIRECTORY
 from iq_bridge import Bridge
 from nios_fir import NiosFir,PROFILES,ROOT,fixed_reference
 
-PAGES=('raw','boxcar','hamming','ddc','compare')
+PAGES=('raw','boxcar','hamming','custom','ddc','compare')
 SOURCES=('RFS2 ESP32','PMOD A ESP32','PMOD B ESP32')
 DEFAULT_RUN=ROOT/'cyberether/run/iq-bridge-lab'
 LESSON=int(os.getenv('ATUM_LESSON','0'))
@@ -22,10 +23,14 @@ def atomic_json(path,value):
     temp=path.with_suffix('.tmp');temp.write_text(json.dumps(value,allow_nan=False)+'\n');temp.replace(path)
 
 def validate_settings(body):
-    if not isinstance(body,dict) or set(body)-{'view','source','channel','round','continuous','once','export','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','new_snapshot','reference','digital_gain_q8','digital_gain_bypass','input_kind'}:raise ValueError('Unknown control')
+    if not isinstance(body,dict) or set(body)-{'view','source','channel','round','continuous','once','export','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','new_snapshot','reference','digital_gain_q8','digital_gain_bypass','input_kind','fir_filter','fir_coefficients'}:raise ValueError('Unknown control')
     result={}
     for key,value in body.items():
-        if key=='input_kind':
+        if key=='fir_filter':
+            if value not in (*CATALOG,'custom'):raise ValueError('Unknown FIR example')
+        elif key=='fir_coefficients':
+            if value is not None:validate_coefficients(value)
+        elif key=='input_kind':
             if value not in ('live','fpga-impulse','fpga-tones'):raise ValueError('Unknown FIR input')
         elif key=='view':
             if value not in PAGES:raise ValueError('Unknown lesson')
@@ -84,7 +89,7 @@ class Lab:
     def __init__(self,run):
         self.run=run;run.mkdir(parents=True,exist_ok=True)
         self.lock=threading.RLock();self.stop=threading.Event();self.latest={};self.buffers={};self.history=collections.deque(maxlen=60)
-        self.settings=dict(view='hamming',source=0,channel=2,round=True,continuous=True,rate=16000000,samples=16380,gain_mode='HARDWARE',gain_code=40,tuning_hz=500000,decimation=4,ddc_bypass=0,ddc_input='live',digital_gain_q8=256,digital_gain_bypass=True,input_kind='live')
+        self.settings=dict(view='hamming',source=0,channel=2,round=True,continuous=True,rate=16000000,samples=16380,gain_mode='HARDWARE',gain_code=40,tuning_hz=500000,decimation=4,ddc_bypass=0,ddc_input='live',digital_gain_q8=256,digital_gain_bypass=True,input_kind='live',fir_filter='hamming',fir_coefficients=None)
         if LESSON:
             self.settings.update(source=0,channel=2,rate=16000000,samples=4096,continuous=True)
             if LESSON<=2:self.settings.update(view='raw')
@@ -107,11 +112,19 @@ class Lab:
     def update(self,body):
         body=validate_settings(body)
         with self.lock:
-            if body.get('input_kind','live')!='live'and (LESSON in (1,2)or not self.state['fpga'].get('fpga_fir')):raise ValueError('FPGA FIR test input requires a FIR checkpoint')
+            if 'fir_filter'in body or 'fir_coefficients'in body:
+                if LESSON in (1,2)or not self.state['fpga'].get('fpga_fir'):raise ValueError('Filter reload requires a FIR checkpoint')
+                if body.get('fir_coefficients')is not None:
+                    if body.get('fir_filter','custom')!='custom':raise ValueError('Choose custom when providing coefficients')
+                    body['fir_filter']='custom'
+                body['view']='custom'
+                if body.get('fir_filter')!='custom':body['fir_coefficients']=None
             candidate=self.settings|{k:v for k,v in body.items()if k in self.settings}
+            if candidate['view']=='custom':resolve_filter(candidate)
+            if body.get('input_kind','live')!='live'and (LESSON in (1,2)or not self.state['fpga'].get('fpga_fir')):raise ValueError('FPGA FIR test input requires a FIR checkpoint')
             nios_ddc.phase_increment(candidate['tuning_hz'],16000000 if candidate['ddc_input']in PATTERNS else candidate['rate'])
             if body.get('reference')=='pin'and 'ddc'not in self.latest:raise ValueError('Run a DDC result before pinning')
-            for key in ('view','source','channel','round','continuous','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','digital_gain_q8','digital_gain_bypass','input_kind'):
+            for key in ('view','source','channel','round','continuous','rate','samples','gain_mode','gain_code','tuning_hz','decimation','ddc_bypass','ddc_input','digital_gain_q8','digital_gain_bypass','input_kind','fir_filter','fir_coefficients'):
                 if key in body:self.settings[key]=body[key]
             if body.get('reference'):
                 self.reference_requested=body['reference']
@@ -207,7 +220,7 @@ class Lab:
                         acquiring=mode
                         with self.lock:self.state.update(status='CONFIGURING',acquiring=mode,error=None)
                         self.publish()
-                        fir_test=mode in ('boxcar','hamming')and config['input_kind']!='live'
+                        fir_test=mode in ('boxcar','hamming','custom')and config['input_kind']!='live'
                         synthetic=(mode=='ddc'and config['ddc_input']in PATTERNS)or fir_test
                         if mode!='ddc':frozen=None
                         if not synthetic and prepared!=(config['source'],config['channel'],config['rate']):
@@ -222,10 +235,14 @@ class Lab:
                                 return bridge.radio_command(source,command,prefix)
                             gain_readback=configure_receiver_gain(config['source'],gain_command,config['gain_mode'],config['gain_code'],config['rate'])
                             gain_applied=config['source'],config['gain_mode'],config['gain_code']
-                        wanted=(mode,config['round'])
+                        spec=resolve_filter(config)if mode in ('boxcar','hamming','custom')else None
+                        wanted=(mode,config['round'],tuple(spec['coefficients'])if spec else None,spec['profile']if spec else None,fir_test)
                         if configured!=wanted:
                             nios.command('PAIR',0)
-                            if mode in ('boxcar','hamming'):nios.preset(1 if mode=='boxcar'else 2);nios.command('ROUND',int(config['round']));nios.command('PAIR',1)
+                            if spec:
+                                if spec['profile']:nios.preset(spec['profile'])
+                                else:nios.coefficients(spec['coefficients'])
+                                nios.command('ROUND',int(config['round']));nios.command('PAIR',1)
                             configured=wanted
                         with self.lock:self.state['status']='ACQUIRING'
                         self.publish();started=time.monotonic()
@@ -237,7 +254,7 @@ class Lab:
                             if not reused:
                                 if synthetic:
                                     if not active.get('fpga_replay_patterns'):raise RuntimeError('Load the long-pattern FPGA image first')
-                                    _,spec=load_sample(config['ddc_input']);nios.command('TEST',spec['test_id']);snapshot_status=nios.wait(2)
+                                    _,pattern_spec=load_sample(config['ddc_input']);nios.command('TEST',pattern_spec['test_id']);snapshot_status=nios.wait(2)
                                     raw=synthetic_snapshot(config['ddc_input'],snapshot_status);self.state['pattern_generations']+=1
                                 else:
                                     nios.command('ARM');raw=next(bridge.captures(1,source=config['source'],samples=config['samples'],rate=config['rate'],pipeline=False));nios.wait(2);self.state['radio_acquisitions']+=1
@@ -257,13 +274,14 @@ class Lab:
                         else:raw,filtered=bridge.paired_capture(config['source'],config['samples'],config['rate'])
                         if mode!='ddc'and not synthetic:self.state['radio_acquisitions']+=1
                         elapsed=time.monotonic()-started;status=nios.status()
-                        coeff=PROFILES[1 if mode=='boxcar'else 2]if mode in ('boxcar','hamming')else None
-                        if filtered and not fir_test and filtered.aux&0xffffffff!=(0x80010000|(int(config['round'])<<8)|(1 if mode=='boxcar'else 2)):
+                        coeff=spec['coefficients']if spec else None
+                        if filtered and not fir_test and filtered.aux&0xffffffff!=(0x80010000|(int(config['round'])<<8)|spec['profile']):
                             raise ValueError('Applied coefficient/rounding descriptor differs from requested settings')
                         result=summarize(raw,filtered,coeff,config['round'],status,elapsed)
                         if fir_test:
                             result.update(pattern_identity_verified=True,snapshot_crc_verified=True,transport_crc_verified=False,fir_readback=fir_test_meta)
-                            configured=None  # TEST disables pairing; restore configuration before the next live capture.
+                            # The configuration key includes test/live mode, so pairing is restored on transitions.
+                        if spec:result.update(fir_filter=spec['id'],fir_title=spec['title'],fir_profile=spec['profile'],fir_coefficients_readback=coeff.copy(),fir_coefficient_sha256=spec['sha256'])
                         if not synthetic and(raw.samples!=config['samples']or raw.rate!=config['rate']):raise ValueError('Capture length/rate metadata mismatch')
                         if mode=='ddc':
                             result.update(input_id=frozen['id'],input_created_unix=frozen['created_unix'],input_kind=config['ddc_input'],snapshot_reused=reused,transport_crc_verified=not synthetic,snapshot_crc_verified=True)
@@ -326,6 +344,7 @@ def handler(lab,token,public_url):
                     return self.respond(200,client_html[0],'text/html; charset=utf-8')
                 except Exception:return self.respond(503,dict(error='Native viewer is starting'))
             if not self.authenticated():return self.respond(403,dict(error='Lab token required'))
+            if path=='/api/filters':return self.respond(200,catalog())
             if path=='/api/state':return self.respond(200,lab.snapshot())
             if path in ('/api/evidence','/api/preview'):
                 from lesson_evidence import evidence,plot_data,preview
