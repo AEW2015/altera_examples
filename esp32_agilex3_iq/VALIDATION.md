@@ -287,3 +287,73 @@ ID is hardware readback. Saved bitstream SHA is local programming provenance,
 not a SHA read back from the silicon. After testing, checkpoint 3 was restored
 for the ongoing radio TX probe. No ESP32 firmware change was required for these
 FPGA tests. Detailed local proof: `cyberether/run/modem-hardware-proof.json`.
+
+## Compact framed BPSK — physical RF and FPGA qualification, 2026-10-21
+
+Probe **v4** now boots and runs on PMOD A. The first image failed startup because
+its worker was pinned to core 1 in a UNICORE SDK profile. Replacing that with the
+original scheduler-selected `xTaskCreate()` fixed the defect. The corrected
+image flashed with hash verification and normal boot reported READY and INFO v4.
+Application SHA-256:
+`3e0816fe1656a1704cce3fed7ec01dd70a9ff78c7fc8b358e49c917ca9708ed2`.
+
+The frame contains marker `0x0651`, 44 terminated K7(171,133) coded bits covering
+payload8 + CRC8, then four guard zeros. Native C encoding agrees with independent
+Python equations for all 256 payloads. Measured phase calibration selected 670
+requested pulse cycles at CPU 160 MHz: approximately −180.22° full-width and
+−90.01° half-width, with the zero-width carrier control rejecting two-state
+behavior. The earlier nominal 682-cycle setting failed the strict phase test.
+
+Actual PMOD A → RFS2 RF capture results, 8 µs nominal symbols:
+
+| Run | Captures | CRC-valid frames | Coded errors/bits | Payload errors/bits |
+| --- | ---: | ---: | ---: | ---: |
+| Initial A5 / 3C / 00 / FF runs | 28 | 28 | 20/1232 | 0/224 |
+| Browser live batch, payload 3C | 64 | 65 | 55/2860 | 0/520 |
+| Combined direct captures | 92 | 93 | 75/4092 | 0/744 |
+
+The browser batch completed in 50.68 seconds. All these captures acquired a
+frame; no acquired frame failed CRC. One batch capture contained two adjacent
+frames. A separate PMOD B receiver test passed four captures/four frames,
+4/176 coded errors → 0/32 payload errors. This is another receiver observation,
+not additional unique delivered packets. Saved CI8 hashes and independent
+recovery without the known payload confirmed all 97 frame observations.
+These are sparse windows, not a packet-delivery or continuous-stream BER test.
+Known payloads enter error counting only, not acquisition or CRC decisions.
+
+**Actual FPGA symbol/FEC replay:** checkpoint06 block ID `0x4d440601` decoded
+measured RF symbols from the first A5 capture. Soft metrics and decoded bits
+matched independent integer/Viterbi references: **1/44 coded errors → 0/8 payload
+errors**, CRC valid, no symbol quantization clips. Decode took **3144 cycles /
+62.88 µs at 50 MHz**; JTAG upload/readback took **86.402 seconds** overall.
+Host carrier/timing/frame acquisition precedes this separate FPGA transaction.
+The source-matched SOF SHA is the checkpoint06 hash recorded above.
+
+**Actual same-capture FPGA FIR II:** two raw/FIR pairs, 16,380 complex samples
+per capture, passed all 32,760 sample comparisons with maximum integer-reference
+error zero. Hamming16 Q15 taps, nearest rounding and descriptor `0x80010102`
+matched readback; clips were zero. Both raw and filtered representations decoded
+two valid frames, each 0/88 coded and 0/16 payload errors. This demonstrates
+correct filtering, not a measured BER improvement. FIR processing took 114,756
+cycles / 2.29512 ms per burst. Paired UART transfer took about 0.585 seconds;
+RF was stopped after raw capture at about 0.247 seconds. Matching job/timestamps
+and origin CRC establish that both outputs came from the same raw capture.
+
+Receiver tests cover CFO, capture phase, phase ramps, corrected errors, retained
+CRC failures, independent BER references, and CW/OOK/noise negative controls.
+Synthetic controls are explicitly labelled and never counted as RF evidence.
+The browser rendered the four plots, FIR overlay and separate FPGA replay panel;
+Clean/FEC controls and the 64-capture RF batch were tested end to end. Starting
+the page opens no UART/JTAG connection and does not transmit. Notebook08 includes
+the Python example and saved screenshots. Full host suite: **133 tests passed**.
+
+Checkpoint03 is restored. TX readback is idle with both tones disabled; receiver
+hardware AGC and prior FIR settings are restored, PAIR is off. No test UART/JTAG
+owner remains. Raw-waveform synchronization is still on the host; SPI, continuous
+streaming and over-air higher-order QAM remain future work.
+
+Local evidence: `cyberether/run/rf-bpsk-001` through `rf-bpsk-004`,
+`rf-link-20261021-184620-1792608380457260133`, `rf-bpsk-monitor-001`,
+`rf-bpsk-001/fpga-proof.json`, `rf-bpsk-fir-001/proof.json`, and
+`rf-bpsk-independent-review.json`. Runtime captures remain private/ignored.
+[Walkthrough and reproduction commands](docs/RF_BPSK_WALKTHROUGH.md).

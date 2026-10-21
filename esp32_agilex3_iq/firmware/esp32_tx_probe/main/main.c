@@ -14,6 +14,7 @@
 #include "esp_phy_init.h"
 #include "esp_timer.h"
 #include "esp_cpu.h"
+#include "esp_attr.h"
 #include "esp_private/esp_clk.h"
 #include "esp_private/periph_ctrl.h"
 #include "soc/periph_defs.h"
@@ -34,41 +35,58 @@ static void tone_state(const char *prefix) {
     uint32_t a=DPORT_REG_READ(TONE1_REG),b=DPORT_REG_READ(TONE2_REG);
     printf("%s,tone1=%08"PRIx32",tone2=%08"PRIx32",ext=%08"PRIx32",mode12=%u\n",prefix,a,b,DPORT_REG_READ(TONE_EXT_REG),(unsigned)((a>>29)&1));
 }
-typedef struct { uint32_t job,cpu,symbols,flips,min,max,late; } phase_stats_t;
+typedef struct { uint32_t job,cpu,symbols,flips,min,max,late,missed,frames; } phase_stats_t;
 static volatile phase_stats_t phase_stats;
+static portMUX_TYPE pulse_mux=portMUX_INITIALIZER_UNLOCKED;
 static void phase_report(void) {
-    printf("PHASESTAT,job=%"PRIu32",cpu=%"PRIu32",symbols=%"PRIu32",flips=%"PRIu32",min=%"PRIu32",max=%"PRIu32",late=%"PRIu32"\n",
+    printf("PHASESTAT,job=%"PRIu32",cpu=%"PRIu32",symbols=%"PRIu32",flips=%"PRIu32",min=%"PRIu32",max=%"PRIu32",late=%"PRIu32",missed=%"PRIu32",frames=%"PRIu32"\n",
            phase_stats.job,phase_stats.cpu,phase_stats.symbols,phase_stats.flips,
-           phase_stats.min,phase_stats.max,phase_stats.late);
+           phase_stats.min,phase_stats.max,phase_stats.late,phase_stats.missed,phase_stats.frames);
 }
 static bool wait_cycle(uint32_t target) {
     while ((int32_t)(esp_cpu_get_cycle_count()-target)<0) if (cancel) return false;
     return !cancel;
 }
-/* Hypothesis probe: phase accumulator continuity is MEASURED by independent RX,
- * not assumed by this code. Only the already-qualified low two frequency bits
- * of enabled tone 1 are changed between wrapped positive codes 0 and 1. */
+/* A frequency pulse advances the measured original-chip phase accumulator.
+ * v4 extends the qualified slow step1 experiment with explicitly experimental
+ * step3 fast pulses; RF qualification is still required at each new setting.
+ * The main tone control word, gain and mode are never changed here. */
+static uint32_t IRAM_ATTR phase_pulse(uint32_t original_ext,uint32_t step,uint32_t cycles) {
+    /* Bound interrupt stretching to one pulse. STOP is checked between pulses;
+     * a command never masks interrupts for the entire RF job. */
+    portENTER_CRITICAL(&pulse_mux);
+    DPORT_REG_WRITE(TONE_EXT_REG,(original_ext&~3u)|step);
+    uint32_t begin=esp_cpu_get_cycle_count();
+    while ((uint32_t)(esp_cpu_get_cycle_count()-begin)<cycles) { }
+    DPORT_REG_WRITE(TONE_EXT_REG,original_ext);
+    uint32_t width=esp_cpu_get_cycle_count()-begin;
+    portEXIT_CRITICAL(&pulse_mux);
+    return width;
+}
 static void phase_run(const probe_job_t *job,int64_t started,uint32_t original_ext) {
     uint32_t period=(uint64_t)esp_clk_cpu_freq()*job->symbol_us/1000000u;
-    uint32_t next=esp_cpu_get_cycle_count(); unsigned current=0,index=0;
+    uint32_t next=esp_cpu_get_cycle_count();unsigned current=0,index=0;
+    bool frame=(job->nco_step&0x100)!=0;
+    unsigned step=job->nco_step&3;if (!step) step=1;
+    uint8_t bits[64];if (frame) probe_frame_bits(job->pattern,bits);
     while (!cancel && esp_timer_get_time()-started<(int64_t)job->duration_ms*1000) {
         if (!wait_cycle(next)) break;
         uint32_t at=esp_cpu_get_cycle_count();
         if ((int32_t)(at-next)>(int32_t)(period/50)) phase_stats.late++;
-        unsigned bit=(job->pattern>>(7-index))&1; index=(index+1)&7;
+        unsigned bit=frame?bits[index]:(job->pattern>>(7-index))&1;
+        index=(index+1)&(frame?63:7);
+        if(frame && index==0) phase_stats.frames++;
         if (bit!=current && job->pulse_cycles) {
-            DPORT_REG_WRITE(TONE_EXT_REG,(original_ext&~3u)|1u);
-            uint32_t begin=esp_cpu_get_cycle_count();
-            wait_cycle(begin+job->pulse_cycles);
-            DPORT_REG_WRITE(TONE_EXT_REG,original_ext);
-            uint32_t width=esp_cpu_get_cycle_count()-begin;
+            uint32_t width=phase_pulse(original_ext,step,job->pulse_cycles);
             if (!phase_stats.flips || width<phase_stats.min) phase_stats.min=width;
             if (width>phase_stats.max) phase_stats.max=width;
             phase_stats.flips++;
         }
         current=bit;phase_stats.symbols++;next+=period;
-        /* Never compress missed symbol slots after an interrupt. */
-        if ((int32_t)(esp_cpu_get_cycle_count()-next)>0) next=esp_cpu_get_cycle_count()+period;
+        /* Never compress missed slots. A damaged frame restarts at its marker. */
+        if ((int32_t)(esp_cpu_get_cycle_count()-next)>0) {
+            phase_stats.missed++;next=esp_cpu_get_cycle_count()+period;if(frame) index=0;
+        }
     }
     DPORT_REG_WRITE(TONE_EXT_REG,original_ext);
 }
@@ -101,8 +119,13 @@ static void worker(void *unused) {
                 }
                 saved_ext=e;
                 phase_stats=(phase_stats_t){.job=id,.cpu=esp_clk_cpu_freq()};
-                printf("PHASE_CFG,job=%"PRIu32",cpu=%"PRIu32",period_us=%"PRIu32",pulse_cycles=%"PRIu32",pattern=%"PRIu32"\n",
-                       id,phase_stats.cpu,job.symbol_us,job.pulse_cycles,job.pattern);
+                if (job.nco_step&0x100)
+                    printf("FRAME_CFG,job=%"PRIu32",cpu=%"PRIu32",period_us=%"PRIu32",pulse_cycles=%"PRIu32",payload=%"PRIu32",bits=64,step=3\n",
+                           id,phase_stats.cpu,job.symbol_us,job.pulse_cycles,job.pattern);
+                else
+                    printf("PHASE_CFG,job=%"PRIu32",cpu=%"PRIu32",period_us=%"PRIu32",pulse_cycles=%"PRIu32",pattern=%"PRIu32",step=%u,frame=0\n",
+                           id,phase_stats.cpu,job.symbol_us,job.pulse_cycles,job.pattern,
+                           (unsigned)((job.nco_step&3)?(job.nco_step&3):1));
             }
             if (job.nco) {
                 uint32_t a=DPORT_REG_READ(TONE1_REG),b=DPORT_REG_READ(TONE2_REG);
@@ -144,10 +167,18 @@ static void command(char *line) {
     if (!strcmp(line,"INFO")) {
         uint8_t mac[6]; esp_chip_info_t chip;
         ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA)); esp_chip_info(&chip);
-        printf("TX_PROBE,v=3,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x,tx=%d,rx=%d,baud=2000000,busy=%d,iq=unverified\n",chip.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,busy);
+        printf("TX_PROBE,v=4,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x,tx=%d,rx=%d,baud=2000000,busy=%d,iq=unverified\n",chip.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,busy);
     } else if (!strcmp(line,"PHASECAP")) {
         uint32_t cpu=esp_clk_cpu_freq();
-        printf("PHASECAP,cpu=%"PRIu32",half_cycles=%"PRIu32",step_nom_mHz=39062500\n",cpu,cpu/78125u);
+        printf("PHASECAP,cpu=%"PRIu32",half_cycles=%"PRIu32",step_nom_mHz=39062500,fast_half_cycles=%"PRIu32",fast_step=3\n",cpu,cpu/78125u,cpu/234375u);
+    } else if (!strncmp(line,"FRAMEBITS ",10)) {
+        probe_job_t parsed;char text[96];
+        snprintf(text,sizeof(text),"FRAME 8 50 96 %s 8 0",line+10);
+        if (!probe_parse_tone(text,&parsed)) {puts("ERR invalid_payload8");return;}
+        uint8_t bits[64];probe_frame_bits(parsed.pattern,bits);
+        printf("FRAMEBITS,payload=%"PRIu32",bits=",parsed.pattern);
+        for(unsigned i=0;i<64;i++) putchar('0'+bits[i]);
+        putchar('\n');
     } else if (!strcmp(line,"PHASESTAT")) {
         phase_report();
     } else if (!strcmp(line,"STATE")) {
@@ -158,8 +189,8 @@ static void command(char *line) {
     } else {
         probe_job_t job;
         if (!probe_parse_tone(line,&job)) { puts("ERR use_INFO_STATE_STOP_TONE_or_NCO_bounded_job"); return; }
-        if (job.phase && job.pulse_cycles>(uint64_t)esp_clk_cpu_freq()*job.symbol_us/2000000u) {
-            puts("ERR phase_pulse_exceeds_half_symbol");return;
+        if (job.phase && job.pulse_cycles>(uint64_t)esp_clk_cpu_freq()*job.symbol_us/(job.nco_step?1250000u:2000000u)) {
+            puts("ERR phase_pulse_exceeds_slot_guard");return;
         }
         if (busy) { puts("ERR busy"); return; }
         cancel=false; busy=true;
@@ -174,10 +205,12 @@ void app_main(void) {
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0,CONFIG_ESP_SDR_UART_TX_PIN,CONFIG_ESP_SDR_UART_RX_PIN,UART_PIN_NO_CHANGE,UART_PIN_NO_CHANGE));
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0,2048,0,0,NULL,0));
     jobs=xQueueCreate(1,sizeof(probe_job_t)); configASSERT(jobs);
+    /* Use the configured scheduler affinity: this image is UNICORE and core 1
+     * does not exist. xTaskCreate also supports a future dual-core build. */
     configASSERT(xTaskCreate(worker,"bounded_tx",4096,NULL,5,NULL)==pdPASS);
     /* UART STOP can preempt the bounded phase worker even during busy waits. */
     vTaskPrioritySet(NULL,6);
-    puts("TX_PROBE_READY,rf=off,commands=INFO_STOP_TONE_NCO_PHASE_STATE,iq_playback=unverified");
+    puts("TX_PROBE_READY,rf=off,commands=INFO_STOP_TONE_NCO_PHASE_FASTPHASE_FRAME_FRAMEBITS_STATE,iq_playback=unverified");
     char line[96]; unsigned used=0; bool overflow=false;
     for (;;) {
         uint8_t c;

@@ -12,12 +12,24 @@ This page records the boundary between the working modem reference, FPGA acceler
 | Native VDS design | New 18-block checkpoint06, retaining existing bridge/FIR/DDC/gain | Actual native GUI export; build evidence recorded separately |
 | Original ESP32 carrier / host-timed OOK TX | Separate bounded diagnostic, PMOD A → RF → RFS2 | [Actual bring-up results](ESP32_TX_BRINGUP_RESULTS.md); host detector, FPGA transport only |
 | Original ESP32 frequency / phase control | Guarded scalar NCO and CPU-timed phase-pulse diagnostics | [Measured relative-frequency sweep](ESP32_NCO_RF_RESULTS.md); [30 actual phase/control captures](ESP32_PHASE_RF_RESULTS.md), no framed bits/BER |
+| Original ESP32 framed BPSK | v4 compact repeated frame, independent host acquisition/FEC, RF Link Lab and notebook08 | 28 direct RF captures / four payloads: 20/1232 coded errors → 0/224 payload errors; all CRC valid |
+| FPGA FIR on BPSK RF IQ | Existing FIR II, paired raw/filtered capture | Two actual RF snapshots, 32,760 complex samples; exact integer-reference match and valid CRC after filtering |
+| FPGA decoding of recovered RF symbols | Checkpoint06 BPSK soft demapper and K7 Viterbi | Actual RF frame replay: 1/44 coded errors → 0/8 payload errors; host synchronization retained |
 | ESP32 original-chip arbitrary-IQ TX | Unresolved | Offline SDK/ROM investigation; no positive RF playback claim |
 | Optional S3 TX loader | New GPL application plus CRC uploader, pinned component/SDK | USB and UART transport variants compile; ELF RF SRAM-overlap check passes; not flashed/RF-qualified |
 | Independent RX/monitor role | Existing original ESP32 capture capability | Not yet exercised as a complete three-radio modulated link |
 | Modem Lab GUI/notebook08 | Python plots plus an explicitly separate optional FPGA symbol transaction | Mode/provenance/readback guards, notebook and browser validation |
 
 The FPGA accelerator accepts **already synchronized, normalized symbol-rate CI16 IQ**, not unprocessed radio waveforms. It operates on up to 256 information bits per coded block. Internal FPGA mapping is not itself transmission from an ESP32. Existing FPGA FIR/DDC/gain blocks retain their existing radio path; wiring all raw-IQ modem stages into that path remains work.
+
+The new [RF BPSK walkthrough](RF_BPSK_WALKTHROUGH.md) explains the compact
+64-symbol format and host-vs-FPGA boundary. `scripts/check_rf_bpsk.py` records
+actual CI8 with setting/encoder readbacks and independent acquisition. Its
+explicit `--synthetic` mode bypasses hardware. The separate
+`scripts/check_rf_bpsk_fpga.py` replays actual recovered symbols through checkpoint06; one actual received
+frame passed hardware qualification. `check_rf_bpsk_fir.py` separately verifies
+FPGA filtering on the same raw RF snapshot. The original phase-control tests
+remain separate from these framed-link measurements.
 
 ## Recorded numerical results
 
@@ -27,11 +39,11 @@ Actual RTL simulation verifies all 86 constellation points across the four modes
 
 ## Remaining gates
 
-1. Turn the measured original-chip phase-control path into a framed BPSK experiment with independent symbol/frame recovery. Arbitrary-IQ/amplitude-linear playback for higher QAM remains unqualified; prove that path or qualify a supported replacement transmitter. [Original-chip investigation](ESP32_TX_INVESTIGATION.md) tracks concrete binary/ROM evidence.
+1. Extend the measured framed BPSK link beyond its compact one-byte format and qualify phase/timing robustness. Arbitrary-IQ/amplitude-linear playback for higher QAM remains unqualified; prove that path or qualify a supported replacement transmitter. [Original-chip investigation](ESP32_TX_INVESTIGATION.md) tracks concrete binary/ROM evidence.
 2. Add FPGA waveform shaping/matched filtering, preamble/frame acquisition, timing/frequency/phase recovery and equalization with module-level reference checks. Existing FIR/DDC alone does not constitute a complete modem synchronizer.
 3. Connect real received frames through the FPGA stages, exercise independent monitor capture, and measure actual capture coverage, RF error floor and BER across modulation modes.
 4. Qualify real-RF 64-QAM empirically; retain visibly labeled FPGA/Python examples if the RF chain cannot meet the error budget.
 
-The current useful demo is Python waveform synchronization plus the independently tested FPGA symbol/FEC checkpoint. The complete over-the-air three-radio modem remains unfinished until those gates pass. Raw captures, executed notebooks, build databases and test logs stay ignored; source and saved diagrams/screenshots are committed.
+The current demo adds real compact BPSK RF frames, FPGA FIR verification and FPGA FEC replay to the Python waveform reference. The complete over-the-air three-radio modem, continuous FPGA waveform synchronization and higher-QAM RF remain unfinished until those gates pass. Raw captures, executed notebooks, build databases and test logs stay ignored; source and saved diagrams/screenshots are committed.
 
 Physical checkpoint06 FPGA tests passed all four modulation modes on 32-bit frames. Fit uses 61% ALMs and meets setup/hold timing. The independent hardware symbol/noise checker is `scripts/check_modem_hardware.py`; this does not qualify raw-RF acquisition or the ESP32 IQ transmitter. See [validation](../VALIDATION.md).

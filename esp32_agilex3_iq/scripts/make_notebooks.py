@@ -454,7 +454,7 @@ write_notebook(firmware_notebook,ROOT/'notebooks/07_esp32_sdr_firmware.ipynb')
 modem_cells = [
  nb.v4.new_markdown_cell("""# 08 · Modem Lab · BPSK to 64-QAM
 
-**Local software lesson · no board access or radio capture**
+**Local software lesson · offline examples by default**
 
 **What is added:** a Python reference chain and interactive browser lab for BPSK, QPSK, 16-QAM and 64-QAM.
 
@@ -466,7 +466,9 @@ modem_cells = [
 Python TX reference → seeded software channel → Python RX reference → measured BER / EVM
 ```
 
-Every result is explicitly **Python simulation**. RF TX qualification is blocked: only original ESP32 modules are installed, and arbitrary-IQ playback is not qualified. The Python carrier/timing recovery and equalizer do not imply that matching FPGA blocks exist. The separate checkpoint 06 currently targets the symbol-level FEC/QAM path; waveform shaping and synchronization remain future RTL work. No hardware is touched by the cells in this notebook."""),
+The modem ladder and synthetic RF-link examples are explicitly **Python simulation**. The original ESP32 has transmitted framed BPSK recovered by an independent receiver; a captured frame has separately passed through the physical FPGA symbol/FEC block, and a same-capture paired test verified the existing FPGA FIR II IP. The Python carrier/timing recovery does not imply that equivalent raw-waveform receiver blocks exist in FPGA.
+
+The optional RF Link Lab page starts idle. Only its explicit **Capture RF** button requests hardware capture, which requires the installed v4 TX probe and active IQB1 runtime hub. Starting the viewer or running the offline cells does not start RF, and the notebook does not flash or program hardware."""),
  nb.v4.new_markdown_cell("## 1 · Set up the offline model\n\nRun from the repository's Atum A3 IQ Demos environment. This lesson needs the existing NumPy and Matplotlib packages. It does not need Quartus, Questa, a board, ESP32 firmware or a network connection."),
  nb.v4.new_code_cell('''from pathlib import Path
 import sys
@@ -582,8 +584,82 @@ lab_process = subprocess.Popen(args, stdout=lab_log, stderr=subprocess.STDOUT, c
 LAB_URL = f"http://{HOST}:{LAB_PORT}/"
 print("Modem Lab:", LAB_URL)
 print("Server PID:", lab_process.pid, "· bind: 0.0.0.0 · source: Python simulation")''',metadata={'tags':['offline','browser']}),
- nb.v4.new_markdown_cell("### Saved browser example\n\nThis static screenshot was captured from the working local page. Values are one seeded Python simulation run; the RF TX qualification banner records the current original-ESP32 hardware gate.\n\n![Modem Lab browser example](screenshots/08_modem_lab.png)\n\n[Open the full-resolution screenshot](screenshots/08_modem_lab.png)."),
- nb.v4.new_markdown_cell("## 6 · FPGA path and its current boundary\n\nCheckpoint 06 implements symbol-rate encoding/mapping, max-log soft demapping and Viterbi FEC. Run the actual Questa assertions, then optionally generate the native VDS project and build a SOF using the executable cells below. Each action is controlled by a default-false switch so **Run All** stays offline. Generation/build use the project progress helper and log output. They do not program a board or flash a radio. The saved PNG is an actual Quartus VDS GUI export from checkpoint 06. Python waveform shaping, burst acquisition, carrier/timing recovery and equalization are not implemented in this RTL."),
+ nb.v4.new_markdown_cell("### Saved browser example\n\nThis static screenshot was captured from the working local page. Values are one seeded Python simulation run; the banner records the original-ESP32 arbitrary-IQ TX qualification boundary, separate from the measured phase-pulse BPSK link below.\n\n![Modem Lab browser example](screenshots/08_modem_lab.png)\n\n[Open the full-resolution screenshot](screenshots/08_modem_lab.png)."),
+ nb.v4.new_markdown_cell('''## 6 · Original ESP32 RF Link Lab
+
+The framed phase-BPSK contract is **64 symbols**: 16 marker symbols carrying `0x0651` MSB first, 44 rate-1/2 K=7 coded symbols from payload byte + CRC-8 + six zero tail bits, then four zero guard symbols. The CRC uses polynomial `0x07` and initial value `0x00`; the convolutional generators are `(171,133)` octal. At the default 8 µs per symbol, the frame takes 512 µs. A 16,380-sample capture at 16 MS/s spans 1.02375 ms, nominally about two frame periods. TX scheduling jitter or missed slots can delay or restart a frame, so a capture is not guaranteed to contain a complete frame.
+
+**Bring-up:** corrected v4 firmware passed its normal `READY` startup. **Measured phase calibration:** with the original ESP32 at 160 MHz, extension step 3 and 670 cycles, the median phase change was −180.22° with second circular moment 0.992. The half-width control measured −90.01°, and CW produced zero events. The nominal 682-cycle full pulse measured −183.11° with moment 0.656, failing the strict concentration criterion; the checker therefore defaults to the measured 670-cycle profile at 160 MHz.
+
+**Measured RF frames:** `rf-bpsk-001` recovered four CRC-valid `0xA5` frames (1/176 coded errors, 0/32 payload errors); `002` recovered sixteen `0x3C` frames (19/704, 0/128); `003` recovered four `0x00` frames (0/176, 0/32); and `004` recovered four `0xFF` frames (0/176, 0/32). All 28 frames passed CRC: **20/1232 pre-FEC coded errors and 0/224 payload errors**. An independent review redecoded all raw captures without expected-payload input and verified their hashes. Known payloads were used only after host acquisition for BER comparison. These are observed sparse samples, not evidence of zero true BER or delivery between capture windows.
+
+**Separate FPGA FIR II test:** two paired captures processed 32,760 complex samples through the existing checkpoint 03 16-tap Hamming Q15 FIR II with nearest rounding. FPGA output matched the independent integer reference exactly (maximum error 0); processing used 114,756 cycles (2.29512 ms at 50 MHz) per 16,380-sample burst. Raw and filtered paths each recovered two CRC-valid frames with 0/88 coded errors. This is separate FIR-IP verification; those frames are not included in the 28 direct-RF totals, and no BER improvement is claimed.
+
+```text
+                           ┌→ Raw CI8 snapshot ─────────┐
+Same ESP32 RF snapshot ────┤                             ├→ Host sync / BPSK / K7 FEC / CRC
+                           └→ Existing FPGA FIR II ────┘
+                                16-tap Hamming Q15 · nearest
+```
+
+The offline preview below separately creates synthetic clean and FEC-challenge IQ, then runs the host reference and plots its actual returned spectrum, marker correlation, raw IQ and recovered symbols. It remains explicitly **offline synthetic simulation** and does not access a radio or FPGA. Raw-IQ synchronization remains host processing.'''),
+ nb.v4.new_code_cell('''import matplotlib.pyplot as plt
+from notebook_progress import progress
+from rf_bpsk import synthesize, receive
+
+RF_BPSK_PAYLOAD = 0xA5
+rf_examples = {}
+with progress("Generate offline framed-BPSK examples"):
+    rf_examples["clean"] = receive(
+        synthesize(RF_BPSK_PAYLOAD, seed=7), expected_payload=RF_BPSK_PAYLOAD)
+    rf_examples["FEC challenge"] = receive(
+        synthesize(RF_BPSK_PAYLOAD, seed=7, coded_flips=(5, 20)),
+        expected_payload=RF_BPSK_PAYLOAD)
+
+fig, axes = plt.subplots(2, 2, figsize=(11, 7))
+clean_plots = rf_examples["clean"]["plots"]
+challenge_plots = rf_examples["FEC challenge"]["plots"]
+axes[0, 0].plot(clean_plots["spectrum"]["x"], clean_plots["spectrum"]["y"])
+axes[0, 0].set(title="Synthetic clean · spectrum", xlabel="Frequency (Hz)", ylabel="Relative power (dB)")
+axes[0, 1].plot(clean_plots["correlation"]["x"], clean_plots["correlation"]["y"])
+axes[0, 1].set(title="Synthetic clean · marker correlation", xlabel="Sample", ylabel="Score")
+axes[1, 0].scatter(clean_plots["raw_iq"]["i"], clean_plots["raw_iq"]["q"], s=3, alpha=.25)
+axes[1, 0].set(title="Synthetic clean · raw IQ", xlabel="I", ylabel="Q")
+axes[1, 1].scatter(challenge_plots["constellation"]["i"], challenge_plots["constellation"]["q"], s=12)
+axes[1, 1].set(title="Synthetic FEC challenge · recovered symbols", xlabel="I", ylabel="Q")
+for ax in axes.flat:
+    ax.grid(alpha=.2)
+    if ax in (axes[1, 0], axes[1, 1]):
+        ax.set_aspect("equal", adjustable="datalim")
+fig.suptitle("OFFLINE SYNTHETIC · host receiver output · no RF capture")
+fig.tight_layout()
+plt.show()
+for label, result in rf_examples.items():
+    print(f"OFFLINE SYNTHETIC · {label}: acquired={result['acquired_frames']} "
+          f"CRC-valid={result['valid_frames']} sync-failures={result['acquisition_failures']} "
+          f"coded={result['coded_errors']}/{result['coded_bits']} "
+          f"payload={result['payload_errors']}/{result['payload_bits']} "
+          f"CRC-failures={result['crc_failures']}")''',metadata={'tags':['theory','offline','synthetic-rf']}),
+ nb.v4.new_markdown_cell('''### Optional · start the RF Link Lab viewer
+
+The service opens no serial or JTAG device and does not start RF. Its page is initially idle; changing the payload, symbol period or pulse width only changes requested settings. The explicit **Capture RF** button starts a bounded capture and requires the v4 transmitter firmware plus the IQB1 FPGA runtime hub. The offline synthetic preview above is separate and never controls that button.
+
+The first manual FPGA replay used frame 0 from `rf-bpsk-001`: the FPGA block ID was `0x4d440601`, coded errors were 1/44, decoded payload errors 0/8 and CRC passed. Decode time was 3,144 cycles (62.88 µs at 50 MHz); the JTAG transaction took 86.402 seconds. The separate `scripts/check_rf_bpsk_fpga.py` operation sends host-recovered symbols to checkpoint 06's soft demapper and K=7 FEC. It does not program the image or synchronize raw IQ; it uses Nios/JTAG. The normal checkpoint 03 image was restored after replay.
+
+The FIR test is also a separate manual operation, `scripts/check_rf_bpsk_fir.py`, using the already available checkpoint 03-compatible FIR image. It verifies paired raw and FIR output from the same RF snapshot against the exact integer reference; FIR filtering does not move synchronization or FEC into FPGA.'''),
+ nb.v4.new_code_cell('''import subprocess
+
+START_RF_LINK_LAB = False  # Opt in to starting the idle viewer; this does not start RF.
+if START_RF_LINK_LAB:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/start_rf_link_lab.py"), "start"],
+        cwd=ROOT, check=True, capture_output=True, text=True)
+    print(result.stdout.strip())
+    print("RF remains idle until Capture RF is clicked in the page.")
+else:
+    print("RF Link Lab viewer skipped. Set START_RF_LINK_LAB=True to start its idle service.")''',metadata={'tags':['browser','optional-hardware']}),
+ nb.v4.new_markdown_cell("### CyberEther · measured and synthetic RF Link Lab views\n\nThe synthetic page screenshot preserves the software-only Clean reference and FEC challenge controls. The physical RF screenshot shows four direct RF bursts, the paired raw/FIR spectrum, FPGA FIR reference checks, and the separate symbol/FEC replay. Its summary panel reports the `0xA5` run. The RF page is idle in the screenshot; only **Capture RF** requests a bounded RF job.\n\n![RF Link Lab synthetic example](screenshots/08_rf_link_lab_synthetic.png)\n\n[Open the full-resolution synthetic screenshot](screenshots/08_rf_link_lab_synthetic.png).\n\n![RF Link Lab physical capture, FIR check and FPGA replay](screenshots/08_rf_link_lab_rf.png)\n\n[Open the full-resolution physical RF screenshot](screenshots/08_rf_link_lab_rf.png)."),
+ nb.v4.new_markdown_cell("## 7 · FPGA path and its current boundary\n\nCheckpoint 06 implements symbol-rate encoding/mapping, max-log soft demapping and Viterbi FEC. Run the actual Questa assertions, then optionally generate the native VDS project and build a SOF using the executable cells below. Each action is controlled by a default-false switch so **Run All** stays offline. Generation/build use the project progress helper and log output. They do not program a board or flash a radio. The saved PNG is an actual Quartus VDS GUI export from checkpoint 06. Python waveform shaping, burst acquisition, carrier/timing recovery and equalization are not implemented in this RTL. Future work is integrating the full raw-waveform receiver in FPGA, evaluating higher-throughput SPI transport and extending beyond BPSK."),
  nb.v4.new_markdown_cell("### Saved native Quartus VDS GUI export\n\n![Checkpoint 06 modem block design exported from the actual VDS GUI](diagrams/08_vds_gui.png)\n\nThis is the native design GUI export, not a Python topology drawing. The executable generate cell can recreate the project and export a fresh diagram locally."),
  nb.v4.new_code_cell('''from IPython.display import Image, display
 from pathlib import Path

@@ -166,3 +166,62 @@ half-width and nominal-half-turn captures, receiver analysis and state/telemetry
 proof. `--pulse-cycles` changes the test duration only; it is never a requested
 or assumed RF phase. No command in the README builds or flashes a device by
 default; retain the full backup and existing safe flash/restore procedure above.
+
+## v4 compact framed BPSK experiment
+
+v4 adds a **hardware-tested compact framed phase-pulse BPSK** transmitter. It uses
+the same original-chip scalar tone path; it is not an arbitrary-IQ upload API.
+Its independent host receiver and live graphs are described in
+[RF BPSK walkthrough](../../docs/RF_BPSK_WALKTHROUGH.md).
+
+```text
+16 sync bits      44 K7(171,133) coded bits                 4 guard bits
+0x0651        |   payload8 + CRC8 + six zero tail bits  |   0000
+              <-------- 64 symbols, repeated --------->
+```
+
+All fields are MSB first. CRC8 uses polynomial `0x07`, initial value zero, over
+the payload byte. The encoder starts in state zero each frame and terminates
+with six zero bits. State `0` maps to the positive BPSK phase; state `1` to its
+opposite. The sync word combines a 13-bit Barker sequence and fixed version bits
+`001`; the format has no variable length/header fields. Native C tests compare
+all 256 encoded payloads with independent Python references.
+
+| Command | Result |
+|---|---|
+| `FRAMEBITS 165` | Read-only `FRAMEBITS,payload=165,bits=<64 binary digits>`; no RF initialization |
+| `FRAME 8 500 120 165 8 670` | Repeated frames, channel 8, 500 ms maximum, payload `0xA5`, 8 µs symbols, measured-profile 670-cycle request |
+| `FASTPHASE 8 500 120 165 32 670 3` | Faster phase diagnostic using extension step 3 and repeated 8-bit pattern |
+| `PHASECAP` | Also reports `fast_half_cycles` and `fast_step=3` |
+| `PHASESTAT` | Also reports missed/rescheduled slots and completed 64-symbol frames |
+
+`FRAME` emits `FRAME_CFG` with job, CPU clock, symbol period, pulse cycles,
+payload, frame length and step. `FASTPHASE` emits `PHASE_CFG`. Both retain
+`TX_ON`/`TX_OFF`, the 50–500 ms bound, channel 1–11 and backoff 80–120. Frame
+payloads are 0–255; fast symbols are 8–256 µs. Pulse requests are 0–8192 cycles
+and must fit within 80% of the symbol period; zero is a diagnostic negative
+control, not a usable modulation setting. The host frame demo accepts 8–15 µs
+symbols because a longer frame does not fit its fixed receiver snapshot.
+
+Step 3 nominally gives a 4.267 µs half-turn, much faster than the earlier step-1
+experiment. Independent RFS2 measurements qualified a 670-cycle request at 160 MHz on the installed PMOD A. Other settings need their own qualification. Pulses mask
+interrupts only during their bounded individual width; the full job does not
+mask interrupts. The worker records late/missed slots and restarts a damaged
+frame at its marker. A symbol counter or completed-frame count proves firmware
+scheduling only, not successful RF reception.
+
+After explicit installation and restoring the runtime hub:
+
+```bash
+.venv-notebooks/bin/python scripts/check_rf_bpsk.py \
+  --output cyberether/run/rf-bpsk-new --captures 4 --payload 165 \
+  --snapshot cyberether/run/rf-link-state.json
+```
+
+The host verifies frame-bit and setting readbacks, records actual CI8 and CRC
+metadata, stops the transmitter and restores receiver gain. Carrier/timing/frame
+recovery and FEC in this initial capture command run on the **host**. Known bits
+are used only after recovery to count errors. CRC-failed synchronized frames
+remain in BER counts; unobserved gaps and acquisition failures stay separate.
+The separate `check_rf_bpsk_fpga.py` can replay measured, host-synchronized symbols
+through the existing FPGA demapper/FEC after explicitly loading checkpoint 06.

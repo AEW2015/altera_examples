@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure the original ESP32's bounded NCO step probe; no arbitrary-IQ claim.
 
-Requires v2/v3 probe on PMOD A and an IQB1 FPGA hub. No programming or flashing.
+Requires v2/v3/v4 probe on PMOD A and an IQB1 FPGA hub. No programming or flashing.
 """
 import argparse,json,sys,time
 from pathlib import Path
@@ -39,7 +39,7 @@ def main():
         with NiosFir(pause_monitor=False)as n:n.command('PAIR',0)
         with Bridge(a.port)as b:
             b.control(2,1,2000000);proof['identity']=b.radio_command(1,'INFO','TX_PROBE,')
-            if not proof['identity'].startswith(('TX_PROBE,v=2,','TX_PROBE,v=3,')):raise RuntimeError('NCO requires probe firmware v2/v3')
+            if not proof['identity'].startswith(('TX_PROBE,v=2,','TX_PROBE,v=3,','TX_PROBE,v=4,')):raise RuntimeError('NCO requires probe firmware v2/v3/v4')
             proof['receiver']=b.prepare_sdr(0,2447,16000000)
             old=b.radio_command(0,'GAIN?','GAIN ')
             try:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capture bounded phase-continuity hypotheses and negative RF controls.
 
-Requires explicitly installed original-ESP32 probe v3. No programming/flashing.
+Requires explicitly installed original-ESP32 probe v3/v4. No programming/flashing.
 Measured phase clusters are not decoded payload bits or a complete RF modem.
 """
 import argparse,json,sys,time
@@ -22,6 +22,7 @@ def main():
     p.add_argument('--rx-gain',type=int,choices=range(128),metavar='0..127',default=0,help='Manual RX gain code; inspect sample headroom before interpreting phase')
     p.add_argument('--pattern',type=int,choices=range(256),metavar='0..255',default=165,help='Repeated 8-bit pattern, decimal (165 is 0xA5)')
     p.add_argument('--symbol-us',type=int,choices=range(32,257),metavar='32..256',default=64)
+    p.add_argument('--fast-step',type=int,choices=[1,2,3],help='Use v4 FASTPHASE with this NCO extension step')
     p.add_argument('--backoff-qdb',type=int,choices=range(80,121),metavar='80..120',default=96,help='TX power backoff in quarter-dB units')
     p.add_argument('--pulse-cycles',type=int,help='Override nominal half-turn width for calibration; never an assumed RF phase')
     a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
@@ -32,7 +33,8 @@ def main():
         with Bridge(a.port)as b:
             b.control(2,1,2000000)
             proof['identity']=b.radio_command(1,'INFO','TX_PROBE,')
-            if not proof['identity'].startswith('TX_PROBE,v=3,'):raise RuntimeError('Phase probe requires v3')
+            if not proof['identity'].startswith(('TX_PROBE,v=3,','TX_PROBE,v=4,')):raise RuntimeError('Phase probe requires v3/v4')
+            if a.fast_step and not proof['identity'].startswith('TX_PROBE,v=4,'):raise RuntimeError('FASTPHASE requires v4')
             proof['receiver']=b.prepare_sdr(0,2447,16000000)
             old=b.radio_command(0,'GAIN?','GAIN ')
             try:
@@ -44,18 +46,23 @@ def main():
                 # Initialize RF explicitly before querying the final CPU clock.
                 b.radio_write(1,f'TONE 8 50 {a.backoff_qdb}\n');b.wait_text(1,'TX_ON,',10);time.sleep(.08)
                 caps=fields(b.radio_command(1,'PHASECAP','PHASECAP,'));proof['caps']=caps
-                full=a.pulse_cycles if a.pulse_cycles is not None else caps['half_cycles']
+                full=a.pulse_cycles if a.pulse_cycles is not None else (caps['half_cycles']//a.fast_step if a.fast_step else caps['half_cycles'])
                 if not 0<full<=8192:raise ValueError('Pulse width must be 1..8192 cycles')
                 if full>caps['cpu']*a.symbol_us//2000000:
                     raise ValueError('Pulse must not exceed half the symbol period')
                 for name,pulse in [('zero_pulse_control',0),('half_width_control',full//2),('nominal_half_turn',full)]:
                     for index in range(a.repeats):
                         command=f'PHASE 8 500 {a.backoff_qdb} {a.pattern} {a.symbol_us} {pulse}'
+                        if a.fast_step:command=command.replace('PHASE ','FASTPHASE ',1)+f' {a.fast_step}'
                         b.radio_write(1,command+'\n')
                         cfg=fields(b.wait_text(1,'PHASE_CFG,',4))
+                        if a.fast_step and cfg.get('step')!=a.fast_step:
+                            raise RuntimeError('Fast NCO step readback mismatch')
                         if (cfg['period_us'],cfg['pulse_cycles'],cfg['pattern'])!=(a.symbol_us,pulse,a.pattern):
                             raise RuntimeError('Phase settings readback mismatch')
-                        on=b.wait_text(1,'TX_ON,',4)
+                        # CFG is emitted after vendor RF setup; do not wait for a
+                        # redundant event that can be dropped by the hub text queue.
+                        on='Matched configuration emitted after RF setup; TX_ON event not required'
                         start=time.monotonic()
                         try:frame=next(b.captures(1,0,16380,16000000,pipeline=False))
                         finally:b.radio_write(1,'STOP\n')
