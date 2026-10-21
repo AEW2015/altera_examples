@@ -1,4 +1,4 @@
-# Five local FPGA lessons
+# Five local FPGA lessons + RF Arcade
 
 Run Jupyter **where Quartus and Questa are installed**: a Linux host or a container desktop. All build, simulation, programming and viewer commands run directly in that environment. A browser can connect remotely.
 
@@ -13,6 +13,8 @@ Python model → VDS GUI diagram → Questa waveform → SOF → Atum A3 Nano �
 | [03 FIR](03_fir_filter.ipynb) | Convolution and Q15 rounding | Generated FIR II + capture controller | Boxcar / Hamming |
 | [04 DDC](04_ddc_frequency_translation.ipynb) | Mixing, filtering, aliasing | Generated I/Q FIR II + DDC RTL | Shift / filter / decimate |
 | [05 Gain](05_gain_power_meters.ipynb) | Gain, saturation, power | Gain/meter RTL, exact integer assertions | Gain / power / clips |
+
+For a presentation using checkpoint 5, open [06 RF Arcade setup](06_rf_arcade.ipynb): verify/build, program, launch the showreel, then stop and release the hardware. It is not a sixth FPGA checkpoint.
 
 ## Install once
 

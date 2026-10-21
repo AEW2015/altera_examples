@@ -29,6 +29,8 @@ RTL, Nios firmware and the native VDS construction/connection Tcl definitions ar
 
 ## Demo night: RF Arcade
 
+Open the [RF Arcade setup notebook](notebooks/06_rf_arcade.ipynb) for the guided build → program → launch workflow and the demo sequence.
+
 [**RF Arcade**](docs/RF_ARCADE.md) adds a fullscreen presentation with a live waterfall, spectral peak memory, glowing IQ samples, a tone-rescue challenge and FPGA clipping/harmonic effects. One **Showreel** button runs the hardware scenes automatically. It uses checkpoint 5 without RTL or firmware changes.
 
 ```bash

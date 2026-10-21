@@ -11,6 +11,8 @@ Watch         Waterfall + IQ         Interferer disappears   Circle → square +
 
 ## Start
 
+For guided setup, open [RF Arcade setup notebook](../notebooks/06_rf_arcade.ipynb). It covers installation, project/diagram links, build, programming, launch and cleanup. Stop at the Launch cell while presenting.
+
 Use the local environment containing Quartus, the installed venv and the board's UART/JTAG access:
 
 ```bash

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the five authored notebooks; outputs are produced by local execution."""
+"""Generate the authored lessons and RF Arcade setup notebook; outputs are produced by local execution."""
 import ast
 from pathlib import Path
 import nbformat as nb
@@ -26,6 +26,16 @@ lesson_intros=[
 ]
 levels=['Real UART TX/RX module loopback, binary bytes and 8N1 framing.','Real counter RTL with scaled 10-cycle windows, snapshot and reset checks.','Actual generated FIR II VHDL plus capture controller; impulse, custom coefficients, rounding and saturation.','Actual generated I/Q FIR II plus DDC/snapshot RTL, four mixer/filter/decimation cases.','Real gain/meter RTL: bypass, half, double, saturation and zero; all integer outputs and meters checked.']
 tries=['Compare I/Q waveform, scatter and display spectrum. The points are raw IQ, not decoded modulation symbols.','Watch actual one-second radio/host byte counts. Pause acquisition and observe the counter age; these are rates, not calibrated RF bandwidth.','Toggle Hamming and Boxcar. Each displayed filtered result is independently checked against the configured integer coefficients.','Select Shift + filter + decimate, then no filter. The interferer folds into the output band when anti-alias filtering is bypassed.','Try 0.5×, 1×, 2×, then 4× or 16×. Watch actual power meters and clipping.']
+def write_notebook(notebook, path):
+ # Keep authored cell IDs stable when regenerating unchanged content.
+ if path.exists():
+  previous = nb.read(path, as_version=4)
+  ids = {(c.cell_type, c.source): c.id for c in previous.cells}
+  for cell in notebook.cells:
+   if (cell.cell_type, cell.source) in ids:
+    cell.id = ids[(cell.cell_type, cell.source)]
+ nb.write(notebook, path)
+
 for i,name in enumerate(NAMES,1):
  cells=[nb.v4.new_markdown_cell(f'# {i} · {name}\n\n**Local Quartus workflow · host or container · one active FPGA design at a time**\n\n`{introductions[i-1][0]}`\n\n**What is added:** {lesson_intros[i-1][0]}\n\n**Why it is useful:** {lesson_intros[i-1][1]}\n\n**How it works:** {lesson_intros[i-1][2]}\n\n```text\n{lesson_intros[i-1][3]}\n```\n\nPython model → native VDS diagram → real RTL/IP simulation → SOF → board → focused CyberEther page.'),
  nb.v4.new_markdown_cell('## Setup\n\nOnce, from this example folder: `bash scripts/install_local.sh --system` (Linux system packages need sudo), then select **Atum A3 IQ Demos** as the notebook kernel. Quartus/Questa/Nios tools must already be installed. Set the optional paths below if they are not on PATH. No Docker commands are needed.'),
@@ -94,4 +104,87 @@ summary
    sdc=stages()[i-1].relative_to(ROOT)/'iq_bridge_vds.sdc'
    cell.source+=f'\n\nTiming constraints: [iq_bridge_vds.sdc](../{sdc.as_posix()}).'
  notebook=nb.v4.new_notebook(cells=cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
- name=f'{i:02d}_'+['raw_iq_bridge','nios_transfer_monitor','fir_filter','ddc_frequency_translation','gain_power_meters'][i-1]+'.ipynb';nb.write(notebook,ROOT/'notebooks'/name)
+ name=f'{i:02d}_'+['raw_iq_bridge','nios_transfer_monitor','fir_filter','ddc_frequency_translation','gain_power_meters'][i-1]+'.ipynb';write_notebook(notebook,ROOT/'notebooks'/name)
+
+# Presentation notebook: uses checkpoint 5; it is not a sixth FPGA checkpoint.
+arcade_setup = cells[2].source  # Reuse the final lesson's checkpoint-5 configuration.
+arcade_setup += '\n# Override HOST with the address reachable from your browser when necessary.\n# HOST = "192.168.x.x"\nfrom check_tools import check\nchecks = check()\n'
+arcade_cells = [
+ nb.v4.new_markdown_cell("""# RF Arcade · demo-night setup
+
+**ESP32 SDR → Agilex 3 FPGA → CyberEther**
+
+**What is added:** a fullscreen presentation and automatic seven-scene showreel using checkpoint 5.
+
+**Why it is useful:** move from real airwaves to clean tone rescue and visible clipping with a few buttons.
+
+**How it works:** ESP32 bursts or an FPGA test generator feed capture RAM, frequency translation, FIR II, decimation and gain/meters. Nios V applies settings; the host verifies results and renders the display FFT and CyberEther graphics.
+
+```text
+ESP32 RF ───────┐
+               ├→ FPGA RAM → NCO → FIR II → decimate → gain / meters → CyberEther
+FPGA test IQ ──┘                       ↑ Nios V / JTAG control
+```
+
+This is a presentation of **checkpoint 5**, not another FPGA design. No ESP32 reflashing is needed with the compatible firmware already installed. Run cells in order through **Launch**, then stop there while presenting. Run the final **Stop** cell when finished; do not use Run All for a live presentation."""),
+ nb.v4.new_markdown_cell("""## 1 · Install once and select the kernel
+
+In a terminal, from `esp32_agilex3_iq`, on the Linux host or container desktop **where Quartus is installed**:
+
+```bash
+# Optional: set QUARTUS_ROOTDIR, QUESTA_ROOT and ATUM_ALTERA_ROOT for your installation.
+bash scripts/install_local.sh --system
+.venv-notebooks/bin/jupyter lab notebooks --no-browser
+```
+
+Omit `--system` if system prerequisites are already installed. That option needs sudo. The installer creates the venv/kernel and downloads the pinned CyberEther runtime; install/license Quartus, device support, Questa and Nios separately. See [installation details](README.md#install-once).
+
+Select **Atum A3 IQ Demos**, or `.venv-notebooks/bin/python` in VS Code. Keep the desktop's `DISPLAY`. Set UART and JTAG overrides below for your board; the current container uses `/dev/ttyUSB0`. No Docker-specific commands are required. These configuration checks do not open the serial device."""),
+ nb.v4.new_code_cell(arcade_setup, metadata={'tags':['setup']}),
+ nb.v4.new_markdown_cell("""## 2 · See the FPGA design
+
+![Checkpoint 5 · native Quartus VDS diagram](diagrams/05_vds_gui.png)
+
+The saved PNG above comes from the actual VDS GUI. Optionally run the next cell to regenerate the IP/design and export a fresh native diagram locally. It also prints complete Quartus project and ZIP links, including SDC and generated sources. This step needs the GUI prerequisites and can take a few minutes; skip it for a quick launch from an existing build.
+
+Timing constraints: [checkpoint-5 SDC](../fpga_hub/iq_bridge/vds_demo_05_gain/iq_bridge_vds.sdc)."""),
+ nb.v4.new_code_cell('from IPython.display import Image, display\ndiagram_png = lesson.generate()\ndisplay(Image(filename=str(diagram_png)))\nprint("Exported:", diagram_png)',metadata={'tags':['generate','optional']}),
+ nb.v4.new_markdown_cell("""## 3 · Build or verify the checkpoint-5 SOF
+
+A fresh checkout compiles the design. Later runs reuse only a source-matched, hash-verified SOF; set `FORCE_REBUILD=True` above for a full compile. This does not program the board. Use the printed QPF/project ZIP links to inspect or compile in Quartus; extract ZIPs first. The checkpoint includes the Nios boot monitor already. Generating a separate Hello World project is optional: [Nios IDE guide](../software/README.md).
+
+For the Python model, module simulation and Questa GUI walkthrough, use [lesson 05](05_gain_power_meters.ipynb)."""),
+ nb.v4.new_code_cell('build = lesson.build(force=FORCE_REBUILD)\nprint("SOF:", lesson.stage / "iq_bridge_vds.sof")\nprint("SHA256:", build["sha256"])\nprint("Compiled resources:", build["resources"])',metadata={'tags':['build']}),
+ nb.v4.new_markdown_cell("""## 4 · Program the physical Atum A3 Nano
+
+Connect board power, JTAG and UART; keep the three compatible ESP32 modules connected. Stop unrelated acquisition owners first. This cell stops the previous notebook-owned demo and **programs checkpoint 5**, replacing the current FPGA image. No ESP32 reset-button presses are required with installed compatible firmware."""),
+ nb.v4.new_code_cell('lesson.program()',metadata={'tags':['hardware','program']}),
+ nb.v4.new_markdown_cell("""## 5 · Launch RF Arcade
+
+The next cell starts actual acquisition and waits for a verified live result. Open its **private control-invite link**, then choose fullscreen. Use that link rather than opening port 8687 directly: it includes the controls and access token. Keep tokens private.
+
+`HOST` must be reachable from the viewing browser. Default ports are **8768** (controls), **8687** (native viewer), and **TCP 40100–40103** (media). If using a container or firewall, expose those ports and set `HOST` to a reachable address. A launch failure is an error to investigate, not evidence of live samples.
+
+**Stop executing cells here once the link opens.** Leave the notebook kernel running while presenting."""),
+ nb.v4.new_code_cell('live = lesson.start_demo(host=HOST, demo_night=True)\nprint(live)',metadata={'tags':['hardware','live']}),
+ nb.v4.new_markdown_cell("""## Try this two-minute demo
+
+| Scene | Try | Point out |
+|---|---|---|
+| **Airwaves** | Select radio and Wi-Fi channel | Real received 2.4 GHz bursts, waterfall and IQ samples |
+| **Rescue the tone** | Fold → Shift to DC → Reject interferer | FPGA mixing, anti-alias filtering and decimation |
+| **Power rush** | 1× → 2× → 16× | Amplitude growth, clipping, harmonics and FPGA meters |
+| **Showreel** | Start, then fullscreen | Seven scenes, each waiting for verified hardware settings |
+
+**Freeze / Resume** pauses/restarts acquisition. Manual scene, radio or channel changes stop the showreel. Stop showreel leaves the selected scene active.
+
+Live Airwaves uses RF; tone rescue and power rush use clean **FPGA-generated test signals**, with no RF transmission. The IQ orbit shows sample scatter, not recovered Wi-Fi/QPSK symbols. Power is relative, not calibrated dBm. Each waterfall row is a distinct sparse capture, not a gap-free recording. Radio selection uses one ESP32 at a time, without phase coherence. Host transport, integer reference checks and display FFT remain host computations.
+
+More detail: [RF Arcade guide](../docs/RF_ARCADE.md)."""),
+ nb.v4.new_markdown_cell("""## 6 · Stop and release the hardware
+
+Run this cell **when finished presenting**. It stops this checkout's notebook-owned demo and its acquisition/JTAG children, releasing their device handles. It does not stop unrelated user processes or erase the FPGA image. To present again, rerun Launch; to switch designs, open another lesson and run its programming cell."""),
+ nb.v4.new_code_cell('stop_demo()\nprint("Notebook-owned RF Arcade stopped; its UART/JTAG handles are released.")',metadata={'tags':['hardware','cleanup']}),
+]
+arcade = nb.v4.new_notebook(cells=arcade_cells, metadata=notebook.metadata)
+write_notebook(arcade, ROOT/'notebooks/06_rf_arcade.ipynb')

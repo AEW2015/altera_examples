@@ -94,3 +94,9 @@ Each ZIP was extracted to a new temporary directory and compiled using only `qua
 | vds_demo_05_gain | +0.008 |
 
 Native VDS GUI export also passed for the six-block raw project and 17-block gain project after the packaging change. **45 host tests pass**, including missing SDC/leaf-HDL rejection, complete extracted ZIP inputs and replacement of old GUI-wrapper symlinks. All notebook schemas/code cells validate. The serial device was not reopened and hardware was not programmed. Prepared project ZIPs, their file hashes and extracted-build logs/proofs remain generated local artifacts. Minimum reported slack does not establish complete external/asynchronous I/O constraints.
+
+## RF Arcade setup notebook
+
+Added `notebooks/06_rf_arcade.ipynb`, a presentation launcher using checkpoint 5 (not a sixth FPGA checkpoint). It covers local installation/kernel selection, tool and device configuration, saved/native GUI diagrams, complete project links, verified cached/full builds, explicit programming, private browser launch, scene walkthrough and explicit hardware cleanup. The generator now preserves unchanged cell IDs; regeneration leaves all six notebooks byte-for-byte unchanged.
+
+All six notebooks pass schema, Python syntax, clean-output and local-link checks. The new notebook's actual setup/preflight and checkpoint-5 cached-SOF verification/project export passed in the local tool environment. Program/launch/cleanup cells were exercised with mocked hardware methods and checked for checkpoint 5 and `demo_night=True`; no live acquisition, programming or serial access was performed. **45 host tests pass.** Existing hardware validation above remains the evidence for the underlying RF Arcade pipeline.
