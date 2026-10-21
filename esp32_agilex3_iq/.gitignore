@@ -71,3 +71,6 @@ firmware/esp32_spi_probe/build/
 /simulation/spi_meter/
 /fpga_hub/iq_bridge/spi_meter/output_files/
 /fpga_hub/iq_bridge/spi_meter/*.qsf.backup
+
+# Generated standalone checkpoint07 simulation fixtures
+/simulation/spi_pipeline/

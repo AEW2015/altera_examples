@@ -25,6 +25,7 @@ The notebook's `lesson.software()` cell performs the same software generation/bu
 | 3 · FIR | `fpga_hub/iq_bridge/vds_demo_03_fir` | `software/checkpoint_03/` |
 | 4 · DDC | `fpga_hub/iq_bridge/vds_demo_04_ddc` | `software/checkpoint_04/` |
 | 5 · Gain/meters | `fpga_hub/iq_bridge/vds_demo_05_gain` | `software/checkpoint_05/` |
+| 7 · SPI + FIR II | `fpga_hub/iq_bridge/vds_demo_07_spi_fir` | `software/checkpoint_07/` |
 
 Each generated directory contains:
 
@@ -115,3 +116,36 @@ Four BSPs and eight Debug applications build with Quartus/Nios V 26.1.1 tools. T
 ## Modem checkpoint 06
 
 After `python scripts/modem_fpga.py generate`, run `python scripts/nios_software.py 6` to generate/build its official HAL BSP, Hello World and modem-capable IQ monitor apps. Import the generated `software/checkpoint_06/bsp` and app directories in RiscFree as above. The original `all` shortcut still covers checkpoints 2–5; modem generation is explicit. Only after checkpoint06 is programmed, `python scripts/nios_download.py 6 hello_world` loads Hello World; restore its command monitor with `python scripts/nios_download.py 6 boot_monitor` before modem transactions. These software downloads are explicit hardware operations and are not part of the default notebook Run All.
+
+## SPI/FIR checkpoint 07
+
+Checkpoint 07 preserves the checkpoint-03 Nios V CPU, memory and JTAG UART
+layout, and adds PMOD B SPI capture input to the IQ/FIR data path. Generate its
+native VDS system first, then create the official HAL BSP and Hello World/IQ
+monitor CMake apps:
+
+```bash
+python scripts/spi_pipeline.py generate
+python scripts/nios_software.py 7
+# Optional: open the official RiscFree IDE on this desktop after generation.
+python scripts/nios_software.py 7 --open
+```
+
+These commands create ignored outputs under `software/checkpoint_07/`. The
+generator reads checkpoint 07's own VDS system (which produces its matching
+SOPC information), CPU instance and QPF; it does not reuse checkpoint 03's BSP.
+The legacy `scripts/nios_software.py all` command intentionally remains scoped
+to checkpoints 2–5. Checkpoint 07 source/build and hardware qualification are
+separate steps; BSP/app generation does not program the FPGA or establish RF/SPI
+hardware qualification. After the integrated image is built and explicitly
+loaded, `python scripts/nios_download.py 7 hello_world` downloads only the CPU
+ELF; restore its monitor with `python scripts/nios_download.py 7 boot_monitor`.
+The downloader verifies that checkpoint07 is the active FPGA image. These
+downloads are explicit hardware actions and do not occur during BSP generation.
+
+The checkpoint07 BSP, Hello World and IQ monitor ELF have been generated from
+the checkpoint's VDS system and built with the official Nios tools. Both
+generated `.launch` files point to `nios_download.py 7`; the CLI accepts that
+target. The launch target was inspected without running it. RiscFree was not
+opened and no FPGA/CPU download was performed; these software checks do not
+qualify checkpoint07 on hardware.

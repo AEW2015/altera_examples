@@ -1,0 +1,54 @@
+set_global_assignment -name FAMILY "Agilex 3"
+set_global_assignment -name DEVICE A3CZ135BB18AE7S
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+set_location_assignment PIN_A8 -to CLOCK1_50
+set_location_assignment PIN_L1 -to HOST_RX
+set_location_assignment PIN_T6 -to HOST_TX
+set_location_assignment PIN_H13 -to RFS2_TX
+set_location_assignment PIN_K13 -to RFS2_RX
+set_location_assignment PIN_AB9 -to PMOD0_TX
+set_location_assignment PIN_P6 -to PMOD0_RX
+set_location_assignment PIN_AK1 -to SPI_MISO
+set_location_assignment PIN_AJ6 -to SPI_MOSI
+set_location_assignment PIN_AR2 -to SPI_CS_N
+set_location_assignment PIN_AR1 -to SPI_SCK
+set_location_assignment PIN_AL12 -to SPI_READY
+set_global_assignment -name LAST_QUARTUS_VERSION "26.1.1 Pro Edition"
+
+
+
+
+
+set_global_assignment -name TOP_LEVEL_ENTITY iq_bridge_vds_top
+set_global_assignment -name SDC_FILE iq_bridge_vds.sdc
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION "26.1.1 PRO EDITION"
+
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
+set_global_assignment -name IP_SEARCH_PATHS "ip/**/*;/opt/altera/quartus//../ip/**/*"
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sync_fifo.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_bridge_controller.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/uart_fractional.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_radio_uarts.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_spi_capture_meter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_bridge_vds_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_spi_master.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_capture_memory.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_host_uart.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/uart_dynamic.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/iq_spi_radio_proxy.sv
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to CLOCK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to HOST_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to RFS2_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to PMOD0_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to SPI_*
+set_global_assignment -name VDS_FILE src/vds/iq_bridge_system/iq_bridge_system.vds -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_clock50.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_cpu.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_cpu_ram.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_cpu_reset.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_fir_capture.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_fir_ii.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_jtag_uart.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_reset_bridge.ip -tag "vds::iq_bridge_system"
+set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_transfer_monitor.ip -tag "vds::iq_bridge_system"

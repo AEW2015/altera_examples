@@ -46,9 +46,22 @@ The Python API is in `cyberether/ber_qualification.py`:
 
 The fixed 1,000-frame, 16-byte simulation produced 704 hard-decision payload errors and 8 soft-decision payload errors at 4 dB, both over the same 128,000 payload bits. At 6 dB soft decoding observed zero errors. Its one-sided 95% bit-error upper bound is **2.3404 × 10⁻⁵**, assuming independent bit errors. Post-FEC bit errors are correlated, so also report the separate frame-error bound: zero erroneous frames among 1,000 gives an exact one-sided 95% upper bound of about **0.299%**, under an independent-frame assumption. Neither bound describes RF performance.
 
-The current BPSK RF aggregate has 100 captures and 101 CRC-valid frames, with 80/4444 coded errors → 0/808 payload errors. This includes the separate four-capture v5 regression. Hard and soft decoding both report zero observed payload errors in the saved aggregate.
+The earlier BPSK and QPSK totals below are preserved as historical audit snapshots; the extended audit now includes additional independently captured files. Do not combine modulation totals or repeated settings as if they were one calibrated BER curve.
 
-The separate QPSK aggregate has 64 captures, 37 acquired frames, 31 CRC passes and 6 CRC failures; 27 captures have no accepted acquisition. Its combined counts are 112/1628 coded errors → 19/296 payload errors. It includes the 8 µs and 10 µs timing-stress failures. The aggregate audits the original QPSK-002 proof (four valid frames); the later blind 54-symbol reanalysis recovered a fifth frame from the same captures but is not added to the aggregate or counted as another RF result. See [QPSK qualification](QPSK_QUALIFICATION.md) for operating-point groups and run-level details.
+### Extended RF evidence
+
+The new audit contains 580 captures: 320 BPSK and 260 QPSK. All 580 raw files independently re-decoded without a known payload oracle. The combined audit covers 744 unique raw captures across old and new records; every file passed length, CRC and SHA-256 integrity checks. Saved historical decoder results remain preserved. Counts are grouped by modulation and payload; repeated payloads/settings do not establish a calibrated BER-versus-SNR curve.
+
+|Audit scope|Modulation|Captures|Acquired frames|CRC pass / fail|No acquisition|Coded errors / bits|Payload errors / bits|
+|---|---|---:|---:|---:|---:|---:|---:|
+|New captures|BPSK|320|340|337 / 3|0|257 / 14960|1 / 2720|
+|New captures|QPSK|260|126|122 / 4|134|88 / 5544|18 / 1008|
+|All historical + new|BPSK|420|441|438 / 3|0|337 / 19404|1 / 3528|
+|All historical + new|QPSK|324|163|153 / 10|161|200 / 7172|37 / 1304|
+
+The BPSK and QPSK tables remain separate; no claim of all-zero errors or a soft-decision RF advantage follows from these results. The new and combined evidence is recorded in `cyberether/run/rf-final-new-audit/qualification.json` and `cyberether/run/ber-qualification/qualification.json`, respectively. These finite, grouped captures still fall short of the 100,000-payload-bit qualification target per operating point, and do not establish continuous delivery.
+
+The earlier QPSK-002 aggregate uses the original proof's four valid frames; the later blind 54-symbol reanalysis recovered a fifth frame from the same captures but is not counted again. Empty failed QPSK configuration jobs are listed separately and add no RF bits. See [QPSK qualification](QPSK_QUALIFICATION.md) for run-level timing results.
 
 The live page's physical-evidence panel displays BPSK totals separately from a QPSK table grouped by symbol period and payload. It shows capture/acquisition counts, CRC pass/fail counts, and coded/payload bit counts. Reprocessing captures does not add RF evidence. The BER comparison button still runs synthetic AWGN plus these saved-proof audits; it does not transmit or capture RF.
 

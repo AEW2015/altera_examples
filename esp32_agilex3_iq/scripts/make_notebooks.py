@@ -778,3 +778,200 @@ else:
 ]
 modem_notebook = nb.v4.new_notebook(cells=modem_cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
 write_notebook(modem_notebook, ROOT/'notebooks/08_modem_lab.ipynb')
+
+# SPI lesson uses a separate checkpoint; earlier Lesson(1..5) APIs stay stable.
+spi_cells = [
+ nb.v4.new_markdown_cell('''# 09 · SPI IQ into an FPGA FIR
+
+**Added:** PMOD B sends CI8 bursts over SPI into the existing FPGA capture RAM and reloadable FIR II. RFS2 receive and PMOD A transmit-control UARTs remain available in checkpoint 07.
+
+**Useful:** compare the raw and filtered versions of the **same** received burst, check actual coefficients, and separate SPI ingress speed from UART display speed.
+
+**Implemented:** fixed 1056-byte SPI packets → FPGA header/CRC/sequence checks → capture RAM → FIR II → paired IQB1 output. Nios V configures the FIR through JTAG UART. Python verifies the result and draws the display FFT. Carrier/timing recovery and modem FEC are separate stages.
+
+Run All stays offline. Build, programming and RF cells require separate explicit switches. Use this repository's `.venv-notebooks` kernel; run `bash scripts/setup.sh` if it has not been installed. See [setup directions](../README.md).'''),
+ nb.v4.new_code_cell('''from pathlib import Path
+import sys, subprocess, json, time
+ROOT = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "scripts/spi_pipeline.py").exists())
+for directory in (ROOT / "scripts", ROOT / "cyberether"):
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
+from notebook_progress import progress
+print("Python:", sys.executable)
+print("Project:", ROOT)'''),
+ nb.v4.new_markdown_cell('''## 1 · Simulate a clean input
+
+Two complex tones enter signed CI8 I/Q pairs. The two 16-tap filters have signed Q15 coefficients. The model includes zero initial state, rounding and saturation; these details must match the FPGA bit for bit.
+
+This cell is **Python simulation**. It sends no samples to a radio or FPGA.'''),
+ nb.v4.new_code_cell('''import numpy as np
+import matplotlib.pyplot as plt
+from nios_fir import PROFILES, fixed_reference
+from spi_fir_qualification import verify_fir, display_plots
+
+with progress("Simulate CI8 → Q15 FIR · no hardware"):
+    fs = 16_000_000
+    n = np.arange(4096)
+    z = 65*np.exp(2j*np.pi*0.5e6*n/fs) + 35*np.exp(2j*np.pi*4e6*n/fs)
+    raw = np.clip(np.rint(np.column_stack((z.real, z.imag))), -128, 127).astype(np.int8)
+    outputs = {profile: fixed_reference(raw, taps, round_nearest=True)
+               for profile, taps in PROFILES.items()}
+    plots = display_plots(raw.tobytes(), outputs[2].tobytes())
+fig, axes = plt.subplots(1, 2, figsize=(13, 4))
+axes[0].plot(n[:120], raw[:120, 0], label="Raw I")
+axes[0].plot(n[:120], outputs[2][:120, 0], label="Hamming filtered I")
+axes[0].set(xlabel="Sample index", ylabel="Signed CI8 code", title="Python model: FIR delay and amplitude")
+axes[1].plot(plots["spectrum"]["x"], plots["spectrum"]["raw"], label="Input")
+axes[1].plot(plots["spectrum"]["x"], plots["spectrum"]["filtered"], label="Hamming output")
+axes[1].set(xlabel="Baseband frequency (MHz)", ylabel="Peak FFT bin (dBFS)", title="Python model: wanted tone and interferer", ylim=(-110, 0))
+for ax in axes:
+    ax.grid(alpha=.25); ax.legend()
+plt.tight_layout(); plt.show()
+print("Profile 1: boxcar average, 16 taps; profile 2: Hamming low pass, 16 taps.")
+print(verify_fir(raw.tobytes(), outputs[2].tobytes(), PROFILES[2], nearest=True))'''),
+ nb.v4.new_markdown_cell('''## 2 · Packet integrity before signal processing
+
+SPI clocks move bytes; they do not synchronize the independent radios' RF clocks. A packet includes capture sequence, byte offset, source, mode, and header/payload CRC32. The FPGA publishes a capture only after all chunks validate. A mode change can discard an incomplete old capture.
+
+The software example deliberately corrupts one payload byte. Rejection is the expected result.'''),
+ nb.v4.new_code_cell('''from spi_ci8 import encode, decode, Capture, CHUNK
+payload = raw.tobytes()
+assembled = Capture()
+with progress("Check SPI packet sequence and CRC · software only"):
+    packets = [encode(2, 17, offset, len(payload), payload[offset:offset+CHUNK], synthetic=True)
+               for offset in range(0, len(payload), CHUNK)]
+    for packet in packets:
+        assembled.append(packet)
+assert assembled.complete and bytes(assembled.data) == payload
+print(len(packets), "packets reconstructed exactly.")
+bad = bytearray(packets[0]); bad[40] ^= 1
+try:
+    decode(bad)
+except ValueError as error:
+    print("Expected injected-fault rejection:", error)'''),
+ nb.v4.new_markdown_cell('''## 3 · Generate the native Quartus VDS design
+
+Checkpoint 07 retains the capture/FIR/Nios blocks and replaces radio 2's UART backend with a validated SPI proxy. Radio 0 is RFS2 ESP32; radio 1 is PMOD A ESP32; radio 2 is PMOD B ESP32 on SPI.
+
+![Native Quartus VDS checkpoint 07 diagram](diagrams/09_vds_gui.png)
+
+This saved image is exported from the actual VDS GUI. The `spi` conduit enters `radio_uarts`; the SPI master/validator are RTL inside that block. FIR II is the vendor IP block, controlled by Nios V.
+
+Enable generation to recreate the project, then export a **real VDS GUI PNG**. This invokes local Quartus tools and the GUI export helper; it can take several minutes. It neither programs the FPGA nor flashes an ESP32.'''),
+ nb.v4.new_code_cell('''from spi_pipeline import program, STAGE
+from spi_lesson import SPILesson
+from IPython.display import Image, display, FileLink
+lesson = SPILesson()
+
+GENERATE_VDS = False
+if GENERATE_VDS:
+    with progress("Generate checkpoint 07 and export the actual VDS GUI"):
+        diagram_png = lesson.generate()
+    print("Exported:", diagram_png)
+    display(Image(filename=str(diagram_png)))
+else:
+    print("Generation skipped. Set GENERATE_VDS=True to use the installed Quartus tools.")''',metadata={'tags':['optional-tools','vds']}),
+ nb.v4.new_markdown_cell('''### Optional · official Nios V software projects
+
+Generate the HAL BSP, Hello World and IQ monitor with the official `niosv-bsp` and `niosv-app` tools. The projects can be opened in Ashling RiscFree. This cell builds software only: it does not download an ELF, replace the monitor or program hardware. Generate checkpoint 07 first.
+
+The active monitor configures FIR coefficients and rounding through JTAG UART. See [Nios software directions](../software/README.md) before downloading Hello World; it replaces the running monitor until restored.'''),
+ nb.v4.new_code_cell('''BUILD_NIOS_PROJECTS = False
+OPEN_RISCFREE = False
+if BUILD_NIOS_PROJECTS:
+    command = [sys.executable, str(ROOT / "scripts/nios_software.py"), "7"]
+    if OPEN_RISCFREE:
+        command.append("--open")
+    with progress("Generate official BSP and build the Nios V applications"):
+        subprocess.run(command, cwd=ROOT, check=True)
+    print("Projects:", ROOT / "software/checkpoint_07")
+else:
+    print("Software project generation skipped; no CPU download or hardware access.")''',metadata={'tags':['optional-tools','nios-software']}),
+ nb.v4.new_markdown_cell('''## 4 · Run the RTL assertions
+
+The simulation exercises real SPI-master and proxy RTL: known sample bytes, complete-capture validation, mode changes, command replies, timeout and error recovery. FIR II has its own generated-IP simulation in lesson 03. These are module/integration simulations; they do not simulate analog RF or Nios instruction execution.
+
+For Questa GUI, run the simulation helper first, open `simulation/spi_pipeline` and use `vsim -gui work.tb_iq_spi_radio_proxy`. In Transcript: `add wave -r /*`, then `run -all`. Follow the helper's printed bench name if an additional integration test is selected.'''),
+ nb.v4.new_code_cell('''RUN_QUESTA = False
+if RUN_QUESTA:
+    with progress("Run SPI pipeline RTL assertions"):
+        subprocess.run([sys.executable, str(ROOT / "scripts/simulate_spi_pipeline.py")], cwd=ROOT, check=True)
+else:
+    print("RTL simulation skipped. Set RUN_QUESTA=True to invoke local Questa.")''',metadata={'tags':['optional-tools','rtl']}),
+ nb.v4.new_markdown_cell('''## 5 · Compile and review the complete project
+
+Build creates the SOF plus source fingerprint and timing/resource report. The QSF includes the board pins, explicit SDC and generated IP dependencies. Compilation alone does not qualify hardware. Project files and exported ZIP remain in the generated checkpoint directory.'''),
+ nb.v4.new_code_cell('''BUILD_SOF = False
+if BUILD_SOF:
+    with progress("Compile SPI → capture RAM → FIR II checkpoint"):
+        project = lesson.build()
+    print("Quartus project:", project)
+    print(json.loads((STAGE / "BUILD_RESULT.json").read_text()))
+else:
+    print("Compile skipped. Set BUILD_SOF=True after checking local tool installation.")''',metadata={'tags':['optional-tools','build']}),
+ nb.v4.new_markdown_cell('''## 6 · Program the FPGA
+
+This replaces the board's current FPGA image. PMOD B must already contain the combined SPI firmware, with SPI ON and BOOT OFF; no ESP32 flashing is done here. The loader checks the compiled image and source fingerprint and refuses active device owners. Stop other acquisitions first. RFS2 and PMOD A retain their installed UART firmware.'''),
+ nb.v4.new_code_cell('''PROGRAM_FPGA = False
+if PROGRAM_FPGA:
+    with progress("Program checkpoint 07 on the Atum A3 Nano"):
+        active = program()
+    print("Loaded:", active)
+else:
+    print("Programming skipped. Set PROGRAM_FPGA=True only when ready to replace the board image.")''',metadata={'tags':['hardware','program']}),
+ nb.v4.new_markdown_cell('''## 7 · Verify the same capture through the FPGA FIR
+
+Start with the deterministic **ESP32-generated SPI pattern**. This checks the physical transport and actual FPGA filtering, while avoiding changing RF traffic. Then choose passive RF on channel 8. Both runs compare raw and filtered records from the same capture and check applied coefficients, CRCs, clip count and integer reference error.
+
+Changing `PROFILE` is a request until hardware readback and the result pass. Profile 1 is a 16-tap boxcar average; profile 2 is a 16-tap Hamming low pass. Neither is bypass. The checker restores the prior FIR settings afterward; readbacks describe this capture.'''),
+ nb.v4.new_code_cell('''VERIFY_HARDWARE = False
+REAL_RF = False
+PROFILE = 2
+if VERIFY_HARDWARE:
+    output = ROOT / "cyberether/run" / ("notebook-spi-" + str(time.time_ns()))
+    command = [sys.executable, str(ROOT / "scripts/check_spi_fir.py"),
+               "--confirm-spi-image", "--output", str(output), "--profile", str(PROFILE),
+               "--snapshot", str(ROOT / "cyberether/run/spi-pipeline-state.json")]
+    if REAL_RF:
+        command.append("--rf")
+    with progress("Capture and independently verify FPGA FIR"):
+        subprocess.run(command, cwd=ROOT, check=True)
+    result = json.loads((output / "proof.json").read_text())
+    print("Verification:", result["verification"])
+else:
+    print("Hardware verification skipped. Enable only after checkpoint 07 is installed.")''',metadata={'tags':['hardware','verification']}),
+ nb.v4.new_markdown_cell('''## 8 · Open the focused viewer
+
+The viewer never programs the FPGA or flashes radios. Its test-pattern and RF buttons request one capture. **Live test · 12 captures** alternates six known patterns and six passive RF snapshots with verified progress. Select **SPI + FIR pipeline** for checkpoint 07, then use **Verify test pattern** before **Capture real RF**. Cyan is captured input; amber is actual FPGA FIR output. The evidence panel reports the applied settings and exact comparison. Try Boxcar and Hamming, then compare 2 and 4 Mbaud host delivery; each experiment restores prior FIR settings and the 2 Mbaud host rate. SPI stays at 5 MHz. The FFT runs on Python for display.
+
+SPI ingress and host rate use different clocks/windows: CS-active SPI time excludes READY, UART and gaps. The waterfall rows are sparse captures rather than continuous RF time.'''),
+ nb.v4.new_code_cell('''START_VIEWER = False
+if START_VIEWER:
+    with progress("Start the idle SPI IQ Pipeline Lab"):
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/start_spi_pipeline_lab.py"), "start"],
+                                cwd=ROOT, check=True, capture_output=True, text=True)
+    print(result.stdout)
+else:
+    print("Viewer skipped. Set START_VIEWER=True; starting it does not start acquisition.")''',metadata={'tags':['browser']}),
+ nb.v4.new_markdown_cell('''### Saved actual GUI example
+
+This actual checkpoint 07 view shows a passive RF capture over SPI, with cyan input and amber FPGA FIR output. The capture passed CRC, same-capture association, coefficient readback and the independent integer reference. The host FFT draws the spectrum; the FIR runs in Agilex 3. The saved view does not start a new capture.
+
+![Actual SPI IQ Pipeline Lab FPGA FIR view](../docs/images/spi_pipeline_fir_lab.png)
+
+The earlier standalone meter view shows FPGA power/peak/clipping checks through its separate image:
+
+![Earlier actual SPI IQ Pipeline Lab meter view](../docs/images/spi_pipeline_lab.png)
+
+[Detailed SPI/FIR guide](../docs/SPI_PIPELINE_LAB.md) · [Transport contract](../docs/SPI_TRANSPORT.md) · [Modem roadmap](../docs/RF_MODEM_BPSK_TO_64QAM_PLAN.md)'''),
+ nb.v4.new_markdown_cell('''## Cleanup
+
+Stop the idle viewer when finished. A capture command releases UART/JTAG after its bounded experiment. Do not switch PMOD B to UART while the SPI design is active.'''),
+ nb.v4.new_code_cell('''STOP_VIEWER = False
+if STOP_VIEWER:
+    subprocess.run([sys.executable, str(ROOT / "scripts/start_spi_pipeline_lab.py"), "stop"], cwd=ROOT, check=True)
+else:
+    print("Viewer stop skipped.")''',metadata={'tags':['cleanup']})
+]
+spi_notebook = nb.v4.new_notebook(cells=spi_cells, metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
+write_notebook(spi_notebook, ROOT/'notebooks/09_spi_iq_fir.ipynb')

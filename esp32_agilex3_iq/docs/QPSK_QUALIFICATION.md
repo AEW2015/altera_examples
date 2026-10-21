@@ -58,9 +58,51 @@ The host harness supports a generated software preview or bounded physical captu
 
 The synthetic preview is not RF. Physical runs require installed v5 and the normal IQB1 hub; the checker does not flash devices. The 12 µs default reflects the current best measured acquisition setting, while 8 and 10 µs failures remain part of the evidence.
 
+## Extended RF audit
+
+The latest extended audit adds 260 QPSK captures to a 324-capture historical-plus-new aggregate. All 580 new BPSK/QPSK raw captures were independently re-decoded without a known payload oracle; the combined 744 unique raw files passed length, CRC and SHA-256 integrity checks. Previously saved run results remain intact. The aggregate is grouped by payload/settings and should not be read as a calibrated BER curve:
+
+|Scope|Captures|Acquired|CRC pass / fail|No acquisition|Coded errors / bits|Payload errors / bits|
+|---|---:|---:|---:|---:|---:|---:|
+|New QPSK captures|260|126|122 / 4|134|88 / 5544|18 / 1008|
+|Historical + new QPSK|324|163|153 / 10|161|200 / 7172|37 / 1304|
+
+The aggregate is saved in `cyberether/run/ber-qualification/qualification.json`;
+the independent new-capture audit is in
+`cyberether/run/rf-final-new-audit/qualification.json`. These totals include
+capture attempts and decoder failures; they do not turn the repeated payloads
+or settings into independent operating-point trials. Empty failed QPSK
+configuration jobs are tracked separately and add no RF bits. The 100,000-bit
+RF target at controlled operating points remains open.
+
 ## FPGA symbol/FEC replay
 
 One QPSK-004 frame was replayed through checkpoint 06 using its 22 host-recovered symbols rotated −135° to match the FPGA map. The FPGA returned 0/44 coded errors → 0/8 payload errors with valid CRC. Kernel time was 3,100 cycles (62 µs at 50 MHz); the JTAG transaction took 68.328 seconds. Checkpoint 03 was restored afterward. This validates one symbol/FEC frame; it does not move raw-IQ carrier, timing or frame synchronization into FPGA. Replaying the saved frame adds no new RF evidence.
+
+## What caused the four new CRC failures?
+
+Read-only analysis retained every failure and used the saved measured symbols:
+
+| Capture | Measured evidence | Interpretation |
+|---|---|---|
+| Extended `01-qpsk`, 62 | Body matches restarted training with 3.46° residual RMS after a linear phase fit | Restart near the end of training |
+| Extended `03-qpsk`, 2 | All 22 body states exactly match last training state `2`, followed by `TRAINING[0:21]`; original training had zero symbol errors | Clear transmitted marker-restart signature |
+| Extended `07-qpsk`, 5 | 19/22 body hard states match the same restart pattern; training has substantial phase/timing error | Restart plus timing/phase distortion |
+| Extended `07-qpsk`, 37 | Body remains near +60° residual phase, with only 0.24°/symbol slope | Phase jump or training/timing bias; cause remains unresolved |
+
+These are structured phase errors rather than an ordinary noise cloud. The
+transmitter reported 86–89 missed slots over each affected 500 ms job; those
+counters cannot identify the exact 1 ms snapshot. Test the v6 scheduling change
+first. If the remaining phase offset persists, investigate training-fit robustness
+and add explicit tracking pilots before increasing modulation order. Compilation
+alone does not qualify v6 or establish a BER improvement.
+
+The local evidence is `cyberether/run/rf-qpsk-failure-diagnostic.json`: it records
+raw SHA-256 identities, capture indices, training residuals, measured body states
+and restart-template comparisons. Known payloads were used only for this
+post-capture diagnosis. Live acquisition uses the fixed training sequence without
+a payload oracle; no receiver code, original proofs or failure denominators were
+changed by this analysis.
 
 ## Remaining QPSK gate
 

@@ -6,14 +6,14 @@ import os
 import re
 import subprocess
 
-from common import ROOT, stages, local_tools
+from common import ROOT, local_tools
 from lessons import stop_demo
-from nios_software import software_env
+from nios_software import software_env, software_stage
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('checkpoint', type=int, choices=range(2, 7))
+    parser.add_argument('checkpoint', type=int, choices=range(2, 8))
     parser.add_argument('app', choices=['hello_world', 'iq_monitor', 'boot_monitor'])
     parser.add_argument('--ide-build', action='store_true', help='Use RiscFree build/Default ELF instead of CLI build ELF')
     parser.add_argument('--device', type=int, default=0, help='Downloader device index (zero-based in Quartus 26.1.1)')
@@ -21,10 +21,14 @@ def main():
     args = parser.parse_args()
     if not local_tools():
         parser.error('Run beside the installed tools (ATUM_TOOLS_MODE=local).')
-    stage = ROOT / 'fpga_hub/iq_bridge/vds_demo_06_modem' if args.checkpoint == 6 else stages()[args.checkpoint - 1]
+    stage = software_stage(args.checkpoint)
     state = ROOT / 'cyberether/run/active-fpga.json'
     if not state.exists() or json.loads(state.read_text()).get('stage_relative') != str(stage.relative_to(ROOT)):
-        parser.error('Load checkpoint06 first: python scripts/modem_fpga.py program' if args.checkpoint == 6 else f'Load the matching FPGA checkpoint first: python scripts/run.py load --checkpoint {args.checkpoint}')
+        if args.checkpoint == 6:
+            parser.error('Load checkpoint06 first: python scripts/modem_fpga.py program')
+        if args.checkpoint == 7:
+            parser.error('Load checkpoint07 first: python scripts/spi_pipeline.py program')
+        parser.error(f'Load the matching FPGA checkpoint first: python scripts/run.py load --checkpoint {args.checkpoint}')
     if args.app == 'boot_monitor':
         elf = stage / 'sw/monitor.elf'
     else:

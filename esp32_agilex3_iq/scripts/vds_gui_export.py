@@ -52,14 +52,20 @@ def export_gui(stage,out,expected_cells):
   vds=window('Visual Designer Studio',45);focus(vds)
   # A source command is executed by VDS's own Tcl console. Braced paths handle spaces.
   script=out/'vds-open-for-export.tcl'
-  script.write_text('vds::open_system {'+str(gui_system)+'}\nset f [open {'+str(ready)+'} w]\nputs $f [vds::get_cells]\nclose $f\n')
+  # open_system returns before the GUI finishes loading. Query from a later
+  # console command; Tcl after callbacks are not serviced by VDS's Qt loop.
+  script.write_text('vds::open_system {'+str(gui_system)+'}\n')
+  query=out/'vds-query-export-cells.tcl'
+  query.write_text('set f [open {'+str(ready)+'} w]\nputs $f [vds::get_cells]\nclose $f\n')
   x('mousemove',700,1938,'click',1);x('type','--clearmodifiers','--delay','1','source {'+str(script)+'}');x('key','Return')
   end=time.monotonic()+120
-  while not ready.exists():
+  cells=[]
+  while len(cells)!=expected_cells:
    if time.monotonic()>end:raise TimeoutError('VDS did not finish opening the diagram; see vds-gui.log.')
-   time.sleep(.25)
-  cells=ready.read_text().split()
-  if len(cells)!=expected_cells:raise RuntimeError(f'Wrong GUI system: {len(cells)} cells, expected {expected_cells}.')
+   time.sleep(2)
+   x('mousemove',700,1938,'click',1);x('type','--clearmodifiers','--delay','1','source {'+str(query)+'}');x('key','Return')
+   time.sleep(.5)
+   if ready.exists():cells=ready.read_text().split()
   x('mousemove',1800,600,'click',1);x('key','ctrl+alt+w');time.sleep(1)
   subprocess.run(['scrot',str(out/'vds_gui_window.png')],env=env,check=True)
   menu('f');dialog=window('Export as',10);x('windowfocus','--sync',dialog)

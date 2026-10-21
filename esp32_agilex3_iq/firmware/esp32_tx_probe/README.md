@@ -297,6 +297,20 @@ The build rejects dynamic frequency scaling (`CONFIG_PM_ENABLE` must be off);
 the qualified profile uses a fixed 160 MHz CPU. A symbol whose scheduled start
 is outside the deadline is not transmitted.
 
+The worker starts its job-duration clock **after** the blocking vendor
+`esp_phy_wifi_tx_tone()` setup returns. The phase loop charges subsequent setup
+and printing against that duration. The earlier ROM/channel-selection call is
+outside the 500 ms phase-job bound and cannot be canceled by UART STOP while
+blocked inside ROM.
+
+The probe-only profile now enables `CONFIG_ESP_TASK_WDT_PANIC=y`. Its existing
+5 s task watchdog watches the CPU0 idle task, and the configured panic handler
+prints then reboots. This provides automatic recovery from the observed PHY
+setup hang that starves that idle task; previously it printed a backtrace and
+continued with `busy=1`. It is **not a PHY wakeup fix**, does not make ROM setup
+a 500 ms operation, and is not a hardware RF kill timer. Reboot behavior and RF
+startup still require hardware qualification of this newly built image.
+
 The interrupt mask still covers only an individual frequency pulse. UART STOP,
 missed-slot restart, tone-off and register restoration retain their existing
 behavior. This is software scheduling: an in-progress short pulse and interrupt
@@ -306,3 +320,9 @@ the removal of per-symbol wall-clock reads. RF testing must separately establish
 whether this reduces missed deadlines or enables complete 8 µs QPSK frames.
 The previously qualified v5 firmware is retained privately before rebuilding;
 v6 compilation by itself is not a new RF qualification.
+
+The v6 build with watchdog panic enabled has application SHA-256
+`baac3d3881539cb4321c09bda7245b7a3823762d2b3639e6e21c7d9579fc1dbb`. The generated `build-esp32-tx-probe/FIRMWARE_BUILD.json`
+records the matching flash images and recovery configuration. This build passed
+the native parser/encoder and cycle-deadline checks; it has not yet been flashed
+or RF-qualified.

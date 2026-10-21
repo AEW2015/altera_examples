@@ -503,8 +503,64 @@ serves B only; A/RFS2 and the older live RF GUI require the normal hub. Integrat
 hub/FIR ingress, continuous operation and higher-clock board margin remain open.
 
 The subsequent v6 TX build replaces per-symbol wall-clock calls with a checked,
-wrap-safe CPU-cycle deadline that charges setup against the original 500 ms
-limit. Dynamic frequency scaling is rejected; short pulse interrupt masking,
-STOP and restoration remain. Native deadline tests pass and the app builds:
+wrap-safe CPU-cycle deadline. Returned setup elapsed time is checked against the
+original 500 ms phase-work budget after blocking PHY setup; ROM/PHY setup itself
+is not bounded by that limit. Dynamic frequency scaling is rejected; short pulse
+interrupt masking, STOP and restoration remain. Native deadline tests pass and the app builds:
 `6da0772f01bc853e20424aa2b1ed681929163b68389225d7d600dd659cff3b78`.
 It is not flashed and does not establish faster QPSK or improved RF BER.
+
+## Final checkpoint07 boot, FIR and recovery qualification — 2026-10-21
+
+The final integrated checkpoint07 build has source fingerprint
+`463977275485c8dd9412f351dfef365ca6c96b7a2ab4d4cfc8dea51d94951898` and SOF
+SHA-256 `19ff94b02e3670587ada244a3ce6eb41aed2dbd0f21970a0db17c9dc8a06fa2b`.
+Quartus reports 16,799 ALMs (37%), 120 M20Ks (34%) and 16 reported DSP units
+(4%); setup/hold slack is +7.264/+0.007 ns at 50 MHz, with zero unconstrained
+paths. The independent audit matches all 164 compiled local input files. The
+actual VDS GUI export contains 13 blocks. Earlier image `6b980718…` completed
+12 alternating SPI/FIR pairs (196,560 complex samples), all matching the FIR
+reference exactly.
+
+On the final image, a fresh boot read back all sixteen default FIR coefficients
+as 2048. The exact Hamming test passed for 16,380 complex samples, and settings
+restoration was verified. Proof is in ignored
+`cyberether/run/spi-fir-boot-fixed-synthetic-001`. A profile guard test rejected
+40 MHz / 2417 MHz with error128 and a 1,024-sample request with error32 without
+arming; the following valid SPI raw capture and four passive RFS2 UART0 captures
+passed. See `spi-profile-rejection-recovery-001` under ignored
+`cyberether/run/`.
+
+Matched profile-2 RF captures on the earlier integrated image used 16,380
+complex samples: useful host input measured 79,164 B/s at 2 Mbaud and 126,048
+B/s at 4 Mbaud. These exclude Nios setup and host verification; CS-active SPI
+ingress stayed about 591,134 B/s. Do not compare the earlier 4-Mbaud synthetic
+result with RF throughput.
+
+PMOD A UART INFO responds, but its known v5 TX attempt fails before
+`FRAME_CFG`: a task-watchdog backtrace hangs in
+`chip_sleep_prot_en` → `esp_phy_wifi_tx_tone`, before any RF samples. This is a
+transmitter setup failure, not an SPI failure. A subsequent GUI batch verified
+one synthetic SPI/FIR pair, then timed out on the required A INFO liveness check
+because A was unresponsive; this is not a 12-pair soak pass. Cleanup verified
+host UART restoration to 2 Mbaud and FIR settings restoration. The next run
+requires A reset and transmitter recovery; keep its liveness gate intact. The
+v6 WDT-recovery/timing
+application SHA `baac3d3881539cb4321c09bda7245b7a3823762d2b3639e6e21c7d9579fc1dbb`
+is built but not flashed. Its automatic reboot recovery is not hardware-proven;
+the 500 ms job bound starts after blocking PHY setup and does not include setup.
+
+An independent single passive-RF browser capture on the same final SOF then
+passed the actual Hamming profile at 4 Mbaud: raw/FIR data matched bit-for-bit
+and the browser reported no JavaScript errors. Proof is
+`cyberether/run/browser-final-single-001`; viewer screenshot is
+`docs/images/spi_pipeline_fir_lab.png`. This is one successful RF pair and does
+not override the failed liveness soak or qualify PMOD A TX.
+
+Notebook09 passed all 23 offline/default cells; the actual VDS GUI export passed
+with 13 blocks. Official checkpoint07 BSP/apps and the portable Quartus ZIP were
+rebuilt; the archive has 290 entries and all nine leaf QIPs plus SDC. The full
+host suite passes: **201 tests**. No FPGA programming or radio flash was part of
+these software/package checks. Continuous capture, the final-image soak result,
+PMOD A TX recovery, 100,000-bit RF BER, raw-IQ FPGA synchronization and QAM RF
+qualification remain open.

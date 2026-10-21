@@ -71,6 +71,8 @@ Saved [GUI previews](diagrams/README.md) are included for all five lessons. Fres
 
 After generation or build, use the **Quartus project** or **complete project ZIP** links in the output. The ZIP contains the SDC and generated IP sources: extract it and open `iq_bridge_vds.qpf`, then choose **Processing → Start Compilation**. Each lesson also links its tracked SDC. See [complete project instructions](../README.md#linked-complete-quartus-projects).
 
+Explore [09 SPI IQ → FPGA FIR](09_spi_iq_fir.ipynb): clean CI8/FIR plots, packet CRC fault injection, native VDS diagram export, actual RTL tests, guarded checkpoint 07 build/programming, same-capture verification and the focused SPI IQ Pipeline Lab. Its Run All stays offline; each tool/hardware action has an explicit opt-in. PMOD B needs the combined SPI firmware and SPI selector ON. [Guide](../docs/SPI_PIPELINE_LAB.md).
+
 ## Repeat the physical notebook checks
 
 Run beside the installed tools with the board connected. This explicitly programs the selected checkpoint and starts actual acquisition; it stops this checkout's demo when finished and releases its UART/JTAG readers:

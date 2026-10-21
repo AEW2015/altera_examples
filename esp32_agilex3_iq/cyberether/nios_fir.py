@@ -127,7 +127,7 @@ if p.exists():
             raw.extend(a);filtered.extend(b);offset+=n
         else:raise TimeoutError('FIR dump incomplete')
         if offset!=meta['samples'] or zlib.crc32(raw)!=meta['raw_crc'] or zlib.crc32(filtered)!=meta['filtered_crc']:raise ValueError('FIR paired-buffer CRC/length failure')
-        meta.update(sample_format='ci8',output_origin='FPGA FIR II' if meta['mode'] else 'FPGA bypass copy',input_origin='FPGA test pattern' if meta['source']==3 else 'CRC-qualified physical ESP32 UART capture',processing_seconds=meta['cycles']/50000000,arithmetic='round nearest, ties toward positive infinity' if meta.get('round') else 'truncate toward negative infinity',coefficients_current=[self.command('READCOEFF',i)['bits'] for i in range(16)])
+        meta.update(sample_format='ci8',output_origin='FPGA FIR II' if meta['mode'] else 'FPGA bypass copy',input_origin='FPGA test pattern' if meta['source']==3 else 'CRC-qualified physical ESP32 capture',processing_seconds=meta['cycles']/50000000,arithmetic='round nearest, ties toward positive infinity' if meta.get('round') else 'truncate toward negative infinity',coefficients_current=[self.command('READCOEFF',i)['bits'] for i in range(16)])
         meta['coefficients_current']=[v if v<32768 else v-65536 for v in meta['coefficients_current']]
         return meta,np.frombuffer(raw,np.int8).reshape(-1,2),np.frombuffer(filtered,np.int8).reshape(-1,2)
 

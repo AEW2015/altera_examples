@@ -62,6 +62,8 @@ processing boundaries and measured error counts.
 
 [BER qualification](docs/BER_QUALIFICATION.md) compares hard/soft FEC on identical synthetic samples and audits physical RF separately. [QPSK qualification](docs/QPSK_QUALIFICATION.md) documents the measured 12 µs operating point and shorter-period failures. The [SPI transport prototype](docs/SPI_TRANSPORT.md) has separate firmware/FPGA images; installing it is an explicit hardware step.
 
+The separate [SPI IQ Pipeline Lab](docs/SPI_PIPELINE_LAB.md) runs on port8771. Opening it does not acquire RF; the installed SPI meter supports explicit test-pattern or passive-RF runs, while SPI-plus-FIR checkpoint07 still awaits hardware qualification.
+
 Use a **Linux x86-64 desktop where the FPGA tools are installed**. This can be your host or a desktop inside a container. Run the installer and Jupyter in that same environment; Docker is not required by the notebooks.
 
 - Quartus Prime Pro **26.1.1 Build 130**, Agilex 3 device support, RiscFree RV32 tools, Nios V `elf2hex` and `juart-terminal`.

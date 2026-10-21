@@ -13,3 +13,7 @@ CONFIG_FREERTOS_UNICORE=y
 CONFIG_FREERTOS_HZ=1000
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
 CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+
+# Recover automatically if a blocking vendor PHY setup starves the idle task.
+# This is a 5 s watchdog recovery policy, not a PHY fix or 500 ms RF timer.
+CONFIG_ESP_TASK_WDT_PANIC=y

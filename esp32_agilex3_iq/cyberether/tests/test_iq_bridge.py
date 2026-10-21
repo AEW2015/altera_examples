@@ -15,6 +15,22 @@ class BridgeProtocolTests(unittest.TestCase):
     def test_signed_iq_and_identity(self):
         f=decode_frame(wire());self.assertEqual(f.iq().tolist(),[[-128,127],[0,-1]])
         self.assertEqual((f.job,f.source,f.rate),(42,0,16000000));self.assertFalse(f.metadata()['capture_time_synchronized'])
+    def test_text_envelope_bounds_and_long_cfg_not_truncated(self):
+        for length in (1,127,128,255):
+            # Actual long QFRAME configuration shape, padded to each boundary.
+            payload=(b'QFRAME_CFG,job=133,cpu=160000000,period_us=12,quarter_cycles=335,'
+                b'half_cycles=670,three_cycles=1005,payload=165,symbols=64,step=3')
+            payload=(payload+b'x'*255)[:length]
+            frame=decode_frame(wire(payload,kind=3,source=1))
+            self.assertEqual(frame.length,length)
+            self.assertEqual(frame.payload,payload)
+            self.assertEqual(frame.source,1)
+        for length in (0,256):
+            with self.assertRaisesRegex(ValueError,'Invalid text packet'):
+                decode_frame(wire(b'x'*length,kind=3,source=1))
+        # Text extension does not relax control payload or sample limits.
+        with self.assertRaises(ValueError):decode_frame(wire(b'x'*128,kind=2))
+
     def test_every_corrupted_byte_rejected(self):
         good=wire()
         for index in range(len(good)):

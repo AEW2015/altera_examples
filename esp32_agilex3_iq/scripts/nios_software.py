@@ -25,8 +25,10 @@ def software_env():
 def software_stage(checkpoint):
     if checkpoint == 6:
         return ROOT / 'fpga_hub/iq_bridge/vds_demo_06_modem'
+    if checkpoint == 7:
+        return ROOT / 'fpga_hub/iq_bridge/vds_demo_07_spi_fir'
     if checkpoint not in range(2, 6):
-        raise ValueError('Nios checkpoint 2–6 required')
+        raise ValueError('Nios checkpoint 2–7 required')
     return stages()[checkpoint - 1]
 
 
@@ -34,7 +36,11 @@ def generate(checkpoint, build=True, refresh_sources=False):
     stage = software_stage(checkpoint)
     system = stage / 'src/vds/iq_bridge_system/iq_bridge_system.vds'
     if not system.exists():
-        raise RuntimeError('Generate checkpoint 06 first: python scripts/modem_fpga.py generate' if checkpoint == 6 else f'Generate checkpoint {checkpoint} first: python scripts/build.py {checkpoint} --generate-only')
+        if checkpoint == 6:
+            raise RuntimeError('Generate checkpoint 06 first: python scripts/modem_fpga.py generate')
+        if checkpoint == 7:
+            raise RuntimeError('Generate checkpoint 07 first: python scripts/spi_pipeline.py generate')
+        raise RuntimeError(f'Generate checkpoint {checkpoint} first: python scripts/build.py {checkpoint} --generate-only')
     out = ROOT / 'software' / f'checkpoint_{checkpoint:02d}'
     bsp = out / 'bsp'
     bsp.mkdir(parents=True, exist_ok=True)
@@ -109,7 +115,7 @@ def open_ide():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('checkpoint', choices=['2', '3', '4', '5', '6', 'all'])
+    parser.add_argument('checkpoint', choices=['2', '3', '4', '5', '6', '7', 'all'])
     parser.add_argument('--generate-only', action='store_true', help='Generate the BSP and app CMake files without compiling')
     parser.add_argument('--open', action='store_true', help='Open the official RiscFree IDE on the current desktop')
     parser.add_argument('--refresh-sources', action='store_true', help='Replace editable app main.c copies with the repository examples')
@@ -120,6 +126,7 @@ if __name__ == '__main__':
     for tool in ('niosv-bsp', 'niosv-app', 'cmake', 'make', 'riscv32-unknown-elf-gcc'):
         if not shutil.which(tool, path=env['PATH']):
             parser.error(f'Missing {tool}; check the installed Quartus/Nios V/RiscFree paths.')
+    # Preserve the established `all` scope (2–5); modem and SPI/FIR systems are explicit.
     for checkpoint in range(2, 6) if args.checkpoint == 'all' else [int(args.checkpoint)]:
         generate(checkpoint, build=not args.generate_only, refresh_sources=args.refresh_sources)
     if args.open:

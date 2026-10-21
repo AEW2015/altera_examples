@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Direct IQB1 FPGA bridge. No host-to-FPGA IQ upload; exclusive serial owner.
 Default hardware access is explicit via CLI. Importing this module performs no I/O.
+Kind3 text envelopes accept1..255 bytes for checkpoint07. Earlier checkpoint03
+hardware still emits at most127 bytes; this host extension is backward compatible
+and does not enlarge its FPGA text buffer or modify any other envelope limits.
 """
 from __future__ import annotations
 import argparse,collections,dataclasses,hashlib,json,struct,time,zlib,threading
@@ -25,7 +28,7 @@ class Frame:
     def metadata(self):
         d=dataclasses.asdict(self);d.pop('payload');d.update(sample_format='ci8',payload_sha256=hashlib.sha256(self.payload).hexdigest(),
           origin='physical FPGA FIR output RAM' if self.kind==6 else 'physical FPGA direct capture RAM',capture_time_synchronized=False,
-          frequency_and_rate_origin='host-configured; not RF-measured',ticks_origin='50MHz FPGA UART receipt clock',absolute_power_calibrated=False)
+          frequency_and_rate_origin='host-configured; not RF-measured',ticks_origin='50MHz FPGA ingress/receipt clock; not RF sample time',absolute_power_calibrated=False)
         if self.kind==6:
             descriptor=self.aux&0xffffffff
             d.update(original_raw_crc=self.aux>>32,fir_descriptor=descriptor,
@@ -49,7 +52,7 @@ def decode_header(header):
         if not 1<=frame.samples<=MAX_SAMPLES or frame.length!=2*frame.samples or frame.rate not in(16000000,40000000,80000000) or frame.error or frame.last_tick<frame.first_tick:
             raise ValueError('Invalid capture descriptor')
     elif kind==3:
-        if not 0<frame.length<=127:raise ValueError('Invalid text packet')
+        if not 0<frame.length<=255:raise ValueError('Invalid text packet')
     elif frame.length:raise ValueError('Control frame carries a payload')
     if kind==6:
         descriptor=frame.aux&0xffffffff
