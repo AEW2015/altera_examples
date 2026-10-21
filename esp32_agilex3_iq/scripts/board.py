@@ -2,8 +2,8 @@
 """Install a local Atum A3 Nano example in the Quartus New Project Wizard."""
 import argparse,datetime,json,shutil,zipfile
 from pathlib import Path
-from common import ROOT,stages
-p=argparse.ArgumentParser();p.add_argument('--quartus-root',default='/opt/altera/quartus');p.add_argument('--install',action='store_true');a=p.parse_args()
+from common import ROOT,stages,quartus_root
+p=argparse.ArgumentParser();p.add_argument('--quartus-root',default=str(quartus_root()));p.add_argument('--install',action='store_true');a=p.parse_args()
 r=Path(a.quartus_root)
 starter=stages()[0]
 if not(starter/'src/vds/iq_bridge_system/iq_bridge_system.vds').exists():raise SystemExit('First run scripts/build.py 1 --generate-only to create the editable starter')

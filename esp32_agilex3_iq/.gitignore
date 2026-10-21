@@ -36,3 +36,5 @@ board/
 **/src/vds/
 
 **/scripts/iq_bridge_system_export.tcl
+notebooks/executed/
+notebooks/.ipynb_checkpoints/

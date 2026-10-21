@@ -1,6 +1,6 @@
 # ESP32 → Agilex 3 IQ Pipeline Lab
 
-Five independently editable **Quartus Visual Designer Studio** checkpoints for the **Terasic Atum A3 Nano**, plus a browser lab for the final design.
+Five independently editable **Quartus Visual Designer Studio** checkpoints for the **Terasic Atum A3 Nano**, plus a focused notebook and browser demo for each step.
 
 ```mermaid
 flowchart LR
@@ -27,30 +27,37 @@ This example includes the **five checkpoints and IQ Pipeline Lab**. The earlier 
 
 RTL, Nios firmware and the native VDS construction/connection Tcl definitions are included. The editable `.vds` diagrams and vendor IP parameter caches are regenerated from those definitions. Vendor HDL, synthesis databases, bitfiles, SDKs, Python environments, captures and credentials are generated/downloaded locally. The small CI8 files under `cyberether/samples/clean-ddc` are deterministic synthetic test fixtures, not RF recordings.
 
-## Requirements
+## Run the notebooks locally
 
-- Linux x86-64 host, Docker, Python 3.12 with `venv`, C compiler; Vulkan-capable host for CyberEther.
-- Existing container with **Quartus Prime Pro 26.1.1 Build 130**, Agilex 3 device support, RiscFree RV32 toolchain, Nios V `elf2hex` and `juart-terminal` under `/opt/altera`. Build scripts assume these installation paths.
-- **Questa Altera FPGA 2025.3** under `/opt/altera/questa_fse` for the standalone simulation.
-- A writable checkout bind-mounted in that container, accessible by container user `dev`. The scripts detect its container path from `docker inspect`; the checkout can live anywhere under the mount.
-- A working container X display for native VDS generation; default `:93`, or pass `--display :10.0` for your XRDP session. Run `echo $DISPLAY` in the container desktop to identify it.
-- Host Python packages for the native application's `/usr/bin/python3`: `numpy` and `Pillow`; for example `sudo apt install python3-numpy python3-pil`. The venv installs the host acquisition/test dependencies separately.
+Start with [the notebook guide](notebooks/README.md). Each checkpoint has a Python model, plots, a diagram exported from the generated VDS topology, an RTL simulation, an FPGA build/program step and its own focused CyberEther page.
 
-The proprietary FPGA tools are not distributed here. Point the scripts at an existing installation/container rather than copying its binaries into Git.
+Use a **Linux x86-64 desktop where the FPGA tools are installed**. This can be your host or a desktop inside a container. Run the installer and Jupyter in that same environment; Docker is not required by the notebooks.
+
+- Quartus Prime Pro **26.1.1 Build 130**, Agilex 3 device support, RiscFree RV32 tools, Nios V `elf2hex` and `juart-terminal`.
+- Questa Altera FPGA **2025.3** for RTL/IP simulations.
+- Python **3.12**, a C compiler, Graphviz and a Vulkan-capable display for CyberEther.
+- A working desktop `DISPLAY` for native VDS generation. The tools and Jupyter need access to the board's UART and JTAG cable.
 
 ```bash
 cd esp32_agilex3_iq
-export ATUM_CONTAINER=agilex-xrdp       # default; change for your tool container
-bash scripts/setup.sh
-# Confirm the detected bind-mount path:
-python3 -c 'import sys;sys.path.insert(0,"scripts");from common import container_root;print(container_root())'
+# Paths are optional when installed under /opt/altera or available on PATH:
+export QUARTUS_ROOTDIR=/opt/altera/quartus
+export QUESTA_ROOT=/opt/altera/questa_fse
+export ATUM_ALTERA_ROOT=/opt/altera
+bash scripts/install_local.sh --system  # Debian/Ubuntu prerequisites + venv + CyberEther
+.venv-notebooks/bin/python scripts/check_tools.py
+.venv-notebooks/bin/jupyter lab notebooks --no-browser
 ```
 
-If automatic mount discovery is unsuitable, set `ATUM_CONTAINER_ROOT` to this example's absolute directory **inside** the container. The example and output directories must be writable by container user `dev`.
+Choose the **Atum A3 IQ Demos** kernel in Jupyter or VS Code. Omit `--system` if system packages are already installed. The installer downloads the pinned CyberEther AppImage, extracts it locally and installs its Python dependencies into `.venv-notebooks`. Proprietary FPGA tools are not distributed here.
+
+For a different RiscFree installation, set `ATUM_RISCV_GCC`, `ATUM_RISCV_SIZE` and `ATUM_ELF2HEX` to executable paths. Set `ATUM_UART` and `ATUM_JTAG_CABLE` for your board. The notebook configuration cell accepts the same environment settings.
+
+Existing host-to-container scripts remain available as an optional compatibility mode: explicitly set `ATUM_TOOLS_MODE=docker`, `ATUM_CONTAINER` and, if mount discovery is unsuitable, `ATUM_CONTAINER_ROOT`. Prefer running Jupyter beside the tools for the complete notebook workflow.
 
 ## Build from source
 
-Run from a **host terminal**, at this example's root:
+Run from a terminal beside the installed tools, at this example's root:
 
 ```bash
 # One checkpoint, or all five; all regenerations start from the native Tcl definitions.
@@ -62,7 +69,7 @@ Run from a **host terminal**, at this example's root:
 
 For each checkpoint the script rebuilds Nios firmware when present, recreates/connects the VDS system, regenerates vendor IP, then performs a full Quartus compilation. It writes an ignored `BUILD_RESULT.json` with fitted allocation, reported timing slack and bitfile SHA-256. These results establish a successful build, not new hardware qualification.
 
-To run the same sequence **inside the container**, in a checkpoint directory:
+To run the same sequence manually, in a checkpoint directory:
 
 ```bash
 export PATH=/opt/altera/quartus/bin:$PATH
@@ -74,10 +81,10 @@ quartus_sh --flow compile iq_bridge_vds
 
 ### Open in Visual Designer Studio
 
-After generating the checkpoint, in the **container desktop** terminal:
+After generating the checkpoint, in your desktop terminal:
 
 ```bash
-cd <container-path-to-this-example>/fpga_hub/iq_bridge/vds_demo_01_raw
+cd <path-to-this-example>/fpga_hub/iq_bridge/vds_demo_01_raw
 /opt/altera/quartus/bin/quartus iq_bridge_vds.qpf
 ```
 
@@ -97,7 +104,7 @@ Generate the tiny board starter ZIP from these sources:
 python3 scripts/board.py
 ```
 
-After preparing checkpoint 1, run the installer inside the container with write access to the Quartus installation (normally as root):
+After preparing checkpoint 1, run the installer with write access to the Quartus installation (normally as root):
 
 ```bash
 python3 scripts/board.py --install
@@ -134,10 +141,10 @@ Restart Quartus, then **File → New Project Wizard → Example Design → Find 
 
 The short standalone Questa lesson checks **bypass, 0.5×, 2×, saturation and zero gain**, including exact output integers and power meters. It produces `simulation/gain.wlf` and `gain.vcd`; these are ignored by Git.
 
-Inside the container desktop:
+In your desktop terminal:
 
 ```bash
-cd <container-path-to-this-example>/simulation
+cd <path-to-this-example>/simulation
 /opt/altera/questa_fse/bin/vsim -gui -view gain.wlf -do view.do
 ```
 
@@ -171,7 +178,7 @@ The first SDK installation may download its toolchain and Python environment. Us
 First stop any existing acquisition service using the board. The loader refuses to program while it detects a serial owner; it does not stop another checkout's demo.
 
 ```bash
-# Host terminal, from this example root:
+# Terminal beside the tools, from this example root:
 export ATUM_UART=/dev/serial/by-id/<your-Atum-serial-device>
 export ATUM_JTAG_CABLE='Atum A3 Nano [your-cable-id]'
 .venv-notebooks/bin/python scripts/run.py load

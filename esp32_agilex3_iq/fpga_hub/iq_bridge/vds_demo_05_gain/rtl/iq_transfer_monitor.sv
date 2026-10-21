@@ -42,15 +42,23 @@ always_ff @(posedge clk)begin
    snapshot[4]<=window_seq;snapshot[5]<=ticks[31:0];snapshot[6]<=ticks[63:32];snapshot[7]<=mon_state;
    snapshot[60]<=N;snapshot[61]<=1; // Counter count and radio-TX extension feature bit.
    snapshot[8]<=mon_command_errors;snapshot[9]<=mon_radio_errors;snapshot[10]<=mon_capture_errors;snapshot[11]<=mon_text_drops;
-   for(integer i=0;i<N;i=i+1)begin
-    if(i<13)begin
-     snapshot[12+i]<=last_window[i];
-     snapshot[25+2*i]<=totals[i][31:0];snapshot[26+2*i]<=totals[i][63:32];
-    end else begin
-     snapshot[51+i-13]<=last_window[i];
-     snapshot[54+2*(i-13)]<=totals[i][31:0];snapshot[55+2*(i-13)]<=totals[i][63:32];
-    end
-   end
+   // Constant CSR indices avoid a Questa 2025.3 vopt indexed-array NBA issue.
+   snapshot[12]<=last_window[0];snapshot[25]<=totals[0][31:0];snapshot[26]<=totals[0][63:32];
+   snapshot[13]<=last_window[1];snapshot[27]<=totals[1][31:0];snapshot[28]<=totals[1][63:32];
+   snapshot[14]<=last_window[2];snapshot[29]<=totals[2][31:0];snapshot[30]<=totals[2][63:32];
+   snapshot[15]<=last_window[3];snapshot[31]<=totals[3][31:0];snapshot[32]<=totals[3][63:32];
+   snapshot[16]<=last_window[4];snapshot[33]<=totals[4][31:0];snapshot[34]<=totals[4][63:32];
+   snapshot[17]<=last_window[5];snapshot[35]<=totals[5][31:0];snapshot[36]<=totals[5][63:32];
+   snapshot[18]<=last_window[6];snapshot[37]<=totals[6][31:0];snapshot[38]<=totals[6][63:32];
+   snapshot[19]<=last_window[7];snapshot[39]<=totals[7][31:0];snapshot[40]<=totals[7][63:32];
+   snapshot[20]<=last_window[8];snapshot[41]<=totals[8][31:0];snapshot[42]<=totals[8][63:32];
+   snapshot[21]<=last_window[9];snapshot[43]<=totals[9][31:0];snapshot[44]<=totals[9][63:32];
+   snapshot[22]<=last_window[10];snapshot[45]<=totals[10][31:0];snapshot[46]<=totals[10][63:32];
+   snapshot[23]<=last_window[11];snapshot[47]<=totals[11][31:0];snapshot[48]<=totals[11][63:32];
+   snapshot[24]<=last_window[12];snapshot[49]<=totals[12][31:0];snapshot[50]<=totals[12][63:32];
+   snapshot[51]<=last_window[13];snapshot[54]<=totals[13][31:0];snapshot[55]<=totals[13][63:32];
+   snapshot[52]<=last_window[14];snapshot[56]<=totals[14][31:0];snapshot[57]<=totals[14][63:32];
+   snapshot[53]<=last_window[15];snapshot[58]<=totals[15][31:0];snapshot[59]<=totals[15][63:32];
   end
  end
 end

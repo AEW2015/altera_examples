@@ -39,7 +39,7 @@ def run(nios,rate,hz=500000,decimation=4,flags=0,gain_q8=256,gain_bypass=True):
     if decimation not in(1,2,4)or type(flags)is not int or flags not in range(4):raise ValueError('Invalid DDC configuration')
     gain_reference(np.zeros((1,2),np.int16),gain_q8,gain_bypass)
     gain_setting=(int(gain_bypass)<<16)|gain_q8
-    if nios.command('DDCGAIN',int(gain_bypass),gain_q8)['gain']!=gain_setting:raise ValueError('Digital gain configuration readback mismatch')
+    if getattr(nios,'gain_supported',True)and nios.command('DDCGAIN',int(gain_bypass),gain_q8)['gain']!=gain_setting:raise ValueError('Digital gain configuration readback mismatch')
     phase=phase_increment(hz,rate)
     if nios.command('DDCPHASE',phase>>16,phase&65535)['phase']!=phase:raise ValueError('DDC phase readback mismatch')
     config=0x10000|(decimation<<8)|flags
@@ -50,7 +50,7 @@ def run(nios,rate,hz=500000,decimation=4,flags=0,gain_q8=256,gain_bypass=True):
         if not state['state']&1:
             if state['state']&7!=4:raise RuntimeError('FPGA DDC fault or stale result')
             if(state['run_phase'],state['run_config'],state['rate'])!=(phase,config,rate):raise ValueError('DDC applied configuration mismatch')
-            if nios.command('DDCLEVELS')['gain']!=gain_setting:raise ValueError('FPGA gain latched configuration mismatch')
+            if getattr(nios,'gain_supported',True)and nios.command('DDCLEVELS')['gain']!=gain_setting:raise ValueError('FPGA gain latched configuration mismatch')
             return state
         time.sleep(.03)
     raise TimeoutError('FPGA DDC processing timeout')
@@ -72,6 +72,10 @@ def dump(nios):
     m=(meta['config']>>8)&255;flags=meta['config']&3
     if meta['config']>>16!=1 or meta['config']&0xfc or m not in (1,2,4)or len(b)!=(len(a)+m-1)//m:raise ValueError('Unknown DDC profile or output length')
     expected=reference(a,meta['phase'],m,flags)
+    if not getattr(nios,'gain_supported',True):
+        if not np.array_equal(b,expected['result'])or any(meta[k]!=expected[k]for k in('mixer_clips','filter_clips')):raise ValueError('FPGA DDC/reference mismatch')
+        meta.update(digital_gain_bypass=True,digital_gain_q8=256,gain_meters={},gain_meter_available=False,max_reference_error=0,output_format='ci16_le',output_rate=meta['rate']//m,decimation=m,bypass_flags=flags,processing_seconds=meta['cycles']/50000000,readback_transport='Nios JTAG UART; CRC and independent integer reference verified')
+        return meta,a,b
     levels=nios.command('DDCLEVELS')
     setting=levels['gain']
     if levels['capability']!=0x474e0101 or levels['epoch']!=meta['epoch']or setting & ~0x11fff or (setting&8191)>4096:raise ValueError('Unknown gain capability/profile or stale meters')

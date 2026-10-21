@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-/opt/altera/riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-gcc \
+"${ATUM_RISCV_GCC:-${ATUM_ALTERA_ROOT:-/opt/altera}/riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-gcc}" \
  -march=rv32i_zicsr -mabi=ilp32 -Os -ffreestanding -fno-builtin -mno-relax \
  -nostdlib -nostartfiles -Wl,-Map=sw/monitor.map -T sw/link.ld \
  sw/start.S sw/main.c -o sw/monitor.elf
-/opt/altera/niosv/bin/elf2hex -i sw/monitor.elf -o sw/monitor.hex -b 0 -e 0xffff -w 32
-/opt/altera/riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-size sw/monitor.elf
+"${ATUM_ELF2HEX:-${ATUM_ALTERA_ROOT:-/opt/altera}/niosv/bin/elf2hex}" -i sw/monitor.elf -o sw/monitor.hex -b 0 -e 0xffff -w 32
+"${ATUM_RISCV_SIZE:-${ATUM_ALTERA_ROOT:-/opt/altera}/riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-size}" sw/monitor.elf
 python3 - <<'MANIFEST'
 import hashlib, json
 from pathlib import Path

@@ -5,6 +5,9 @@ import argparse,fcntl,json,os,queue,signal,subprocess,threading,time,zlib
 from pathlib import Path
 import numpy as np
 ROOT=Path(__file__).resolve().parents[1]
+import sys
+sys.path.insert(0,str(ROOT/'scripts'))
+from common import tool_command,tool_path
 HAMMING=[-42,-177,-406,-352,669,2961,5846,7885,7885,5846,2961,669,-352,-406,-177,-42]
 PROFILES={1:[2048]*16,2:HAMMING}
 CABLE=os.getenv('ATUM_JTAG_CABLE','Atum A3 Nano [1-4.3-iface0]')
@@ -20,8 +23,8 @@ class NiosFir:
         self.messages=queue.Queue();self.request=int(time.monotonic_ns()%1000000000);self.log=log.open('x') if log else None
         run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
         self.pidfile=run/f'nios-fir-{os.getpid()}.pid'
-        shared=os.getenv('ATUM_CONTAINER_ROOT','/home/dev/atum_rf_demos').rstrip('/')+'/'+str(self.pidfile.relative_to(ROOT))
-        self.process=subprocess.Popen(['docker','exec','-i','-u','dev',os.getenv('ATUM_CONTAINER','agilex-xrdp'),'stdbuf','-oL','-eL','/opt/altera/quartus/bin/juart-terminal','-q','-c',CABLE,'-d','1','-i','0','--no-quit-on-ctrl-d','--write-pid',shared],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+        shared=tool_path(self.pidfile)
+        self.process=subprocess.Popen(tool_command(['stdbuf','-oL','-eL','/opt/altera/quartus/bin/juart-terminal','-q','-c',CABLE,'-d','1','-i','0','--no-quit-on-ctrl-d','--write-pid',shared]),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
         def reader():
             for line in self.process.stdout:
                 if self.log:self.log.write(line);self.log.flush()
@@ -56,7 +59,7 @@ class NiosFir:
         active['live_monitor_log']=str(output.relative_to(ROOT));manifest.write_text(json.dumps(active,indent=2)+'\n')
     def close(self):
         if self.pidfile.exists():
-            shared=os.getenv('ATUM_CONTAINER_ROOT','/home/dev/atum_rf_demos').rstrip('/')+'/'+str(self.pidfile.relative_to(ROOT))
+            shared=tool_path(self.pidfile)
             cleanup="""import os,signal,sys
 from pathlib import Path
 p=Path(sys.argv[1])
@@ -64,7 +67,7 @@ if p.exists():
  pid=int(p.read_text());q=Path('/proc')/str(pid)/'cmdline'
  if q.exists() and b'juart-terminal' in q.read_bytes() and sys.argv[2].encode() in q.read_bytes():os.kill(pid,signal.SIGTERM)
 """
-            subprocess.run(['docker','exec','-u','dev',os.getenv('ATUM_CONTAINER','agilex-xrdp'),'python3','-c',cleanup,shared,CABLE],capture_output=True)
+            subprocess.run(tool_command(['python3','-c',cleanup,shared,CABLE]),capture_output=True)
         if self.process.stdin:self.process.stdin.close()
         try:self.process.wait(timeout=5)
         except subprocess.TimeoutExpired:self.process.kill();self.process.wait()

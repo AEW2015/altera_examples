@@ -15,6 +15,7 @@ from nios_fir import NiosFir,PROFILES,ROOT,fixed_reference
 PAGES=('raw','boxcar','hamming','ddc','compare')
 SOURCES=('RFS2 ESP32','PMOD A ESP32','PMOD B ESP32')
 DEFAULT_RUN=ROOT/'cyberether/run/iq-bridge-lab'
+LESSON=int(os.getenv('ATUM_LESSON','0'))
 
 def atomic_json(path,value):
     temp=path.with_suffix('.tmp');temp.write_text(json.dumps(value,allow_nan=False)+'\n');temp.replace(path)
@@ -81,6 +82,12 @@ class Lab:
         self.run=run;run.mkdir(parents=True,exist_ok=True)
         self.lock=threading.RLock();self.stop=threading.Event();self.latest={};self.buffers={};self.history=collections.deque(maxlen=60)
         self.settings=dict(view='hamming',source=0,channel=2,round=True,continuous=True,rate=16000000,samples=16380,gain_mode='HARDWARE',gain_code=40,tuning_hz=500000,decimation=4,ddc_bypass=0,ddc_input='live',digital_gain_q8=256,digital_gain_bypass=True)
+        if LESSON:
+            self.settings.update(source=0,channel=2,rate=16000000,samples=4096,continuous=True)
+            if LESSON<=2:self.settings.update(view='raw')
+            elif LESSON==3:self.settings.update(view='hamming')
+            elif LESSON==4:self.settings.update(view='ddc',ddc_input='two-tone',tuning_hz=500000,decimation=4,ddc_bypass=0)
+            else:self.settings.update(view='ddc',ddc_input='single-tone',tuning_hz=0,decimation=1,ddc_bypass=2,digital_gain_q8=256,digital_gain_bypass=False)
         self.reference=None;self.reference_payload=None;self.reference_requested=None;self.new_snapshot=False;self.revision=0;self.once=False;self.export_requested=False;self.export_count=0
         self.state=dict(schema='iq_bridge_lab_v1',status='STARTING',error=None,latest={},settings=self.settings.copy(),completed=0,radio_acquisitions=0,pattern_generations=0,reference=None,
             fpga=(json.loads((ROOT/'cyberether/run/active-fpga.json').read_text())if (ROOT/'cyberether/run/active-fpga.json').exists()else {}),history=[],exports=[],hardware_state=None)
@@ -123,13 +130,46 @@ class Lab:
                 (d/'reference.ci16').write_bytes(self.reference_payload);atomic_json(d/'reference-metadata.json',self.reference)
             atomic_json(d/'metadata.json',meta)
             self.state['exports'].append(str(d));self.publish()
+    def raw_work(self):
+        from contextlib import nullcontext
+        from notebook_monitor import PassiveMonitor
+        while not self.stop.is_set():
+            try:
+                with Bridge(background=True)as bridge:
+                    prepared=None
+                    monitor=PassiveMonitor(self.run)if LESSON==2 else None
+                    try:
+                        while not self.stop.is_set():
+                            with self.lock:
+                                config=self.settings.copy();once=self.once;self.once=False
+                            if not config['continuous']and not once:
+                                bridge.idle_status();self.state['status']='PAUSED';self.publish();self.stop.wait(.3);continue
+                            if prepared!=(config['source'],config['channel'],config['rate']):
+                                bridge.prepare_sdr(config['source'],2407+5*config['channel'],config['rate'])
+                                prepared=config['source'],config['channel'],config['rate']
+                            started=time.monotonic()
+                            raw=next(bridge.captures(1,source=config['source'],samples=config['samples'],rate=config['rate'],pipeline=False))
+                            result=summarize(raw,elapsed=time.monotonic()-started)
+                            result.update(mode='raw',source_name=SOURCES[raw.source],acquisition=config.copy(),image_sha256=self.state['fpga']['sha256'])
+                            with self.lock:
+                                self.latest['raw']=result;self.history.append(dict(time=time.time(),Bps=result['payload_Bps'],mode='raw',telemetry=dict(monitor.value)if monitor else {}))
+                                self.state.update(status='LIVE',error=None,completed=self.state['completed']+1,radio_acquisitions=self.state['radio_acquisitions']+1,last_mode='raw',hardware_state=bridge.status(),telemetry=dict(monitor.value)if monitor else {})
+                            self.publish();self.stop.wait(.25)
+                    finally:
+                        if monitor:monitor.close()
+            except Exception as exc:
+                self.state.update(status='OFFLINE',error=str(exc));self.publish();self.stop.wait(3)
+        self.state['status']='STOPPED';self.publish()
+
     def work(self):
+        if LESSON in (1,2):return self.raw_work()
         # One persistent owner avoids per-capture JTAG startup and coefficient reload.
         while not self.stop.is_set():
             try:
                 active=json.loads((ROOT/'cyberether/run/active-fpga.json').read_text())
-                if not active.get('fpga_gain_meter'):raise RuntimeError('Build and load checkpoint 5 first')
+                if not active.get('fpga_fir'):raise RuntimeError('Build and load a FIR-capable checkpoint first')
                 with Bridge(background=True)as bridge,NiosFir()as nios:
+                    nios.gain_supported=active.get('fpga_gain_meter',False)
                     nios.command('PAIR',0);prepared=None;gain_applied=None;configured=None;acquiring='hamming';frozen=None
                     while not self.stop.is_set():
                         with self.lock:
@@ -243,7 +283,7 @@ def handler(lab,token,public_url):
         def authenticated(self):return hmac.compare_digest(self.headers.get('X-Lab-Token',''),token)
         def do_GET(self):
             path=urlsplit(self.path).path
-            if path=='/':return self.respond(200,(Path(__file__).with_name('iq_bridge_lab.html')).read_text(),'text/html; charset=utf-8')
+            if path=='/':return self.respond(200,(Path(__file__).with_name('notebook_focus.html'if LESSON else 'iq_bridge_lab.html')).read_text(),'text/html; charset=utf-8')
             if path=='/samples/clean-ddc.zip':
                 data=(DIRECTORY.parent/'clean-ddc.zip').read_bytes();self.send_response(200);self.send_header('Content-Type','application/zip');self.send_header('Content-Disposition','attachment; filename=clean-ddc.zip');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if path=='/native':

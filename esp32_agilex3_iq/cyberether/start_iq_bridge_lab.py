@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Launch the native CyberEther lesson display and its single-owner acquisition service."""
-import argparse,json,os,signal,socket,subprocess,sys,time
+import argparse,json,os,signal,socket,subprocess,sys,time,sysconfig
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 CONTROL_PORT=int(os.getenv('ATUM_CONTROL_PORT','8768'));VIEWER_PORT=int(os.getenv('ATUM_VIEWER_PORT','8687'))
+
+def python_runtime():
+    explicit=os.getenv('ATUM_PYTHON_RUNTIME')
+    if explicit:return explicit
+    # CyberEther 1.15 misses Debian multiarch lib dirs when given a venv executable.
+    library=Path(sysconfig.get_config_var('LIBDIR')or '')/(sysconfig.get_config_var('LDLIBRARY')or '')
+    return str(library)if library.is_file()else str(Path(sys.executable).resolve())
 
 def listening(host,port):
     try:
@@ -43,8 +50,8 @@ def main():
         if worker.poll()is not None:raise RuntimeError('Acquisition service exited; inspect acquisition.log')
         if time.monotonic()>deadline:worker.terminate();raise RuntimeError('Acquisition service startup timeout')
         time.sleep(.1)
-    env=dict(os.environ,ATUM_RF_ROOT=str(ROOT),ATUM_IQLAB_RUN=str(a.run),APPIMAGE_EXTRACT_AND_RUN='1',LD_PRELOAD=str(ROOT/'cyberether/runtime/register-bundled-plugins.so'),GST_PLUGIN_PATH_1_0='',GST_PLUGIN_SYSTEM_PATH_1_0='',GST_REGISTRY=str(a.run/'gstreamer-registry.bin'))
-    args=[str(ROOT/'cyberether/runtime/CyberEther-linux-x64-v1.15.0.AppImage'),'--headless','--python-runtime','/usr/bin/python3','--dependency-policy','deny','--remote','--remote-auto-approve','on','--remote-broker-address',a.host,'--remote-broker-public-url',f'http://{a.host}:{VIEWER_PORT}','--remote-broker-port',str(VIEWER_PORT),'--remote-media-transport','tcp','--remote-media-port-range',os.getenv('ATUM_MEDIA_RANGE','40100-40103'),'--remote-media-address',a.host,'--remote-codec','vp8',str(ROOT/'cyberether/graphs/iq-bridge-lab.yml')]
+    env=dict(os.environ,PYTHONPATH=sysconfig.get_paths()['purelib']+os.pathsep+os.getenv('PYTHONPATH',''),ATUM_RF_ROOT=str(ROOT),ATUM_IQLAB_RUN=str(a.run),APPIMAGE_EXTRACT_AND_RUN='1',LD_PRELOAD=str(ROOT/'cyberether/runtime/register-bundled-plugins.so'),GST_PLUGIN_PATH_1_0='',GST_PLUGIN_SYSTEM_PATH_1_0='',GST_REGISTRY=str(a.run/'gstreamer-registry.bin'))
+    args=[str(ROOT/'cyberether/runtime/CyberEther-linux-x64-v1.15.0.AppImage'),'--headless','--python-runtime',python_runtime(),'--dependency-policy','deny','--remote','--remote-auto-approve','on','--remote-broker-address',a.host,'--remote-broker-public-url',f'http://{a.host}:{VIEWER_PORT}','--remote-broker-port',str(VIEWER_PORT),'--remote-media-transport','tcp','--remote-media-port-range',os.getenv('ATUM_MEDIA_RANGE','40100-40103'),'--remote-media-address',a.host,'--remote-codec','vp8',str(ROOT/'cyberether/graphs/iq-bridge-lab.yml')]
     viewer=subprocess.Popen(args,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1,start_new_session=True)
     (a.run/'processes.json').write_text(json.dumps(dict(worker_pid=worker.pid,viewer_pid=viewer.pid,started_unix=time.time(),graph=args[-1],control_url=f'http://{a.host}:{CONTROL_PORT}/',native_url=f'http://{a.host}:{VIEWER_PORT}/remote'),indent=2)+'\n')
     def stop(*_):
@@ -52,10 +59,13 @@ def main():
         try:os.killpg(viewer.pid,signal.SIGTERM)
         except ProcessLookupError:pass
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
+    runtime_failed=False
     with (a.run/'runtime.log').open('a')as log:
         for line in viewer.stdout:
             log.write(line);log.flush()
+            if '[ERROR]'in line and ('[RUNTIME_CONTEXT_PYTHON]'in line or 'unresolved input'in line):
+                runtime_failed=True;stop()
             if line.startswith('Join URL:'):
                 f=a.run/'remote-join.json';f.write_text(json.dumps(dict(remote_viewer_url=line.partition('Join URL:')[2].strip()))+'\n');f.chmod(0o600)
-    worker.terminate();worker.wait(timeout=30);viewer.wait();sys.exit(viewer.returncode)
+    worker.terminate();worker.wait(timeout=30);viewer.wait();sys.exit(1 if runtime_failed else viewer.returncode)
 if __name__=='__main__':main()

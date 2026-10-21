@@ -49,7 +49,7 @@ def usage(d,fpga,y=916):
         text(d,x,y,f'{label}  {used:,}/{total:,}  ·  {pct:.0%}',18,INK)
         d.rounded_rectangle((x,y+30,x+510,y+41),5,fill=LINE)
         d.rounded_rectangle((x,y+30,x+max(6,510*pct),y+41),5,fill=CYAN)
-    text(d,32,973,'Compiled allocation · same image for every lesson · these bars are not live DSP activity',16,MUTED)
+    text(d,32,973,'Compiled allocation · loaded checkpoint image · these bars are not live DSP activity'if os.getenv('ATUM_LESSON','0')!='0'else'Compiled allocation · same image for every lesson · these bars are not live DSP activity',16,MUTED)
 
 def design_rows():
     rows=[]
@@ -117,9 +117,9 @@ def render(state,view=None):
     plot(d,(904,235,1772,505),scatter_rows,['Raw','FPGA FIR']if filtered else['Raw'],'IQ scatter · no demodulation','I8 →   /   Q8 ↑',(-scatter_limit,scatter_limit),True)
     plot(d,(28,529,1152,865),spectra,['Raw','FPGA FIR']if filtered else['Raw'],'Spectrum · HOST display FFT',f"Baseband: −{a['rate']/2e6:g} to +{a['rate']/2e6:g} MHz · dB re 1 CI8 unit",(floor,peak+5))
     card(d,(1176,529,1772,865),'Physical result checks')
-    rows=[('IQB1 wire / payload CRC','PASS'),('Delivered payload rate',f"{capture['payload_Bps']/1000:.1f} kB/s"),('FIR / reference error',str(capture['max_reference_error'])if filtered else'Not applied'),('FPGA output clips',str(capture['clips'])if filtered else'Not applied'),('Arithmetic',('Nearest · ties +∞'if capture['round_nearest']else'Truncate')if filtered else'Raw CI8'),('ADC rail hits',f"{capture.get('adc_rail_percent',0):.2f}%")]
+    rows=[('IQB1 wire / payload CRC','PASS'),('Capture payload rate',f"{capture['payload_Bps']/1000:.1f} kB/s"),('FIR / reference error',str(capture['max_reference_error'])if filtered else'Not applied'),('FPGA output clips',str(capture['clips'])if filtered else'Not applied'),('Arithmetic',('Nearest · ties +∞'if capture['round_nearest']else'Truncate')if filtered else'Raw CI8'),('ADC rail hits',f"{capture.get('adc_rail_percent',0):.2f}%")]
     for i,(label,value)in enumerate(rows):text(d,1196,582+i*40,label,18,MUTED);text(d,1502,582+i*40,value,18,GREEN if value in('PASS','0')else INK)
-    text(d,30,881,f"Burst: {capture.get('nominal_burst_us',0):.1f} µs nominal / {a.get('capture_us',0)} µs firmware · FIR: FPGA · FFT/reference/rail counts: host",19,MUTED)
+    text(d,30,881,f"Burst: {capture.get('nominal_burst_us',0):.1f} µs nominal / {a.get('capture_us',0)} µs firmware · "+('FIR: FPGA · 'if filtered else'')+'FFT/reference/rail counts: host',19,MUTED)
     usage(d,state.get('fpga',{}));return image
 
 class IQBridgeLabSource:
@@ -128,17 +128,20 @@ class IQBridgeLabSource:
         if time.monotonic()-self.last_render<.5:time.sleep(.03);return skip
         try:state=json.loads((RUN/'state.json').read_text())
         except(OSError,ValueError):state=dict(status='WAITING',settings=dict(view='hamming'))
-        self.frame=np.asarray(render(state),np.float32)/255.;ctx.outputs[0][...]=self.frame
+        self.frame=np.asarray(render_focus(state),np.float32)/255.;ctx.outputs[0][...]=self.frame
         self.last_render=time.monotonic();return None
     def close(self):pass
 
 def render_ddc(state,image,d):
     c=state.get('latest',{}).get('ddc');flags=c['ddc']['bypass_flags']if c else state['settings'].get('ddc_bypass',0);m=c['ddc']['decimation']if c else state['settings'].get('decimation',4)
     nodes=[('FPGA test generator'if c and c['raw']['source']==3 else'ESP32 RF / ADC','Synthetic CI8 snapshot'if c and c['raw']['source']==3 else'CI8 frozen snapshot'),('NCO + mixer','BYPASS'if flags&1 else'Complex frequency shift'),('I / Q FIR II','BYPASS'if flags&2 else'127 taps · Q15'),('Decimator',f'Keep every {m}'if m!=1 else'BYPASS · keep every 1'),('Gain + meters',('BYPASS · power active'if c['ddc'].get('digital_gain_bypass',True)else f"{c['ddc']['digital_gain_q8']/256:g}× · saturate / measure")if c else'FPGA digital levels'),('CI16 RAM','FPGA result + CRC'),('Host readback','JTAG · plots / reference')]
+    if not state.get('fpga',{}).get('fpga_gain_meter',True):
+        nodes.pop(4)
+    stride=(W-56)//len(nodes)
     for i,(title,sub)in enumerate(nodes):
         color=MUTED if (i==1 and flags&1)or(i==2 and flags&2)or(i==3 and m==1)else CYAN
-        x=28+i*252;d.rounded_rectangle((x,91,x+228,178),10,fill=CARD,outline=color,width=2);text(d,x+14,104,title,19,color);text(d,x+14,140,sub,15,MUTED)
-        if i<6:d.polygon([(x+234,128),(x+247,135),(x+234,142)],fill=CYAN)
+        x=28+i*stride;d.rounded_rectangle((x,91,x+stride-24,178),10,fill=CARD,outline=color,width=2);text(d,x+14,104,title,19,color);text(d,x+14,140,sub,15,MUTED)
+        if i<len(nodes)-1:d.polygon([(x+stride-18,128),(x+stride-5,135),(x+stride-18,142)],fill=CYAN)
     c=state.get('latest',{}).get('ddc')
     if not c:
         card(d,(28,220,1772,865),'Waiting for a measured FPGA DDC result')
@@ -177,7 +180,7 @@ def render_ddc(state,image,d):
         ('FPGA processing time',f"{meta['processing_seconds']*1000:.2f} ms")]
     for i,(label,value)in enumerate(rows):text(d,48,610+i*29,label,18,MUTED);text(d,425,610+i*29,value,18,RED if i==5 and gm.get('gain_clips')else INK)
     card(d,(904,564,1772,865),'Capture / processing checks')
-    rows=[('FPGA fixture + JTAG CRCs'if a['source']==3 else'Raw UART + JTAG payload CRCs','PASS'),('Raw byte-for-byte provenance','PASS'),('FPGA samples + meter reference',str(meta['max_reference_error'])+' LSB error'),('Mixer / filter clipped pairs',f"{meta['mixer_clips']} / {meta['filter_clips']}"),('Input identity / age',f"{'SYNTHETIC'if a['source']==3 else'RF snapshot'} · {max(0,time.time()-c.get('input_created_unix',c['captured_unix'])):.0f}s"),('Pinned comparison','Same input / rate'if compatible else'Different input / rate'if ref else'Not pinned')]
+    rows=[('FPGA fixture + JTAG CRCs'if a['source']==3 else'Raw UART + JTAG payload CRCs','PASS'),('Raw byte-for-byte provenance','PASS'),('FPGA samples + meter reference'if meta.get('gain_meter_available',True)else'FPGA sample reference',str(meta['max_reference_error'])+' LSB error'),('Mixer / filter clipped pairs',f"{meta['mixer_clips']} / {meta['filter_clips']}"),('Input identity / age',f"{'SYNTHETIC'if a['source']==3 else'RF snapshot'} · {max(0,time.time()-c.get('input_created_unix',c['captured_unix'])):.0f}s"),('Pinned comparison','Same input / rate'if compatible else'Different input / rate'if ref else'Not pinned')]
     for i,(label,value)in enumerate(rows):text(d,924,614+i*37,label,18,MUTED);text(d,1310,614+i*37,value,18,GREEN if value in('PASS','0 LSB error')else INK)
     meter=c.get('tone_measurements');tones=meter.get('tones',[])if meter else[]
     if len(tones)>1:footer=f"HOST tone meter (startup excluded): desired gain {-tones[0]['attenuation_db']:+.2f} dB · interferer rejection {tones[1]['attenuation_db']:.1f} dB · aliases to {tones[1]['output_hz']/1e6:+.3f} MHz"
@@ -185,3 +188,38 @@ def render_ddc(state,image,d):
     else:footer='DSP: FPGA · FFT / reference: host · '+('Fresh RF burst each result'if c.get('input_kind')=='live'else'Replay input unchanged until New snapshot')+' · JTAG readback'
     text(d,30,881,footer,19,MUTED)
     usage(d,state.get('fpga',{}));return image
+
+
+def render_focus(state):
+    lesson=int(os.getenv('ATUM_LESSON','0'))
+    if lesson==2:
+        image=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(image)
+        text(d,28,20,'2 · NIOS V TRANSFER MONITOR',32,CYAN)
+        telemetry=state.get('telemetry',{});age=time.time()-telemetry.get('received_unix',0)
+        text(d,1050,25,f"{state.get('status','WAITING')} · counter age {age:.1f}s"if telemetry else'Waiting for JTAG UART counters',20,GREEN if age<3 else GOLD)
+        card(d,(28,90,1772,200),'Sample data stays on UART · Nios reads passive FPGA counters')
+        text(d,55,142,'ESP32 → FPGA capture RAM → host UART       Counters → Avalon-MM → Nios V → JTAG UART',25)
+        keys=[('r0_uart_Bps','Radio UART B/s'),('host_uart_Bps','Host UART B/s'),('host_iq_Bps','IQ payload B/s'),('host_captures','Captures / window')]
+        for j,(key,label)in enumerate(keys):
+            x=28+j*440;card(d,(x,225,x+420,385),label);text(d,x+25,290,f"{telemetry.get(key,'—'):,}"if isinstance(telemetry.get(key),int)else'—',38)
+        windows={}
+        for h in state.get('history',[]):
+            t=h.get('telemetry',{})
+            if 'seq'in t:windows[t['seq']]=t
+        rows=list(windows.values())
+        limits=(0,max(1,max((max(t.get('r0_uart_Bps',0),t.get('host_iq_Bps',0))for t in rows),default=1))*1.15)
+        plot(d,(28,415,1125,865),[[t.get('r0_uart_Bps',0)for t in rows],[t.get('host_iq_Bps',0)for t in rows]],['Radio UART','Host IQ'],'Actual FPGA one-second window counts','Distinct counter windows · bytes/s',limits)
+        card(d,(1150,415,1772,865),'Coherent counters · no sample DSP')
+        for j,line in enumerate([f"Window sequence: {telemetry.get('seq','—')}",f"Capture errors: {telemetry.get('capture_errors','—')}",f"UART errors: {telemetry.get('radio_errors','—')}",f"Logger drops: {telemetry.get('log_drops','—')}",'50 MHz counter clock','Nios software division: RV32I','FPGA samples are not CPU-filtered']):text(d,1175,480+45*j,line,21,MUTED)
+        usage(d,state.get('fpga',{}));return image
+    image=render(state)
+    d=ImageDraw.Draw(image)
+    if lesson==1:
+        d.rectangle((0,80,W,183),fill=BG)
+        for j,(title,sub)in enumerate([('ESP32 ADC','Sparse CI8 RF bursts'),('FPGA UART + CRC','Framing and validation'),('FPGA capture RAM','Frozen IQ snapshot'),('Host + CyberEther','Display FFT / plots')]):
+            x=28+j*440;d.rounded_rectangle((x,91,x+415,178),10,fill=CARD,outline=CYAN,width=2);text(d,x+15,105,title,23,CYAN);text(d,x+15,143,sub,18,MUTED)
+    if lesson==4:
+        d.rectangle((25,560,883,870),fill=BG);card(d,(28,564,880,865),'Frequency translation → FIR II → decimation')
+        c=state.get('latest',{}).get('ddc',{});m=c.get('ddc',{})
+        for j,line in enumerate(['FPGA clean two-tone input',f"Decimation: {m.get('decimation','—')}",f"Output nominal rate: {m.get('output_rate',0)/1e6:g} MS/s",f"Output pairs: {m.get('output_samples','—')}",f"Independent integer error: {m.get('max_reference_error','—')} LSB",'Gain/meter hardware is added in lesson 5']):text(d,55,630+33*j,line,23,MUTED)
+    return image
