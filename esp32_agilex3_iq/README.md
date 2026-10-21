@@ -27,6 +27,14 @@ This example includes the **five checkpoints and IQ Pipeline Lab**. The earlier 
 
 RTL, Nios firmware and the native VDS construction/connection Tcl definitions are included. The editable `.vds` diagrams and vendor IP parameter caches are regenerated from those definitions. Vendor HDL, synthesis databases, bitfiles, SDKs, Python environments, captures and credentials are generated/downloaded locally. The small CI8 files under `cyberether/samples/clean-ddc` are deterministic synthetic test fixtures, not RF recordings.
 
+## Demo night: RF Arcade
+
+[**RF Arcade**](docs/RF_ARCADE.md) adds a fullscreen presentation with a live waterfall, spectral peak memory, glowing IQ samples, a tone-rescue challenge and FPGA clipping/harmonic effects. One **Showreel** button runs the hardware scenes automatically. It uses checkpoint 5 without RTL or firmware changes.
+
+```bash
+.venv-notebooks/bin/python scripts/demo_night.py --host <host-LAN-IP>
+```
+
 ## Run the notebooks locally
 
 Start with [the notebook guide](notebooks/README.md). Each checkpoint has a Python model, plots, a diagram exported from the generated VDS topology, an RTL simulation, an FPGA build/program step and its own focused CyberEther page.

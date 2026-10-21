@@ -46,3 +46,11 @@ This is targeted build, simulation and live hardware validation, not a long-dura
 - `vds_demo_03_fir`: `3c1631a335072090dbd212e39ef6b8586c43aba5c5f8e98a2f73c0cd51bb0150`
 - `vds_demo_04_ddc`: `15737b5a6a7584f7b06d161f752732ec6e3720d5335c3b87b826371cc4f23c0b`
 - `vds_demo_05_gain`: `4b259073fdffd9bed07a8f56cb9bc6170de0deefbd4001da56cceba9f1e2478a`
+
+## RF Arcade addition
+
+The demo-night page uses the same checkpoint-5 image listed above. Hardware/browser tests passed for real SDR captures from **RFS2 ESP32, PMOD A ESP32 and PMOD B ESP32**, each with valid CRC and 0 LSB FIR-reference error. Acquisition is one selected radio at a time.
+
+Browser controls passed the fold / shift / reject sequence, exact 2× gain and power-meter checks, and 16× saturation (4,096 clipped pairs in the tested fixture). The native CyberEther view rendered throughout with no JavaScript errors. The automatic seven-scene cycle completed and returned to received RF in about **122 seconds**, with 0 LSB reference error in every scene. The page fitted a 1920×1080 browser viewport without document scrolling.
+
+**32 host tests pass**, including scene validation, waiting for applied/verified hardware settings, bounded waterfall history, duplicate-result suppression and history reset when frequency changes. Existing notebook-mode tests still pass. Screenshots and machine-readable hardware/browser proofs remain in the ignored run directory. See [RF Arcade](docs/RF_ARCADE.md) for the presentation sequence and signal provenance.

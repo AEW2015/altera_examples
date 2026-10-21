@@ -81,9 +81,9 @@ class Lesson:
  def program(self):
   stop_demo()
   self.command([sys.executable,ROOT/'scripts/run.py','load','--checkpoint',self.n],self.out/'program.log')
- def start_demo(self,host=None):
+ def start_demo(self,host=None,demo_night=False):
   stop_demo();host=host or lan_ip();run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
-  env=dict(os.environ,ATUM_LESSON=str(self.n),ATUM_CONTAINER_ROOT=tool_path(ROOT))
+  env=dict(os.environ,ATUM_LESSON='0'if demo_night else str(self.n),ATUM_DEMO_NIGHT='1'if demo_night else'0',ATUM_CONTAINER_ROOT=tool_path(ROOT))
   launched=time.time()
   log=(run/'notebook-launch.log').open('a')
   args=[sys.executable,str(ROOT/'cyberether/start_iq_bridge_lab.py'),'--host',host]

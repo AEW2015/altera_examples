@@ -16,6 +16,7 @@ PAGES=('raw','boxcar','hamming','ddc','compare')
 SOURCES=('RFS2 ESP32','PMOD A ESP32','PMOD B ESP32')
 DEFAULT_RUN=ROOT/'cyberether/run/iq-bridge-lab'
 LESSON=int(os.getenv('ATUM_LESSON','0'))
+DEMO_NIGHT=os.getenv('ATUM_DEMO_NIGHT')=='1'
 
 def atomic_json(path,value):
     temp=path.with_suffix('.tmp');temp.write_text(json.dumps(value,allow_nan=False)+'\n');temp.replace(path)
@@ -91,10 +92,15 @@ class Lab:
         self.reference=None;self.reference_payload=None;self.reference_requested=None;self.new_snapshot=False;self.revision=0;self.once=False;self.export_requested=False;self.export_count=0
         self.state=dict(schema='iq_bridge_lab_v1',status='STARTING',error=None,latest={},settings=self.settings.copy(),completed=0,radio_acquisitions=0,pattern_generations=0,reference=None,
             fpga=(json.loads((ROOT/'cyberether/run/active-fpga.json').read_text())if (ROOT/'cyberether/run/active-fpga.json').exists()else {}),history=[],exports=[],hardware_state=None)
+        self.show=None
+        if DEMO_NIGHT:
+            from rf_arcade import Showreel
+            self.show=Showreel(self)
         self.publish()
     def publish(self):
         with self.lock:
             self.state.update(settings=self.settings.copy(),latest=dict(self.latest),history=list(self.history),updated_unix=time.time())
+            if self.show:self.state['demo_night']=self.show.status()
             atomic_json(self.run/'state.json',self.state)
     def update(self,body):
         body=validate_settings(body)
@@ -260,6 +266,8 @@ class Lab:
                             self.state.update(status='LIVE',error=None,hardware_state=status,completed=self.state['completed']+1)
                             # Raw view may display the raw half of the same physical filtered pair.
                             self.state['last_mode']=mode
+                        if self.show:
+                            with self.lock:self.show.on_result(result)
                         self.publish();self.stop.wait(.25)
                     nios.command('PAIR',0);nios.preset(1);nios.command('ROUND',0)
                     if prepared and prepared[0]in(1,2):
@@ -283,7 +291,7 @@ def handler(lab,token,public_url):
         def authenticated(self):return hmac.compare_digest(self.headers.get('X-Lab-Token',''),token)
         def do_GET(self):
             path=urlsplit(self.path).path
-            if path=='/':return self.respond(200,(Path(__file__).with_name('notebook_focus.html'if LESSON else 'iq_bridge_lab.html')).read_text(),'text/html; charset=utf-8')
+            if path=='/':return self.respond(200,(Path(__file__).with_name('demo_night.html'if DEMO_NIGHT else'notebook_focus.html'if LESSON else 'iq_bridge_lab.html')).read_text(),'text/html; charset=utf-8')
             if path=='/samples/clean-ddc.zip':
                 data=(DIRECTORY.parent/'clean-ddc.zip').read_bytes();self.send_response(200);self.send_header('Content-Type','application/zip');self.send_header('Content-Disposition','attachment; filename=clean-ddc.zip');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             if path=='/native':
@@ -308,11 +316,19 @@ def handler(lab,token,public_url):
             if not self.authenticated():return self.respond(403,dict(error='Lab token required'))
             origin=self.headers.get('Origin')
             if origin and origin!=public_url:return self.respond(403,dict(error='Origin mismatch'))
-            if urlsplit(self.path).path!='/api/control':return self.respond(404,dict(error='Unknown path'))
+            route=urlsplit(self.path).path
+            if route not in('/api/control','/api/show'):return self.respond(404,dict(error='Unknown path'))
+            if route=='/api/show'and not lab.show:return self.respond(404,dict(error='Showcase is not active'))
             try:
                 n=int(self.headers.get('Content-Length','0'))
                 if not 0<n<=4096:raise ValueError('Control body limit')
-                result=lab.update(json.loads(self.rfile.read(n)))
+                body=json.loads(self.rfile.read(n))
+                with lab.lock:
+                    if route=='/api/show':
+                        result=lab.show.update(body);lab.publish()
+                    else:
+                        if lab.show:lab.show.auto=False
+                        result=lab.update(body)
             except (ValueError,TypeError)as exc:return self.respond(400,dict(error=str(exc)))
             return self.respond(202,result)
     return Handler

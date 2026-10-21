@@ -125,10 +125,16 @@ def render(state,view=None):
 class IQBridgeLabSource:
     def __init__(self):self.last_render=0.;self.frame=None
     def compute(self,ctx,skip):
-        if time.monotonic()-self.last_render<.5:time.sleep(.03);return skip
+        if time.monotonic()-self.last_render<(.25 if os.getenv('ATUM_DEMO_NIGHT')=='1'else .5):time.sleep(.03);return skip
         try:state=json.loads((RUN/'state.json').read_text())
         except(OSError,ValueError):state=dict(status='WAITING',settings=dict(view='hamming'))
-        self.frame=np.asarray(render_focus(state),np.float32)/255.;ctx.outputs[0][...]=self.frame
+        if os.getenv('ATUM_DEMO_NIGHT')=='1':
+            if not hasattr(self,'arcade'):
+                from demo_night_view import Arcade
+                self.arcade=Arcade()
+            frame=self.arcade.render(state)
+        else:frame=render_focus(state)
+        self.frame=np.asarray(frame,np.float32)/255.;ctx.outputs[0][...]=self.frame
         self.last_render=time.monotonic();return None
     def close(self):pass
 
