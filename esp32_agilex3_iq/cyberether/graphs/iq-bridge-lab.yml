@@ -1,0 +1,58 @@
+version: 2
+title: IQ Pipeline Lab
+summary: Browser lesson tabs control physical IQ bridge acquisition; native CyberEther renders the selected lesson.
+graph:
+- name: lesson_source
+  module: python
+  device: cpu
+  runtime: python
+  provider: generic
+  config:
+    code: |-
+      import os,sys
+      sys.path.insert(0,os.path.join(os.environ['ATUM_RF_ROOT'],'cyberether'))
+      from iq_bridge_lab_view import IQBridgeLabSource
+      _source=IQBridgeLabSource()
+      def compute(ctx):return _source.compute(ctx,SKIP)
+      def cleanup():_source.close()
+    inputCount: 0
+    outputCount: 1
+    outputTensorSpecs:
+    - shape: '[1000,1800,3]'
+      axes: '[B,S,C]'
+      dtype: F32
+      device: cpu
+    throttled: false
+- name: IQ_Design_Lab
+  module: frame
+  device: cpu
+  runtime: native
+  provider: generic
+  config:
+    fit: contain
+    autoRange: false
+    interpolation: nearest
+    xLabel: ''
+    yLabel: ''
+  input:
+    frame: ${graph.lesson_source.output.output0}
+  meta:
+    surface_default:
+      detached: true
+      detachedWidth: 1800
+      detachedHeight: 1000
+      attachedHeight: 1000
+      configCollapsed: true
+meta:
+  stacks:
+    stack_0:
+      title: IQ Pipeline Lab · lessons controlled by browser tabs
+      x: 0
+      y: 30
+      width: 1920
+      height: 1050
+      layout:
+        surfaces:
+        - block: IQ_Design_Lab
+          surface: default
+          order: 0

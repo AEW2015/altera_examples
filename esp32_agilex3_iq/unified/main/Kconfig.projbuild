@@ -1,0 +1,68 @@
+menu "ESP-SDR transport"
+
+    config ESP_SDR_UART_ENABLED
+        bool "Burst UART0 I/Q transport" if !IDF_TARGET_ESP32 && !IDF_TARGET_ESP32C2
+        depends on IDF_TARGET_ESP32H2 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C61 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32S31
+        default y
+        help
+            Enable the optional USB-to-UART bridge interface. Disable it to
+            leave the UART GPIOs unused by the application. Native USB remains
+            available on chips that support it. The original ESP32 and ESP32-C2 require UART.
+
+    config ESP_SDR_UART_BAUD
+        int "Burst UART0 I/Q baud rate"
+        depends on IDF_TARGET_ESP32H2 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C61 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32S31
+        range 115200 2500000 if IDF_TARGET_ESP32C2
+        range 115200 3000000 if !IDF_TARGET_ESP32C2
+        default 2000000
+        help
+            The burst I/Q protocol is also available on UART0, 8N1, without
+            hardware flow control. The browser baud rate must match this value.
+            BAUD 1000000 and BAUD 2000000 can change the running UART rate.
+            Resetting the board restores this configured default.
+
+    config ESP_SDR_UART_TX_PIN
+        int "Burst UART0 TX GPIO"
+        depends on IDF_TARGET_ESP32H2 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C61 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32S31
+        range 0 20 if IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        range 0 48 if !IDF_TARGET_ESP32S31 && !IDF_TARGET_ESP32C2 && !IDF_TARGET_ESP32H2
+        range 0 63 if IDF_TARGET_ESP32S31
+        default 1 if IDF_TARGET_ESP32
+        default 24 if IDF_TARGET_ESP32H2
+        default 20 if IDF_TARGET_ESP32C2
+        default 21 if IDF_TARGET_ESP32C3
+        default 58 if IDF_TARGET_ESP32S31
+        default 16 if IDF_TARGET_ESP32C6
+        default 11 if IDF_TARGET_ESP32C61 || IDF_TARGET_ESP32C5
+        default 43
+
+    config ESP_SDR_UART_RX_PIN
+        int "Burst UART0 RX GPIO"
+        depends on IDF_TARGET_ESP32H2 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C61 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32S31
+        range 0 20 if IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        range 0 48 if !IDF_TARGET_ESP32S31 && !IDF_TARGET_ESP32C2 && !IDF_TARGET_ESP32H2
+        range 0 63 if IDF_TARGET_ESP32S31
+        default 3 if IDF_TARGET_ESP32
+        default 23 if IDF_TARGET_ESP32H2
+        default 19 if IDF_TARGET_ESP32C2
+        default 20 if IDF_TARGET_ESP32C3
+        default 59 if IDF_TARGET_ESP32S31
+        default 17 if IDF_TARGET_ESP32C6
+        default 10 if IDF_TARGET_ESP32C61
+        default 12 if IDF_TARGET_ESP32C5
+        default 44
+
+endmenu
+
+menu "RFS2 Wi-Fi monitor"
+config MONITOR_CHANNEL
+    int "Fixed channel (0 scans channels 1 through 11)"
+    range 0 11
+    default 0
+config MONITOR_DWELL_MS
+    int "Observation time per channel in milliseconds"
+    range 100 60000
+    default 1000
+endmenu

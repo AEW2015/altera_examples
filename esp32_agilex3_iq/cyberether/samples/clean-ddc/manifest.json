@@ -1,0 +1,43 @@
+{
+  "schema": "iq_lab_clean_samples_v1",
+  "origin": "Deterministic synthetic CI8; not received RF",
+  "format": "signed interleaved I8,Q8",
+  "rate": 16000000,
+  "samples": 4096,
+  "patterns": {
+    "two-tone": {
+      "test_id": 3,
+      "sha256": "750460d63e006370b3f026cdae31cc4031c5421bd403e71d3b7ad34ea616f1f3",
+      "crc32": 989365500,
+      "tones_hz": [
+        500000,
+        6000000
+      ],
+      "amplitudes_counts": [
+        48,
+        64
+      ]
+    },
+    "single-tone": {
+      "test_id": 4,
+      "sha256": "fede4c81b4c7c49010d57bbd5a0b34f9f362dddbccff74c4f5df2a535a63d19c",
+      "crc32": 464210793,
+      "tones_hz": [
+        500000
+      ],
+      "amplitudes_counts": [
+        96
+      ]
+    },
+    "impulse": {
+      "test_id": 5,
+      "sha256": "5c4e3d5be6944389b7e0ea93a727f72b876ed49d6459d33a3c4f182e38cf10ff",
+      "crc32": 1342184724,
+      "tones_hz": [],
+      "amplitudes_counts": [
+        96,
+        48
+      ]
+    }
+  }
+}
