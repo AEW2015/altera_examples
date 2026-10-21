@@ -1,0 +1,11 @@
+menu "Atum original ESP32 TX diagnostic"
+config ATUM_TX_PROBE
+    bool "Identify this build as bounded CW diagnostic"
+    default y
+config ESP_SDR_UART_TX_PIN
+    int "Application UART TX"
+    default 17
+config ESP_SDR_UART_RX_PIN
+    int "Application UART RX"
+    default 16
+endmenu

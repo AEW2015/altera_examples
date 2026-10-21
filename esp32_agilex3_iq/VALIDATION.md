@@ -175,3 +175,40 @@ All 77 host tests passed against an isolated export of the staged source, includ
 Added wanted/interferer frequency labels, a persistent measured before-FIR trace alongside the current filtered spectrum, a 100 dB tone-rescue display range, wanted-tone level change and an explanation of the stationary DC IQ point. Comparisons require matching verified input identity, mixer phase, output rate/length and gain; unmatched, failed and stale captures do not supply a baseline. Power-scene IQ scaling is unchanged.
 
 All 83 host tests passed against an isolated export of the staged source (88 with additional local launcher tests), including comparison persistence, mismatched-input/configuration rejection, Fold-versus-Shift isolation, failed-reference rejection and rendering with/without a baseline. Offline test fixtures were rendered and visually inspected. These display tests did not change the running demo's settings, restart its processes, program hardware or acquire new hardware results.
+
+## Original ESP32 bounded TX bring-up — 2026-10-21
+
+Built `firmware/esp32_tx_probe` against pinned original-chip SDK
+`25fe69f946311abdaf9ad56591f25fedbc20ac98`. Preserved the supported 2 MiB PMOD A
+flash layout privately before writing; verified target MAC, then all written
+image hashes. Application SHA-256:
+`191dbff1bbcfcdb2ace58aca1256fa3ced18bda0555833c481ffbddc0f1849ad`.
+Restored the exact prior checkpoint-3 FPGA image
+`3c1631a335072090dbd212e39ef6b8586c43aba5c5f8e98a2f73c0cd51bb0150`.
+
+Actual PMOD A → RF → RFS2 measurements passed carrier on/off on channels 3 and 8.
+Channel 8 measured 62.33 dB relative power rise and 62.32 dB fall using fixed RX
+gain. STOP, busy rejection and invalid-job checks passed. Automatic 500 ms job
+reported off at 500,803 µs; a separate 750 ms job stopped at 754,928 µs with a
+62.12 dB independently observed RF power drop. The repeatable `--automatic-stop`
+checker also passed a three-second job (3,004,956 µs, 62.34 dB measured fall).
+All 36 captures in the three full tone tests passed transport checks, without
+ADC rail hits.
+
+Host-coordinated OOK recovered `A5C3` and `A55A0123456789FF` exactly: zero observed
+errors over 16 + 64 bits. Decision threshold comes from separate off/on training
+captures. Expected bits are used only for error counting. This does not establish
+an independently synchronized modem, calibrated RF BER or arbitrary-IQ playback.
+DSP/detection/FFT in these checks is host Python; the FPGA transports snapshots.
+[Results and saved plots](docs/ESP32_TX_BRINGUP_RESULTS.md).
+
+Focused TX/flash tests: 12 passed (actual native-C parser, detector metrics,
+image/profile checks and a regression for MAC-probe/reconnect baud handling).
+Full local working-tree suite: 109 passed. Offline SDK/ROM scan including seven
+Wi-Fi archives / 109 members found no established original-chip waveform
+playback/source selector; this is not a proof of silicon impossibility.
+
+Final hardware state: PMOD A runs the bounded TX probe, RF idle; RFS2 and PMOD B
+retain their receiver firmware; checkpoint 3 hub restored; RFS2 gain restored to
+hardware AGC. The prior viewer is paused and no test UART/JTAG owner remains.
+Private backup, capture logs and proof JSON remain ignored locally.

@@ -40,8 +40,11 @@ def images(build, module):
     build = Path(build).resolve()
     desc = json.loads((build / 'project_description.json').read_text())
     cfg = json.loads((build / 'config/sdkconfig.json').read_text())
-    if desc['target'] != 'esp32' or desc['project_name'] != 'atum_rf_suite':
-        raise ValueError('Expected an original-ESP32 atum_rf_suite build.')
+    diagnostic = desc['project_name'] == 'atum_esp32_tx_probe'
+    if desc['target'] != 'esp32' or desc['project_name'] not in ('atum_rf_suite', 'atum_esp32_tx_probe'):
+        raise ValueError('Expected an original-ESP32 RF suite or bounded TX probe build.')
+    if diagnostic and (not cfg.get('ATUM_TX_PROBE') or profile(module) != 'pmod'):
+        raise ValueError('The bounded TX probe is explicitly configured for a Pmod only.')
     expected = (1, 3) if profile(module) == 'rfs2' else (17, 16)
     actual = tuple(cfg.get('ESP_SDR_UART_' + key + '_PIN') for key in ('TX', 'RX'))
     if actual != expected:
@@ -147,7 +150,9 @@ def main():
         check.open()
         check.close()
         if args.expect_mac:
-            probe = tool_command(python, args.port, args.baud, args.reset, major, 'info', spec, pairs)
+            # A no-reset probe must leave the loader at its initial baud for
+            # the following esptool process, which reconnects at 115200.
+            probe = tool_command(python, args.port, 115200, args.reset, major, 'info', spec, pairs)
             output = subprocess.check_output(probe, text=True, stderr=subprocess.STDOUT)
             macs = re.findall(r'(?i)\bMAC:\s*([0-9a-f:]{17})', output)
             if args.expect_mac.lower() not in [mac.lower() for mac in macs]:

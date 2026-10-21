@@ -46,3 +46,15 @@ software/ide-validation/
 software/riscfree.log
 gdbopxdriscv.ini
 /build-esp32-pmod/
+
+# Optional S3 transmitter build
+/build-modem-tx-s3/
+firmware/modem_tx/sdkconfig*
+!firmware/modem_tx/sdkconfig.defaults
+firmware/modem_tx/build/
+
+# Original ESP32 bounded TX diagnostic
+/build-esp32-tx-probe/
+firmware/esp32_tx_probe/sdkconfig*
+!firmware/esp32_tx_probe/sdkconfig.defaults
+firmware/esp32_tx_probe/build/

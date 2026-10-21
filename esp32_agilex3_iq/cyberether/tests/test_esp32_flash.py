@@ -83,3 +83,25 @@ class FirmwareImages(unittest.TestCase):
             self.assertEqual(error.exception.code, 1)
             tool.assert_not_called()
             owners.assert_not_called()
+
+    def test_probe_requires_explicit_identity_and_pmod_pins(self):
+        (self.build / 'project_description.json').write_text(json.dumps(dict(target='esp32',project_name='atum_esp32_tx_probe')))
+        with self.assertRaisesRegex(ValueError,'explicitly configured'):
+            flash.images(self.build,'pmod-a')
+        self.config['ATUM_TX_PROBE']=True
+        self.save_config()
+        flash.images(self.build,'pmod-a')
+        with self.assertRaisesRegex(ValueError,'Pmod only'):
+            flash.images(self.build,'rfs2')
+
+    def test_mac_probe_leaves_manual_loader_at_initial_baud(self):
+        with patch.object(sys,'argv',['flash_esp32.py','--module','pmod-a','--port','/dev/fixture','--build-dir',str(self.build),'--baud','460800','--expect-mac','78:21:84:d4:4f:98']), \
+             patch.object(flash.subprocess,'check_output',side_effect=['esptool v5.6.0','MAC: 78:21:84:d4:4f:98']) as output, \
+             patch.object(flash.subprocess,'run') as write, \
+             patch.object(flash,'serial_owners',return_value=[]), \
+             patch('serial.Serial'),contextlib.redirect_stdout(io.StringIO()):
+            flash.main()
+            probe=output.call_args_list[1].args[0]
+            self.assertEqual(probe[probe.index('--baud')+1],'115200')
+            command=write.call_args.args[0]
+            self.assertEqual(command[command.index('--baud')+1],'460800')
