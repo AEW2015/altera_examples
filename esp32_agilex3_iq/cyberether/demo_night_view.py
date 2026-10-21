@@ -20,15 +20,32 @@ def curve(d,box,values,limits,color,width=2):
 class Arcade:
  def __init__(self):
   self.rows=deque(maxlen=180);self.peaks=deque(maxlen=40);self.key=None;self.stamp=None;self.last=None;self.last_scene=None;self.marks=deque(maxlen=180)
+  self.rescue_before=None
+ def rescue_key(self,c):
+  ddc=c.get('ddc')or{}
+  if c.get('input_kind')!='two-tone' or not c.get('input_id'):return None
+  return (c['input_id'],ddc.get('phase'),ddc.get('output_rate'),ddc.get('output_samples'),
+   ddc.get('bypass_flags',0)&~2,ddc.get('digital_gain_q8'),ddc.get('digital_gain_bypass'),len(c.get('ddc_spectrum_db',[])))
+ def before_spectrum(self,c):
+  if not c or (c.get('ddc')or{}).get('bypass_flags',0)&2:return None
+  if self.rescue_before and self.rescue_before['key']==self.rescue_key(c):return self.rescue_before['spectrum']
+  return None
  def ingest(self,state):
   show=state.get('demo_night',{});required=show.get('required',{});c=state.get('latest',{}).get(required.get('view'))
   ready=bool(c and c.get('captured_unix',0)>=show.get('selected_unix',0)and all(c.get('acquisition',{}).get(k)==v for k,v in required.items()))
+  if ready:
+   error=(c.get('ddc')or {}).get('max_reference_error',c.get('max_reference_error'))
+   ready=error==0
   if not ready:return False
   if c['captured_unix']==self.stamp:return True
   self.stamp=c['captured_unix'];ddc=c.get('ddc');raw=c['raw'];cfg=c['acquisition']
   key=('generated'if raw['source']==3 else'RF',raw['source'],raw['frequency'],ddc['output_rate']if ddc else raw['rate'],c.get('input_kind','rf'))
   if key!=self.key:self.rows.clear();self.peaks.clear();self.marks.clear();self.key=key;self.last_scene=None
   values=np.asarray(c['ddc_spectrum_db']if ddc else c['spectra_db'][-1],float)
+  comparison=self.rescue_key(c)
+  if comparison is None:self.rescue_before=None
+  elif ddc['bypass_flags']&2:self.rescue_before=dict(key=comparison,spectrum=values.copy())
+  elif self.rescue_before and self.rescue_before['key']!=comparison:self.rescue_before=None
   row=np.interp(np.linspace(0,len(values)-1,600),np.arange(len(values)),values)
   self.rows.appendleft(row);self.marks.appendleft(show.get('title')if self.last_scene!=show.get('scene')else None)
   self.peaks.append((time.monotonic(),values));self.last=c;self.last_scene=show.get('scene');return True
@@ -49,10 +66,12 @@ class Arcade:
   panel(d,(28,226,1228,685));text(d,(48,241),'SPECTRAL MEMORY',23,CYAN)
   text(d,(650,246),'NEWEST ↑  ·  one row per verified result',17,MUTED)
   self.waterfall(image,d,c)
-  panel(d,(28,704,1228,971));text(d,(48,719),'SPECTRUM  /  PEAK MEMORY',22,CYAN)
+  panel(d,(28,704,1228,971));text(d,(48,719),'BEFORE / AFTER FILTER'if self.before_spectrum(c)is not None else'SPECTRUM  /  PEAK MEMORY',22,CYAN)
   self.spectrum(image,d,c,now)
   panel(d,(1250,226,1772,614));text(d,(1272,242),'IQ ORBIT',23,CYAN)
-  text(d,(1272,274),'Sample plane · not recovered symbols',17,MUTED)
+  tones=(c.get('tone_measurements')or{}).get('tones',[])if c else[]
+  at_dc=bool(len(tones)>1 and abs(tones[0]['output_hz'])<1e-6 and not c['ddc']['bypass_flags']&2)
+  text(d,(1272,274),'Wanted at DC → a stationary point'if at_dc else'Sample plane · not recovered symbols',17,MUTED)
   self.orbit(image,d,c)
   self.metrics(d,state,c,ready)
   text(d,(30,979),'Sparse RF bursts / frozen FPGA tests · FIR, mixer, decimation, gain + meters: FPGA · FFT + graphics: host',15,MUTED)
@@ -96,15 +115,31 @@ class Arcade:
   ddc=c.get('ddc');values=np.asarray(c['ddc_spectrum_db']if ddc else c['spectra_db'][-1]);raw=None if ddc else c['spectra_db'][0]
   self.peaks=deque([(t,v)for t,v in self.peaks if now-t<3],maxlen=40)
   peak=np.maximum.reduce([v for _,v in self.peaks])if self.peaks else values
-  hi=max(float(values.max()),float(peak.max()))+5;lo=hi-65;l,t,r,b=90,763,1207,921
+  before=self.before_spectrum(c)
+  tones=(c.get('tone_measurements')or{}).get('tones',[])
+  rescue=c.get('input_kind')=='two-tone'and len(tones)>1
+  hi=max(float(values.max()),float(peak.max()),float(before.max())if before is not None else -math.inf)+5
+  lo=hi-(100 if rescue else 65);l,t,r,b=90,790 if rescue else 763,1207,921
   for j in range(4):
    y=t+(b-t)*j/3;d.line((l,y,r,y),fill=LINE);text(d,(39,y-8),f'{hi-(hi-lo)*j/3:.0f}',13,MUTED)
   glow=Image.new('RGB',image.size);gd=ImageDraw.Draw(glow);curve(gd,(l,t,r,b),values,(lo,hi),CYAN,5);image.paste(Image.blend(image,Image.fromarray(np.minimum(np.asarray(image,dtype=np.uint16)+np.asarray(glow.filter(ImageFilter.GaussianBlur(7))),255).astype(np.uint8)),.6));d=ImageDraw.Draw(image)
   if raw is not None:curve(d,(l,t,r,b),raw,(lo,hi),'#58677e',1)
-  curve(d,(l,t,r,b),peak,(lo,hi),GOLD,1);curve(d,(l,t,r,b),values,(lo,hi),CYAN,2)
+  if before is not None:curve(d,(l,t,r,b),before,(lo,hi),PINK,3)
+  else:curve(d,(l,t,r,b),peak,(lo,hi),GOLD,1)
+  curve(d,(l,t,r,b),values,(lo,hi),CYAN,2)
   label,(low,high)=self.axis(c)
+  if rescue:
+   for tone,name,color in zip(tones,('WANTED','INTERFERER'),(GOLD,PINK)):
+    frequency=tone['output_hz']/1e6;x=l+(frequency-low)/(high-low)*(r-l)
+    if not l<=x<=r:continue
+    title=name+(' · DC'if abs(frequency)<1e-9 else f' {frequency:+g} MHz')
+    text(d,(min(r-190,max(l+4,x-75)),763),title,15,color)
+    d.polygon([(x-5,t-8),(x+5,t-8),(x,t-1)],fill=color)
+   if before is not None:text(d,(430,724),'PINK before FIR  /  CYAN after FIR',17,PINK)
+   elif not ddc['bypass_flags']&2:text(d,(430,724),'Select Shift first to retain a matching before trace',15,MUTED)
   for j in range(5):text(d,(l+j*(r-l)/4-14,928),f'{low+(high-low)*j/4:g}',14,MUTED)
-  text(d,(52,950),'CYAN current  /  GOLD last 3 s  /  relative dB · '+label,14,MUTED)
+  legend='Same FPGA input, tuning, rate and gain · measured host FFT'if before is not None else'CYAN current  /  GOLD last 3 s  /  relative dB · '+label
+  text(d,(52,950),legend,14,MUTED)
  def orbit(self,image,d,c):
   cx,cy,radius=1510,446,135
   for f in(.5,1):d.ellipse((cx-radius*f,cy-radius*f,cx+radius*f,cy+radius*f),outline=LINE,width=1)
@@ -130,6 +165,9 @@ class Arcade:
   elif ddc:label,value='FPGA DIGITAL GAIN',f"{ddc.get('digital_gain_q8',256)/256:g}×"
   else:label,value='CAPTURE PAYLOAD',f"{c['payload_Bps']/1000:.1f} kB/s"if c else'—'
   rows=[(label,value,GOLD),('CLIPPED SAMPLES',f'{clipping:.1f}%'if ddc else'—',PINK if clipping else CYAN),('HARDWARE / INTEGER MATCH',f'{error} LSB'if error is not None else'—',GREEN if error==0 and ready else MUTED)]
+  if len(tones)>1:
+   change=-tones[0]['attenuation_db'];change=0. if abs(change)<.005 else change
+   rows[1]=('WANTED TONE LEVEL CHANGE',f'{change:+.2f} dB',CYAN)
   for i,(label,value,color)in enumerate(rows):
    y=631+i*112;panel(d,(1250,y,1772,y+99));text(d,(1272,y+12),label,16,MUTED);text(d,(1272,y+36),value,39,color)
   if state.get('error'):text(d,(1265,970),'ACQUISITION ERROR · see status above',15,PINK)

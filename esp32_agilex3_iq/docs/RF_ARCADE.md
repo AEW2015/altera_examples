@@ -31,7 +31,7 @@ First installation: follow [the local notebook setup](../notebooks/README.md). T
 1. Open the printed link. Press **⛶** for fullscreen.
 2. Start with **Airwaves**: “This is received 2.4 GHz RF. The ESP32 captures short IQ bursts; Agilex filters them; CyberEther draws the result.” Select a radio or Wi-Fi channel if desired.
 3. Select **Rescue the tone → Fold**. Two clean FPGA-generated tones appear; the interferer aliases during decimation.
-4. Press **Shift to DC**, then **Reject interferer**. The wanted tone moves to the center, then the FPGA FIR removes the interferer. The waterfall marks each scene change.
+4. Press **Shift to DC**, wait for its verified result, then **Reject interferer**. The wanted tone moves to the center, then the FPGA FIR removes the interferer. The spectrum labels the **wanted** and **interferer** frequencies. Pink retains the measured Shift result before FIR; cyan shows the filtered result. Watch the rejection rise while the wanted-tone level change stays near 0 dB. The waterfall marks each scene change.
 5. Select **Power rush**. Try **1×**, **2×**, then **16×**: the IQ circle expands, hits the rails and becomes square; extra spectral lines appear. Point to the FPGA clipping meter and **0 LSB** reference match.
 6. Press **Showreel** to repeat all seven scenes automatically. It waits for a matching, verified hardware result before starting each scene's dwell. Manual scene/radio/channel changes stop the showreel.
 
@@ -61,6 +61,7 @@ The display FFT, waterfall coloring, peak history and IQ graphics run on the hos
 - **LIVE RF** means an actual ESP32 acquisition. **FPGA TEST SIGNAL** means a deterministic FPGA pattern, with no RF transmission.
 - One waterfall row is one distinct verified result; rows are capture-index history, not a continuous-time or gap-free RF recording. History is bounded to 180 rows and resets on radio, center frequency, input-pattern or output-rate changes.
 - Gold spectral peak memory holds maxima from the last three seconds. RF power is relative, not calibrated dBm. Fixture rejection is a digital test measurement, not an RF sensitivity claim.
+- In Rescue, the pink before-FIR trace persists beyond the three-second peak memory. It is shown only for the same verified FPGA input capture, mixer phase, output rate/length and gain, with filtering as the only processing difference. Select **Shift to DC** before **Reject** to retain a matching baseline; a Fold trace is not substituted for a Shift trace. Tone-rescue spectra use a 100 dB display range to make strong rejection visible. A wanted tone at DC becomes a stationary IQ point; continued motion is not expected after filtering out the interferer.
 - The IQ orbit displays samples. It is not a recovered Wi-Fi/QPSK constellation. Its fixed scale in the power scenes makes saturation visible.
 - Radio selection acquires one module at a time. The modules are not phase-coherent or simultaneous RF receivers.
 - Waveforms, headers, payloads and waterfall rows are not invented during a hardware timeout. The view holds the last result and shows the acquisition error.
