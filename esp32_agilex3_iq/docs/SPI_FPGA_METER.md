@@ -1,7 +1,8 @@
 # FPGA processing directly from SPI IQ
 
-**Status: source, simulation and build qualification only. SPI hardware
-qualification is pending PMOD B’s reset; no SPI flash or capture is claimed here.**
+**Bounded hardware qualification passed for synthetic and passive RF captures.**
+Continuous recovery, board timing margin, and runtime-hub integration remain
+pending.
 
 A separate **SPIQ0002** image implements a processing stage in FPGA RTL after the SPI
 bridge. The ESP32 firmware is unchanged. Reprogramming the FPGA switches between
@@ -129,12 +130,12 @@ packet and checks that `M` invalidates the view without advancing its commit.
 
 The basic SPIQ0001 project and firmware remain separate. This meter is not yet
 integrated into Nios V, VDS checkpoints or the running RF Link Lab. Host Python
-transports bytes and verifies a reference; power/peak/clip arithmetic and capture
-validity are implemented in FPGA RTL. Their hardware qualification remains pending.
+transports bytes and verifies an independent reference; power/peak/clip arithmetic
+and capture validity are implemented in FPGA RTL.
 
 ## Build qualification snapshot, 2026-10-21
 
-|Check|Result; hardware remains pending|
+|Check|Build/simulation result|
 |---|---|
 |Host/native C|12 SPI test groups passed|
 |Questa standalone|CRC/format/source/version/order/drop/mode/replay/truncation/no-end, signed rails, sequence wrap and recovery passed|
@@ -152,3 +153,32 @@ the POR counter), inferred RAM pass-through, output drive/slew defaults, and
 asynchronous/forwarded-clock data-output-delay labels. These are not a claim of
 board waveform timing margin or hardware qualification. Local generated build
 records are in `cyberether/run/spi-meter-build-qualification.json`.
+
+## Bounded hardware qualification
+
+The combined SPI application was installed on PMOD B (SPI ON, BOOT OFF), and the
+separate SPIQ0002 meter image was programmed to the FPGA. At nominal5 MHz SPI,
+both 32760-byte captures committed with valid summaries. The FPGA's power sum,
+peak and clip counts matched the independent host integer reference exactly:
+
+|Mode|Sequence|Power sum|Peak power|Clip samples/components|Active SPI ingress|
+|---|---:|---:|---:|---:|---:|
+|Synthetic|11|178923972|24665|256 / 256|2770944 cycles; 591134 B/s|
+|Passive RF, channel8, nominal16 MS/s|13|1296736|30290|9 / 9|2770944 cycles; 591134 B/s|
+
+Ingress rate derives only from measured CS-active packet cycles at nominal50 MHz;
+it excludes READY waits, UART transfer and gaps between transactions. End-to-end
+UART-export rates were approximately109156 B/s synthetic and105863 B/s RF. The
+reject counters advanced during intentional mode-boundary transitions; there
+was no demonstrated CRC error. Hardware proofs are
+`cyberether/run/spi-meter-synthetic-001/proof.json` and
+`cyberether/run/spi-meter-rf-001/proof.json`. This is a bounded capture/meter
+qualification, not continuous recovery, signal-integrity margin, or runtime hub
+integration qualification.
+
+A further 20 alternating synthetic/RF captures passed (327,600 complex samples,
+20 distinct sequences), followed by a synthetic/RF pair after idle time beyond
+the DMA timeout. All CRCs and integer references matched; the repeat batch
+measured 105,682–110,156 B/s end to end. These bounded recovery checks do not
+establish continuous streaming. Records: `cyberether/run/spi-meter-repeat-001/summary.json`
+and `spi-meter-idle-recovery-{synthetic,rf}-001/proof.json`.

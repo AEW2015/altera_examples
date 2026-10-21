@@ -17,7 +17,7 @@ This page records the boundary between the working modem reference, FPGA acceler
 | FPGA FIR on BPSK RF IQ | Existing FIR II, paired raw/filtered capture | Two actual RF snapshots, 32,760 complex samples; exact integer-reference match and valid CRC after filtering |
 | FPGA decoding of recovered RF symbols | Checkpoint06 BPSK/QPSK soft demapper and K7 Viterbi | BPSK replay: 1/44 → 0/8. QPSK-004 replay: 0/44 → 0/8 with CRC; 3,100 cycles / 62 µs FPGA time, 68.328 s JTAG transaction. Host synchronization retained |
 | BER qualification | `scripts/check_rf_ber.py` and `cyberether/ber_qualification.py` | Seeded synthetic AWGN sweep plus separate BPSK and QPSK saved-proof audits; see [BER qualification](BER_QUALIFICATION.md). The live comparison action is simulation plus saved evidence, not an RF run |
-| SPI IQ transport | ESP32/FPGA SPI transport prototype | Physical capture/throughput test remains pending the PMOD B reset; no hardware qualification is claimed |
+| SPI IQ transport | ESP32/FPGA SPI transport prototype | Bounded synthetic/RF hardware checks passed, including FPGA integer power/peak/clips; 5 MHz active ingress ~591 kB/s, host ~106–113 kB/s. Standalone image; hub integration remains open |
 | ESP32 original-chip arbitrary-IQ TX | Unresolved | Offline SDK/ROM investigation; no positive RF playback claim |
 | Optional S3 TX loader | New GPL application plus CRC uploader, pinned component/SDK | USB and UART transport variants compile; ELF RF SRAM-overlap check passes; not flashed/RF-qualified |
 | Independent RX/monitor role | Existing original ESP32 capture capability | Not yet exercised as a complete three-radio modulated link |
@@ -50,7 +50,7 @@ Actual RTL simulation verifies all 86 constellation points across the four modes
 
 1. Extend BPSK/QPSK RF evidence across at least 100,000 payload bits and controlled operating points; report acquisition, CRC and payload errors with denominators. Current QPSK best is 0/168 payload errors from 21 valid frames in 32 captures at 12 µs; its saved-proof aggregate includes 19/296 payload errors.
 2. Add FPGA waveform shaping/matched filtering, preamble/frame acquisition, timing/frequency/phase recovery and equalization with module-level reference checks. Raw-IQ synchronization remains host-side; existing FIR/DDC and recovered-symbol replay are not a complete FPGA receiver.
-3. Measure physical SPI throughput and loss against the UART baseline. The prototype is not yet hardware-qualified. Exercise independent monitor capture and measure real capture coverage and RF error behavior.
+3. Measure physical SPI throughput and loss against the UART baseline. Bounded transport and FPGA-meter hardware checks pass; continuous streaming and integrated-hub operation remain unqualified. Exercise independent monitor capture and measure real capture coverage and RF error behavior.
 4. Qualify amplitude-linear transmission before 16/64-QAM RF. Retain clearly labeled FPGA/Python examples if the RF chain cannot meet the measured error budget.
 
 The current demo has real compact BPSK and preliminary QPSK RF frames, separate FPGA FIR verification, and FPGA FEC replay of host-recovered symbols. The complete over-the-air three-radio modem, continuous FPGA waveform synchronization, 100,000-bit RF qualification and higher-QAM RF remain unfinished until their gates pass. Raw captures, executed notebooks, build databases and test logs stay ignored; source and saved diagrams/screenshots are committed.

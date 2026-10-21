@@ -55,11 +55,11 @@ At each point, target at least 100,000 payload bits where practical. Report a co
 
 ### 2. Measure sample transport before choosing SPI
 
-Separate [SPI transport](SPI_TRANSPORT.md) and [SPI FPGA-meter](SPI_FPGA_METER.md) projects provide source, firmware, Questa tests and fitted images. They are qualification prototypes; physical testing is waiting for PMOD B’s programming reset. The live RF demo continues to use UART when its normal hub is loaded.
+Separate [SPI transport](SPI_TRANSPORT.md) and [SPI FPGA-meter](SPI_FPGA_METER.md) projects provide source, firmware, Questa tests and fitted images. Both separate images now pass bounded hardware qualification on PMOD B: exact synthetic bytes, fresh channel-8 RF, packet CRCs, and FPGA power/peak/clip results matched to Python. Twenty alternating meter captures and an idle-recovery pair also passed. The standalone SPI image currently replaces the normal three-radio hub.
 
 UART remains useful for bounded captures. Measure payload rate, command/turnaround time, loss, backpressure and sustained capture coverage on the actual installed path. Prototype SPI only after recording the UART baseline. Measure clock rate, framing overhead, sustained bytes/s, buffer-full behavior, dropped blocks and recovery under contention. SPI clocking is transport timing and supplies no RF sample-phase coherence.
 
-The SPI probe and transport integration are nearing the build gate; physical SPI throughput and loss behavior have not yet been tested.
+At 5 MHz, FPGA-counted CS-active payload ingress is about 591 kB/s; complete host captures reach about 106–113 kB/s because UART egress and sequential control remain limiting. These are distinct measurements, not a sustained SPI-to-host speedup. Remaining work is integrated hub/FIR ingress, continuous recovery and capture-coverage measurements, and physical timing margin before raising SCK.
 
 **Exit:** a repeatable report compares measured UART and SPI throughput and loss behavior on the same data contract. Keep UART if SPI does not improve useful captured data rate reliably.
 
@@ -71,7 +71,7 @@ Framed QPSK showed a clear timing boundary. The 8 µs QPSK-001 run acquired no f
 
 Checkpoint 06 also decoded one QPSK-004 frame after the host supplied its 22 recovered symbols rotated −135° to match the FPGA map: 0/44 coded errors → 0/8 payload errors and valid CRC. The FPGA kernel took 3,100 cycles (62 µs at 50 MHz); the JTAG transaction took 68.328 s. This replay does not move synchronization into FPGA; raw-IQ carrier, timing and frame recovery remain host work.
 
-**Next exit:** extend QPSK to at least 100,000 payload bits across independently captured runs and operating points; retain acquisition failures, CRC failures and exact denominators. Evaluate the 12 µs timing margin and consistency, then qualify the host-to-FPGA replay path as a separate throughput/evidence step. The new SPI path is still pending physical throughput/loss measurements. Keep 16/64-QAM RF gated on amplitude-linear transmitter evidence.
+**Next exit:** extend QPSK to at least 100,000 payload bits across independently captured runs and operating points; retain acquisition failures, CRC failures and exact denominators. Evaluate the 12 µs timing margin and consistency, then qualify the host-to-FPGA replay path as a separate throughput/evidence step. The SPI path passed bounded transport and FPGA-meter checks; continuous coverage and integrated-hub throughput remain open. Keep 16/64-QAM RF gated on amplitude-linear transmitter evidence.
 
 ### 4. Gate amplitude modulation on a proven transmitter
 

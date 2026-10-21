@@ -454,7 +454,7 @@ Local proofs: `rf-qpsk-001` through `rf-qpsk-004`, their independent reviews,
 ignored `cyberether/run/`. The 100,000-payload-bit RF target, continuous capture,
 full FPGA synchronization and amplitude-linear QAM remain open.
 
-### SPI preparation (hardware reset pending)
+### SPI build and subsequent hardware qualification
 
 Separate SPIQ0001 qualification firmware and FPGA sources compile and simulate.
 The original ESP32 DMA slave starts with synthetic data and accepts explicit
@@ -471,9 +471,10 @@ Combined SPI application SHA:
 `51412513067d942e1d476bb861df9731ed18972a79f510bcd06f1dd031c7c499`.
 SPIQ0001 SOF SHA:
 `b424cc647e767ce6a83b5a11482fc63ad49aea6be60fae430fe370b9c50f312c`.
-These build results do not establish physical SPI throughput or correctness.
-PMOD B's ROM bridge is loaded, GPIO0 low, and its manual programming-reset
-prompt is pending. No B SPI flash or physical SPI capture has occurred yet.
+PMOD B was subsequently backed up privately (2 MiB), MAC-checked, flashed with
+the combined SPI image and hash-verified. With SPI ON and BOOT OFF, the basic
+image received exact synthetic bytes and a fresh passive channel-8 RF capture.
+All packet CRCs passed; each capture contained 16,380 CI8 samples.
 Current working-tree host suite: **172 tests passed**.
 
 The SPIQ0002 meter image also completed a no-edit consistency rebuild, with
@@ -483,8 +484,23 @@ SPI), with zero unconstrained clocks/ports. SOF SHA:
 `7385b167454d9e6e297f463e5376bf4ac47b81113da56cefea13e632aa58c540`.
 Twelve host/native SPI tests and two meter Questa testbenches pass, including
 backwards/replayed sequence rejection, wrap, signed rails and separate clipped
-sample/component counts. FPGA measurement correctness still needs the physical
-SPI qualification; compiled allocation is not live utilization.
+sample/component counts. Compiled allocation is not live utilization.
+
+Physical SPIQ0002 tests then passed synthetic and RF integer-reference checks,
+20 alternating captures (327,600 complex samples; 20 unique sequences), and a
+separate idle-recovery synthetic/RF pair. All accepted packets passed CRC and
+all FPGA power sums, peaks and clip counts matched independent Python. Synthetic
+sum/peak/clipped samples/components were 178,923,972 / 24,665 / 256 / 256.
+Every full capture used 32 chunks and 2,770,944 active ingress cycles at nominal
+50 MHz: 55.419 ms, about 591,134 payload bytes/s. This excludes inter-transaction,
+READY and UART gaps. Complete host captures measured about 106–113 kB/s and
+remain UART-limited; no sustained streaming speedup is claimed. Mode transitions
+intentionally discarded partial old captures and increased reject counters.
+Proofs are in ignored `cyberether/run/spi-{synthetic,rf}-001`,
+`spi-meter-{synthetic,rf}-001`, `spi-meter-repeat-001/summary.json`, and
+`spi-meter-idle-recovery-{synthetic,rf}-001`. The standalone SPI image currently
+serves B only; A/RFS2 and the older live RF GUI require the normal hub. Integrated
+hub/FIR ingress, continuous operation and higher-clock board margin remain open.
 
 The subsequent v6 TX build replaces per-symbol wall-clock calls with a checked,
 wrap-safe CPU-cycle deadline that charges setup against the original 500 ms

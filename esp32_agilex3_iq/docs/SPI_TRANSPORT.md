@@ -1,7 +1,8 @@
 # SPI capture transport qualification
 
-**Source and simulation prototype, not a live installed transport.** The running
-RF Link Lab still uses UART. These separate images preserve that working baseline.
+**Bounded hardware qualification passed; runtime-hub integration remains pending.**
+The running RF Link Lab still uses UART. These separate images preserve that
+working baseline.
 
 ```mermaid
 flowchart LR
@@ -35,7 +36,24 @@ selector must remain normal. Present UART mode routes GPIO17/16 to J1.3/2;
 changing the selector disconnects that application UART. J2 still exposes ROM
 UART0 GPIO1/3 and GPIO0 via the installed programming wires. This prototype does
 not route J2 commands; the raw-RX profile deliberately uses a fixed channel/rate.
-No firmware flash, switch change, reset or SPI hardware test is claimed here.
+The bounded hardware runs used the combined SPI application on PMOD B, SPI
+selected and BOOT normal. The standalone image does not route A/RFS2; the
+previous UART hardware capture workflow is paused while this profile is installed.
+
+## ROM baud troubleshooting
+
+For a pre-change PMOD B backup, prefer 115200 baud with `--before no-reset --after no-reset`
+so the ROM loader stays at its usual rate. A 2 MiB backup was also observed to
+succeed with esptool 5.6 at 460800 using those no-reset options;
+that left the loader at 460800, and a later `flash_esp32.py --expect-mac` probe
+at 115200 failed. The baud used by a ROM session can therefore persist across
+no-reset invocations.
+
+In that tested case, recovery used the pinned esptool `ESP32ROM` at 460800,
+connected without resetting, verified PMOD B MAC `e0:e2:e6:01:a9:30`, changed
+the ROM baud to 115200, then closed the connection. The guarded flasher resumed
+without another button press. This is a serial ROM baud recovery observation;
+it does not qualify the SPI transport.
 
 ## Wire protocol
 
@@ -148,17 +166,20 @@ verified programmer/reset procedure. Generated SOFs and firmware stay ignored.
 At5 MHz the raw SPI ceiling is625 kB/s versus200 kB/s for2 Mbaud8N1 UART;
 32 packets carry32760 bytes with96.95% payload efficiency. This qualification
 image **still exports via UART**, so its end-to-end throughput is UART-limited
-and includes sequential SPI/UART overhead. It may be slower end to end than the
-current direct UART path. Its purpose is to verify faster ESP32→FPGA ingress,
-then feed FIR/DDC/FEC directly from packet RAM rather than moving raw IQ to host.
+and includes sequential SPI/UART overhead. The synthetic and RF hardware runs
+completed exact 32760-byte captures with all chunk CRCs passing. End-to-end rates
+were approximately 113.4 kB/s synthetic and 109.2 kB/s RF; this does not show an
+end-to-end speedup over UART. The standalone RF profile acquired channel8 at a
+nominal16 MS/s.
 
-The FPGA currently buffers bytes; CRC/sequence checking is in Python. Next FPGA
-integration requires an IQS1 header/CRC checker, capture FIFO descriptors and
-connection to the existing CI8/FIR pipeline, command/readback control, measured
-SCK/CS/MISO margin, measured throughput/drop counters, and continuous recovery
-qualification. Do not call this a live hub speed improvement until those gates
-pass. Timing assumptions are explicit in the separate SDC; verify fitted timing
-and board waveforms at5 MHz before raising to10 or20 MHz.
+The SPIQ0001 FPGA currently buffers bytes; CRC/sequence checking is in Python.
+The separate SPIQ0002 FPGA meter adds integrity checks and power/peak/clip
+statistics, also proven in the companion document. Neither profile is integrated
+into the live Nios hub/RF Link Lab. Remaining gates are sustained continuous-run
+and recovery testing, measured SCK/CS/MISO margin and drops, and integration with
+the existing CI8/FIR pipeline and command/readback control. Do not call this a
+live hub speed improvement. Timing assumptions are explicit in the separate SDC;
+verify board waveform margin at5 MHz before raising the clock.
 
 ## Source/build qualification, 2026-10-21
 
@@ -182,5 +203,21 @@ wrapper. Signoff also labels asynchronous HOST_TX and forwarded-clock SPI_SCK
 as missing data-output delays; their asynchronous/clock constraints are explicit.
 Other warnings describe RAM read/write pass-through and unspecified output
 drive/slew defaults. Positive timing uses the stated external assumptions; these
-results do not establish board waveform margin or SPI hardware qualification.
-The local generated evidence is `cyberether/run/spi-build-qualification.json`.
+results do not establish board waveform margin. Build evidence is
+`cyberether/run/spi-build-qualification.json`.
+
+## Bounded hardware qualification
+
+The combined application SHA `514125…` was installed on PMOD B (SPI ON, BOOT
+OFF). At nominal5 MHz SPI, identity and both requested modes were verified:
+
+|Run|Mode and capture|Payload integrity|Transactions / discarded|End-to-end rate|
+|---|---|---|---:|---:|
+|Synthetic|32760 bytes, source2, exact deterministic ramp|Exact payload; all CRCs pass|33 / 1|113428 B/s|
+|RF|32760 bytes, channel8, nominal16 MS/s|All CRCs pass|34 / 2|109191 B/s|
+
+The RF run crossed an explicit fresh-RF boundary before accepting data.
+Discarded incomplete chunks/captures occurred during intentional mode changes;
+no CRC error was demonstrated. End-to-end figures include UART egress and remain
+UART-limited. Proofs: `cyberether/run/spi-synthetic-001/proof.json` and
+`cyberether/run/spi-rf-001/proof.json`.
