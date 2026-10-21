@@ -11,6 +11,31 @@ import modem_reference as m
 
 
 class ModemReferenceTests(unittest.TestCase):
+    def test_post_fec_remapping_tracks_wrong_payload_groups_and_padding(self):
+        bits = np.array([0, 1, 1, 0, 1, 0, 0, 1], dtype=np.uint8)
+        damaged = bits.copy(); damaged[[0, 7]] ^= 1
+        p = m.fec_payload_plot(bits, damaged, '64QAM')
+        self.assertEqual((p['bit_errors'], p['symbol_errors'], p['symbols']), (2, 2, 2))
+        self.assertEqual(p['display_padding_bits'], 4)
+        np.testing.assert_array_equal(p['wrong'], [True, True])
+        expected = m.map_bits(np.pad(damaged, (0, 4)), '64QAM')
+        np.testing.assert_allclose(np.asarray(p['decoded_xy']) @ [1, 1j], expected)
+        q = m.fec_payload_plot(bits, damaged, '64QAM', maximum=1)
+        self.assertEqual((q['displayed_symbols'], q['symbol_errors']), (1, 2))
+        with self.assertRaises(ValueError):
+            m.fec_payload_plot(bits, damaged[:-1], '64QAM')
+
+    def test_post_fec_graph_counts_match_actual_decoder_metrics(self):
+        for mode in m.MODES:
+            result = m.run_experiment(mode, snr_db=16, seed=7, payload_bits=256)
+            self.assertTrue(result['metrics']['header_ok'])
+            for kind in ('hard', 'soft'):
+                p = result['plots']['post_fec'][kind]
+                self.assertEqual(p['bit_errors'], result['metrics'][kind+'_fec_errors'])
+                self.assertEqual(p['payload_bits'], result['metrics']['post_fec_bits'])
+        failed = m.run_experiment('64QAM', snr_db=-30, payload_bits=256)
+        self.assertIsNone(failed['plots']['post_fec'])
+
     def test_exhaustive_gray_maps_and_soft_metric_sign(self):
         for mode in m.MODES:
             p, labels = m.constellation(mode)

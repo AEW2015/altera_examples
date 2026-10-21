@@ -408,6 +408,30 @@ def receive_frame(samples, sps=4, sample_rate=4e6, decode_mode='soft', equalize=
     return result
 
 
+def fec_payload_plot(reference_bits, decoded_bits, modulation, maximum=1400):
+    """Visualize decoded payload bits by remapping, not by claiming new RX IQ.
+
+    Zero padding completes the final display symbol only. BER never includes it.
+    Error flags compare corresponding payload groups, not constellation occupancy.
+    """
+    reference_bits, decoded_bits = _bits(reference_bits), _bits(decoded_bits)
+    if len(reference_bits) != len(decoded_bits):
+        raise ValueError('Payload lengths must match')
+    width = BITS_PER_SYMBOL[_mode(modulation)]
+    padding = (-len(reference_bits)) % width
+    reference = np.pad(reference_bits, (0, padding))
+    decoded = np.pad(decoded_bits, (0, padding))
+    expected, actual = map_bits(reference, modulation), map_bits(decoded, modulation)
+    wrong = np.any(reference.reshape(-1, width) != decoded.reshape(-1, width), axis=1)
+    return dict(reference_xy=np.column_stack((expected.real, expected.imag))[:maximum].tolist(),
+                decoded_xy=np.column_stack((actual.real, actual.imag))[:maximum].tolist(),
+                wrong=wrong[:maximum].tolist(), symbols=len(actual),
+                displayed_symbols=min(maximum, len(actual)), symbol_errors=int(wrong.sum()),
+                bit_errors=int(np.count_nonzero(reference_bits != decoded_bits)),
+                payload_bits=len(reference_bits), display_padding_bits=padding,
+                source='Decoded payload bits remapped to ideal points; not received IQ')
+
+
 def run_experiment(modulation='QPSK', snr_db=18., cfo_hz=1500., timing_offset=.25,
                    multipath=False, seed=7, payload_bits=2048, decode_mode='soft',
                    sample_rate=4e6, sps=4, coded=True, equalize=True):
@@ -451,6 +475,8 @@ def run_experiment(modulation='QPSK', snr_db=18., cfo_hz=1500., timing_offset=.2
                        evm_percent=float(100*np.sqrt(np.mean(abs(rx['recovered_symbols']-tx['mapped_symbols'])**2)/reference_energy)),
                        pre_equalizer_evm_percent=float(100*np.sqrt(np.mean(abs(rx['pre_equalized_symbols']-tx['mapped_symbols'])**2)/reference_energy)),
                        evm_normalization='RMS known payload symbols; after trained gain/equalizer and block-pilot phase correction')
+    post_fec = {name: fec_payload_plot(tx['payload_bits'][:payload_bits], rx[key][:payload_bits], mode)
+                for name, key in (('hard', 'decoded_hard_bits'), ('soft', 'decoded_soft_bits'))} if success else None
     def xy(a, maximum=1400):
         a = np.asarray(a)[:maximum]
         return np.column_stack((a.real, a.imag)).tolist()
@@ -463,7 +489,7 @@ def run_experiment(modulation='QPSK', snr_db=18., cfo_hz=1500., timing_offset=.2
                               payload_bits=payload_bits, decode_mode=decode_mode, coded=bool(coded),
                               sample_rate=sample_rate, symbol_rate=sample_rate/sps, sps=sps, equalize=bool(equalize)),
                 metrics=metrics,
-                plots=dict(raw_xy=xy(x), matched_xy=xy(rx['matched_symbols']),
+                plots=dict(post_fec=post_fec, raw_xy=xy(x), matched_xy=xy(rx['matched_symbols']),
                            recovered_xy=xy(rx['recovered_symbols']),
                            ideal_xy=xy(constellation(mode)[0]),
                            eye=dict(x=(np.arange(2*sps+1)/sps).tolist(), traces=eye),

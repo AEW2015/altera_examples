@@ -72,3 +72,17 @@ The matching convenience command `.venv-notebooks/bin/python scripts/modem_fpga.
 These commands are for local simulation/design generation/build. They do not program the FPGA or flash a radio. The Python UI remains a reference even after the RTL checkpoint builds. An FPGA or RF result must be collected and labeled through an independent evidence path before the UI can claim hardware provenance.
 
 Notebook 08 has a separate checkpoint programming cell, guarded by `RUN_PROGRAM_MODEM = False`. The explicit `program()` call checks the source fingerprint and image SHA against `BUILD_RESULT.json`, stops only this checkout's recorded notebook demo, refuses remaining serial/JTAG owners, and uses `ATUM_JTAG_CABLE`. Running that cell replaces the active FPGA design; it is outside the default Run All path and does not flash or reset an ESP32.
+
+### Post-FEC payload graphic
+
+After **Run burst**, the **After FEC · decoded payload remapped** panel compares
+known payload bits with hard- and soft-Viterbi output. Decoded payload bits are
+remapped to ideal constellation points; these are not additional received IQ
+samples. Red crosses and lines mark wrong payload groups against the known
+reference. A wrong decoded group still lies on the ideal constellation grid,
+so use its error markers and BER counters, rather than grid shape, to judge it.
+Zero padding completes the last display symbol only and is excluded from BER.
+If acquisition/header recovery fails, there is no post-FEC plot. All these
+plots use the explicitly labeled Python simulation source.
+
+![64-QAM post-FEC payload comparison](../notebooks/screenshots/08_modem_lab_post_fec.png)
