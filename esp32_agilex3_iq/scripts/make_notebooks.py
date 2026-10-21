@@ -76,5 +76,11 @@ summary
  nb.v4.new_code_cell('live = lesson.start_demo(host=HOST)\nprint(live)',metadata={'tags':['hardware','live']}),
  nb.v4.new_markdown_cell('Leave the page running while presenting. The next notebook stops it before programming. To stop it manually, run `stop_demo()` in the cell below. Live invites and captures stay in ignored runtime folders; do not publish their tokens.'),
  nb.v4.new_code_cell('# stop_demo()',metadata={'tags':['cleanup']})]
+ if i>=2:
+  at=next(j for j,c in enumerate(cells)if c.cell_type=='markdown'and c.source.startswith('## 3 ·'))
+  cells[at:at]=[
+   nb.v4.new_markdown_cell('### Official Nios V BSP and applications\n\nGenerate a HAL BSP from this actual VDS system, plus editable **Hello World** and **IQ monitor** CMake applications. This builds software only; it does not download or replace the running firmware. Open both BSP and app with **RiscFree → File → Import Nios V CMake Project**, then build with Ctrl+B. See [Nios V IDE guide](../software/README.md) for BSP Editor, JTAG download and restore steps.'),
+   nb.v4.new_code_cell('software_dir = lesson.software()\nprint("BSP:", software_dir / "bsp")\nprint("Hello World:", software_dir / "hello_world")\nprint("IQ monitor:", software_dir / "iq_monitor")',metadata={'tags':['software']}),
+  ]
  notebook=nb.v4.new_notebook(cells=cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
  name=f'{i:02d}_'+['raw_iq_bridge','nios_transfer_monitor','fir_filter','ddc_frequency_translation','gain_power_meters'][i-1]+'.ipynb';nb.write(notebook,ROOT/'notebooks'/name)

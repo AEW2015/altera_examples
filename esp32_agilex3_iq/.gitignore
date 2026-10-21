@@ -38,3 +38,10 @@ board/
 **/scripts/iq_bridge_system_export.tcl
 notebooks/executed/
 notebooks/.ipynb_checkpoints/
+
+# Official Nios V generated BSPs/apps and local IDE workspace
+software/checkpoint_*/
+software/workspace/
+software/ide-validation/
+software/riscfree.log
+gdbopxdriscv.ini

@@ -63,6 +63,16 @@ For a different RiscFree installation, set `ATUM_RISCV_GCC`, `ATUM_RISCV_SIZE` a
 
 Existing host-to-container scripts remain available as an optional compatibility mode: explicitly set `ATUM_TOOLS_MODE=docker`, `ATUM_CONTAINER` and, if mount discovery is unsuitable, `ATUM_CONTAINER_ROOT`. Prefer running Jupyter beside the tools for the complete notebook workflow.
 
+## Official Nios V software IDE
+
+Checkpoints 2–5 now have generated HAL BSPs, editable Hello World / IQ monitor applications and RiscFree run configurations. See [the Nios V IDE guide](software/README.md).
+
+```bash
+.venv-notebooks/bin/python scripts/nios_software.py 2 --open
+```
+
+This creates `software/checkpoint_02/{bsp,hello_world,iq_monitor}` and launches **Ashling RiscFree IDE for Altera FPGAs**. Import the BSP and app separately with **File → Import Nios V CMake project**. Each processor notebook has a `lesson.software()` cell.
+
 ## Build from source
 
 Run from a terminal beside the installed tools, at this example's root:

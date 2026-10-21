@@ -13,9 +13,13 @@ def check():
     paths.update({
         'RV32 GCC': Path(os.getenv('ATUM_RISCV_GCC',str(a/'riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-gcc'))),
         'RV32 size': Path(os.getenv('ATUM_RISCV_SIZE',str(a/'riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-size'))),
+        'niosv-bsp': a/'niosv/bin/niosv-bsp',
+        'niosv-app': a/'niosv/bin/niosv-app',
+        'niosv-download': a/'niosv/bin/niosv-download',
+        'RiscFree IDE': Path(os.getenv('ATUM_RISCFREE',str(a/'riscfree/RiscFree/RiscFree'))),
         'elf2hex': Path(os.getenv('ATUM_ELF2HEX',str(a/'niosv/bin/elf2hex'))),
         'Graphviz': Path(shutil.which('dot')or '/missing/dot'),
-        **{name:Path(shutil.which(name)or '/missing/'+name)for name in('Xvfb','xdotool','scrot','pdftoppm','pdfinfo','pdftotext')},
+        **{name:Path(shutil.which(name)or '/missing/'+name)for name in('Xvfb','xdotool','scrot','pdftoppm','pdfinfo','pdftotext','cmake','make')},
     })
     missing = []
     print('Python:',sys.executable)

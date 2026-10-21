@@ -42,7 +42,7 @@ For a remote browser add `--ip=0.0.0.0`; use the Jupyter token printed in the te
 1. Open notebook 01 and select **Atum A3 IQ Demos**.
 2. Check the paths, board UART and JTAG cable in its configuration cell.
 3. Run the Python model, then generate the native VDS design. The actual VDS GUI opens on a private X display and uses **File → Export**. Its native PDF is rendered to PNG and displayed inline; the full GUI screenshot is saved too.
-4. Run the assertion-based RTL simulation and inspect its plot. The next cell prints commands to open the saved waveform in the Questa GUI.
+4. For checkpoints 2–5, run `lesson.software()` to generate/build the official HAL BSP and Hello World / IQ monitor applications. See the [RiscFree IDE guide](../software/README.md). Then run the assertion-based RTL simulation and inspect its plot. The next cell prints commands to open the saved waveform in the Questa GUI.
 5. Build and program. A fresh checkout performs a full compile. Later runs reuse only a source-matched, SHA-verified SOF; use `FORCE_REBUILD=True` for a fresh compile.
 6. Open the focused CyberEther link printed by the final cell. Leave it running while presenting.
 7. Run the next notebook. Programming stops the previous notebook-owned demo before replacing the board image.

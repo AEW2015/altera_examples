@@ -40,6 +40,10 @@ class Lesson:
  def diagram(self):
   from vds_gui_export import export_gui
   return export_gui(self.stage,self.out,[6,11,13,16,17][self.n-1])
+ def software(self):
+  if self.n==1:raise ValueError('Checkpoint 1 has no Nios V processor; use checkpoints 2–5.')
+  self.command([sys.executable,ROOT/'scripts/nios_software.py',self.n],self.out/'software.log')
+  return ROOT/'software'/f'checkpoint_{self.n:02d}'
  def topology(self):
   export=self.stage/'scripts/iq_bridge_system_export.tcl'
   if not export.exists():raise RuntimeError('Generate the native VDS system first')
