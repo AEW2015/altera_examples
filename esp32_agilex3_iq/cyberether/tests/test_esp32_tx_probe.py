@@ -3,7 +3,7 @@ import ctypes,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 class Job(ctypes.Structure):
-    _fields_=[('channel',ctypes.c_uint32),('duration_ms',ctypes.c_uint32),('backoff_qdb',ctypes.c_uint32),('nco_step',ctypes.c_uint32),('nco',ctypes.c_bool)]
+    _fields_=[('channel',ctypes.c_uint32),('duration_ms',ctypes.c_uint32),('backoff_qdb',ctypes.c_uint32),('nco_step',ctypes.c_uint32),('nco',ctypes.c_bool),('phase',ctypes.c_bool),('pattern',ctypes.c_uint32),('symbol_us',ctypes.c_uint32),('pulse_cycles',ctypes.c_uint32)]
 @unittest.skipUnless(shutil.which('cc'),'native C compiler required')
 class ProbeParser(unittest.TestCase):
     @classmethod
@@ -24,6 +24,12 @@ class ProbeParser(unittest.TestCase):
             job=Job();self.assertTrue(self.parse(f'NCO 8 500 96 {step}'.encode(),ctypes.byref(job)))
             self.assertTrue(job.nco);self.assertEqual(job.nco_step,step)
         for command in [b'NCO 8 500 96 -1',b'NCO 8 500 96 33',b'NCO 8 500 96 65535',b'NCO 8 500 96 1 x']:
+            self.assertFalse(self.parse(command,ctypes.byref(Job())))
+    def test_phase_job_limits_and_zero_pulse_control(self):
+        for command in [b'PHASE 8 500 96 165 64 2048',b'PHASE 8 50 96 170 128 0']:
+            job=Job();self.assertTrue(self.parse(command,ctypes.byref(job)))
+            self.assertTrue(job.phase);self.assertFalse(job.nco)
+        for command in [b'PHASE 8 501 96 165 64 2048',b'PHASE 8 500 96 256 64 2048',b'PHASE 8 500 96 165 31 2048',b'PHASE 8 500 96 165 64 8193',b'PHASE 8 500 96 165 64 -1']:
             self.assertFalse(self.parse(command,ctypes.byref(Job())))
     def test_rejects_unbounded_malformed_and_high_power(self):
         for command in [b'TONE 1 0 96',b'TONE 1 3001 96',b'TONE 1 50 0',b'TONE 12 50 96',b'TONE -1 50 96',b'TONE 1 50 -1',b'TONE 1 50 96 START',b'TONE 1 50',b'TONE 1 9999999999999999999999 96',b'TONE 1x 50 96']:

@@ -11,6 +11,7 @@ This page records the boundary between the working modem reference, FPGA acceler
 | RRC waveform, fractional acquisition, CFO correction, trained equalizer and pilot tracking | Python reference | Impairment simulations; not an FPGA raw-IQ receiver |
 | Native VDS design | New 18-block checkpoint06, retaining existing bridge/FIR/DDC/gain | Actual native GUI export; build evidence recorded separately |
 | Original ESP32 carrier / host-timed OOK TX | Separate bounded diagnostic, PMOD A → RF → RFS2 | [Actual bring-up results](ESP32_TX_BRINGUP_RESULTS.md); host detector, FPGA transport only |
+| Original ESP32 frequency / phase control | Guarded scalar NCO and CPU-timed phase-pulse diagnostics | [Measured relative-frequency sweep](ESP32_NCO_RF_RESULTS.md); [30 actual phase/control captures](ESP32_PHASE_RF_RESULTS.md), no framed bits/BER |
 | ESP32 original-chip arbitrary-IQ TX | Unresolved | Offline SDK/ROM investigation; no positive RF playback claim |
 | Optional S3 TX loader | New GPL application plus CRC uploader, pinned component/SDK | USB and UART transport variants compile; ELF RF SRAM-overlap check passes; not flashed/RF-qualified |
 | Independent RX/monitor role | Existing original ESP32 capture capability | Not yet exercised as a complete three-radio modulated link |
@@ -26,7 +27,7 @@ Actual RTL simulation verifies all 86 constellation points across the four modes
 
 ## Remaining gates
 
-1. Prove an arbitrary-IQ RF playback source on an installed original ESP32, or qualify a supported replacement transmitter. [Original-chip investigation](ESP32_TX_INVESTIGATION.md) tracks concrete binary/ROM evidence and next probes.
+1. Turn the measured original-chip phase-control path into a framed BPSK experiment with independent symbol/frame recovery. Arbitrary-IQ/amplitude-linear playback for higher QAM remains unqualified; prove that path or qualify a supported replacement transmitter. [Original-chip investigation](ESP32_TX_INVESTIGATION.md) tracks concrete binary/ROM evidence.
 2. Add FPGA waveform shaping/matched filtering, preamble/frame acquisition, timing/frequency/phase recovery and equalization with module-level reference checks. Existing FIR/DDC alone does not constitute a complete modem synchronizer.
 3. Connect real received frames through the FPGA stages, exercise independent monitor capture, and measure actual capture coverage, RF error floor and BER across modulation modes.
 4. Qualify real-RF 64-QAM empirically; retain visibly labeled FPGA/Python examples if the RF chain cannot meet the error budget.

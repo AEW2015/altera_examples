@@ -3,8 +3,10 @@
 The original chip has a concrete programmable tone path. **Its six arguments
 are two enable/frequency/attenuation triples, not Cartesian I and Q samples.**
 This note establishes the ABI from original-chip SDK debug information and ROM
-instructions, then defines the next bounded frequency experiment. It does not
-claim that the new experiment has already run or that a 64-QAM transmitter exists.
+instructions, and records the first successful receive-verified scalar NCO
+sweep. The measured results and limitations are summarized in
+[ESP32 NCO RF results](ESP32_NCO_RF_RESULTS.md). This evidence does not establish
+an arbitrary-IQ, BPSK or QAM transmitter.
 
 ## Strongest evidence: retained vendor DWARF
 
@@ -64,8 +66,8 @@ in a preservation experiment.
 
 **The attenuation byte is not a signed linear I/Q amplitude.** Its proven
 meaning is a vendor `tone*_atten` parameter encoded as a negated byte. A physical
-dB law does not follow from the encoding alone. Preserve the vendor CW setting
-for the first frequency experiment; do not import another chip's gain curve.
+dB law does not follow from the encoding alone. The measured sweep preserved the
+existing vendor CW setting; do not import another chip's gain curve.
 
 ### Frequency conversion and expected scale
 
@@ -102,9 +104,9 @@ masks it with `0x0fffffff` before combining the fields. A direct raw step of
 safe way to request a negative offset.
 
 The SDK MHz wrapper avoids this by masking the computed increment to **10 or
-12 bits first**. For a later negative-frequency experiment, use the original MHz
-wrapper or the correctly wrapped positive N-bit code; do not pass a negative
-raw `sint16`. The first proposed probe restricts raw steps to **0..32**.
+12 bits first**. The measured sweep below used raw steps **0..32**. For a later
+negative-frequency experiment, use the original MHz wrapper or the correctly
+wrapped positive N-bit code; do not pass a negative raw `sint16`.
 
 ## Original-chip vendor call-site checks
 
@@ -139,7 +141,7 @@ playback. [S3 firmware](https://github.com/jochenhammes/esp32-sdr-trx/blob/e1aeb
 
 Its experiments reject interpreting tone frequency fields as I/Q sample inputs.
 They also find a discontinuous gain region and qualify a separate useful range.
-Those observations motivate measuring our original chip first; its S3 register
+Those observations motivated measuring our original chip; its S3 register
 addresses, gain table, update rate and PLL scaling are **not transferable device
 settings**. [S3 research evidence](https://github.com/jochenhammes/esp32-sdr-trx/blob/e1aebbf2ef508c7199a9b6c6c277b57fe0b51aa9/docs/research/TX-RESEARCH.md)
 
@@ -158,20 +160,31 @@ sufficient resolution, bandwidth and stable phase behavior. The coarse NCO grid
 alone does not establish that. No arbitrary phase argument or direct static-IQ
 input has been identified in the six-argument tone ABI.
 
-## Next bounded experiment
+## Measured raw-step experiment
 
-1. Start from the already qualified reduced-power CW diagnostic. Snapshot both
-   tone control words, enables/attenuation bytes, bit 29 and the extension word.
-2. Reject unexpected control state. Keep enables, attenuation and mode unchanged;
-   vary only the wrapped raw increment over `0, 8, 16, 32`. The disabled tone may
-   have its increment changed too, but must remain disabled.
-3. Capture the independent receiver with enough bandwidth to cover the expected
-   displacement. Measure actual offset against the initial CW, clipping, image
-   levels and power. A peak outside the receiver band is not a failed transmitter.
-4. Stop on deadline, record STOP/idle, and verify baseline/restore. Do not reuse
-   a session's apparent gain/phase calibration after a retune without checking it.
-5. Only after offset/sign are measured, try a locally timed two-frequency
-   sequence and compare detected bits/FEC. Keep host-timed OOK evidence separate.
+An original ESP32 on PMOD-A v2 swept mode-12 raw codes `0, 1, 2, 4, 8, 16,
+32`; the independent RFS2 receiver recorded three CRC-checked 8192-sample
+captures per code at the host-configured 16 MS/s rate. The signed received peak
+moved from +17.578 kHz at step 0 to −1.232422 MHz at step 32. Differential
+peak displacement followed the predicted negative direction and matched the
+nominal 39.0625 kHz-per-code grid at the available 1.953125 kHz FFT-bin
+resolution. See the linked results page for the full table, telemetry and
+capture limits.
+
+All 21 payload CRCs passed, transport error counters remained zero, and no
+captured samples hit the CI8 rails. The tone enable, attenuation and mode state
+were preserved across each frequency change and the original register baseline
+was restored after every job. The stop event itself was not observed: the
+`TX_OFF` response/STOP text was dropped, while subsequent `INFO` reported
+`busy=0` and `STATE` readback showed both tone sources disabled. The hub's
+`text_drops` counter rose by two per job (15 to 27 over this run). That telemetry
+gap remains part of the evidence.
+
+This validates scalar tone frequency control over the measured range only. It
+does not measure calibrated absolute RF frequency or power, arbitrary complex
+samples, phase updates, or BPSK/QAM modulation. A later phase/pulse experiment
+must be evaluated separately; the coarse NCO result alone does not prove a
+modem-capable transmitter.
 
 A static-IQ experiment needs a genuine amplitude/phase actuator or independently
 proven orthogonal static sources. Enabling “tone 2” is not sufficient evidence

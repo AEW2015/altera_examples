@@ -1,17 +1,20 @@
 # Original ESP32 TX probe
 
-First hardware gate for the modem experiment: prove carrier transmission and a
-clean stop on the installed original ESP32. This is **CW only**, not arbitrary IQ
-playback, BPSK or QAM. It uses Espressif's `esp_phy_cert_test.h` API and does not
-write guessed S3 playback registers.
+Bounded RF diagnostics for the installed original ESP32. The image supports a
+vendor scalar tone and a guarded phase-pulse experiment. It does not provide
+arbitrary-IQ playback or a framed BPSK/QAM modem. It uses Espressif's
+`esp_phy_cert_test.h` API and does not write guessed S3 playback registers.
 
 The separate image is for a Digilent Pmod ESP32: application UART TX/RX GPIO17/16
 at 2 Mbaud, bootloader J2 GPIO1/3. Leave the two switches OFF as in the project's
-existing UART/programmer setup. RF is not initialized at boot. Each explicit job
-has a 50–3000 ms deadline, channel 1–11, and 80–120 quarter-dB attenuation
-(20–30 dB relative vendor backoff, **not calibrated output power**). The worker
-checks STOP/deadline every 5 ms after the vendor tone call returns. A firmware
-hang is not an independently timed RF shutdown guarantee.
+existing UART/programmer setup. RF is not initialized at boot. `TONE` and `NCO`
+jobs have a 50–3000 ms deadline, channel 1–11 and 80–120 quarter-dB attenuation
+(20–30 dB relative vendor backoff, **not calibrated output power**). `PHASE`
+jobs are limited to 50–500 ms with the same channel/backoff bounds. The worker
+checks cancellation and deadlines after the vendor tone call returns; ordinary
+jobs poll at 5 ms, while phase jobs schedule symbols using the CPU cycle counter
+and check cancellation during busy waits. These are firmware guards, not an
+independently timed RF shutdown guarantee if the CPU or RF call hangs.
 
 Build beside the pinned ESP-IDF tools:
 
@@ -35,9 +38,10 @@ Commands, each terminated by a newline:
 
 | Command | Behavior |
 |---|---|
-| `INFO` | Identity, chip revision, MAC, pins, busy state; no RF initialization |
+| `INFO` | Identity, chip revision, MAC, pins, busy state and firmware version; no RF initialization |
 | `TONE 3 3000 96` | Channel 3, maximum 3 seconds, 24 dB vendor power backoff |
-| `STOP` | Request cancellation; wait for `TX_OFF` to establish completion |
+| `STATE` | Read tone control words after RF has been initialized |
+| `STOP` | Request cancellation; poll `INFO` for `busy=0` and `STATE` for disabled tones |
 
 Once the image is booted and the normal IQB1 FPGA hub restored, stop the current
 viewer using its own checkout's `lessons.stop_demo()`, then run from this example:
@@ -86,9 +90,12 @@ Original frequency/extension values are restored through the ROM routine before
 the vendor stop sequence; their exact before/after/restored words are logged.
 
 The predicted grid is 156.25 kHz or 39.0625 kHz per step, depending on the existing
-mode. That is a source-derived prediction until an independent RF sweep passes.
-There is no phase argument and no Cartesian I/Q injection in this interface.
-[Evidence and exact offline model](../../docs/ESP32_NCO_PROBE_EVIDENCE.md).
+mode. An original ESP32 PMOD-A v2 → RFS2 sweep measured the mode-12 displacement
+for raw steps 0..32 in agreement with the nominal grid at 1.953125 kHz receiver
+FFT resolution. This is relative-frequency evidence, not calibrated absolute
+frequency or power. There is no Cartesian I/Q injection in this interface.
+[Measured results](../../docs/ESP32_NCO_RF_RESULTS.md) and [ABI evidence with the
+offline model](../../docs/ESP32_NCO_PROBE_EVIDENCE.md).
 
 After explicitly installing v2 and restoring the FPGA hub:
 
@@ -99,5 +106,63 @@ After explicitly installing v2 and restoring the FPGA hub:
 
 The checker rejects v1, captures seven raw step settings, checks mode/gain/enable
 and step readback, checks restoration, and compares measured RF frequency shifts
-with the nominal grid. The plots use host FFTs. Until measured successfully,
-**v2 NCO control is built software, not qualified RF operation**.
+with the nominal grid. The plots use host FFTs. The cited sweep established this
+bounded scalar-tone displacement, not arbitrary IQ, symbol modulation or an
+absolute frequency calibration.
+
+## v3 phase-pulse timing probe
+
+The v3 firmware adds `PHASECAP`, `PHASE`, and `PHASESTAT` for a bounded
+frequency-increment pulse experiment. These commands schedule toggles of the
+already-qualified low frequency bit in tone 1; they do not feed cosine/sine
+samples or decoded bits to the radio. The extension register is restored after
+each pulse, then the vendor tone and RF test mode are stopped when the job
+completes.
+
+| Command | Syntax / response | Meaning |
+|---|---|---|
+| `PHASECAP` | `PHASECAP,cpu=…,half_cycles=…,step_nom_mHz=39062500` | Reports current CPU clock, nominal half-turn cycle count and nominal mode-12 step in millihertz. It does not measure RF phase. |
+| `PHASE` | `PHASE channel duration_ms backoff_qdb pattern symbol_us pulse_cycles` | Start a guarded repeating pattern of CPU-timed increments. Pattern is a decimal 8-bit value sent MSB first and repeated. |
+| `PHASESTAT` | `PHASESTAT,job=…,cpu=…,symbols=…,flips=…,min=…,max=…,late=…` | Read scheduled symbol count, transition count, minimum/maximum pulse widths in CPU cycles and late-slot count for the current/last job. |
+
+The parser bounds PHASE to channel 1–11, duration 50–500 ms, backoff 80–120
+quarter-dB, pattern 0–255, symbol period 32–256 µs and pulse width 0–8192 CPU
+cycles. The firmware also rejects a pulse wider than half a symbol. It requires
+the canonical high-resolution state: tone 1 enabled at raw step zero, tone 2
+disabled, and the relevant reserved/extension fields clear. It changes only
+tone 1 extension bit 0 during a pulse; the main tone words are not rewritten.
+On completion or STOP, the saved extension value is written back and the vendor
+tone/RF test mode are stopped.
+
+`min`/`max` in `PHASESTAT` are measured CPU cycle deltas around the firmware's
+register pulse. They are **CPU timing**, not a measurement of RF phase or exact
+RF pulse duration. The nominal conversion `39062.5 Hz × pulse duration` is only
+a hypothesis because register-store latency, scheduling, the RF accumulator's
+continuity and the receiver all affect what appears over the air. The
+independent receiver analysis is the evidence for any RF phase change.
+
+Independent RFS2 measurements now show persistent approximately 180° changes
+for the full-width pulses, with carrier-only and half-width negative controls.
+[Measured results and timing limits](../../docs/ESP32_PHASE_RF_RESULTS.md).
+Do not infer decoded bits, a preamble/header, BER or arbitrary-IQ capability
+from those states. See the experiment's
+[measurement and interpretation guide](../../docs/ESP32_PHASE_PROBE.md).
+
+After explicitly installing v3 and restoring the FPGA hub, run the independent
+capture/checker on the Linux host or container with the board attached:
+
+```bash
+.venv-notebooks/bin/python scripts/check_esp32_phase.py \
+  --port /dev/ttyUSB0 --output cyberether/run/phase-test-new
+```
+
+Options are `--repeats 1..5` (default 2), `--rx-gain 0..127` (default 0),
+`--backoff-qdb 80..120` (default 96), `--pattern 0..255` (decimal; default 165),
+`--symbol-us 32..256` (default 64), and optional `--pulse-cycles N` (1..8192)
+to override the CPU-derived nominal half-turn width. The checker also requires
+`--output` and accepts optional `--port`; inspect
+`scripts/check_esp32_phase.py --help` for current details. It records zero-pulse,
+half-width and nominal-half-turn captures, receiver analysis and state/telemetry
+proof. `--pulse-cycles` changes the test duration only; it is never a requested
+or assumed RF phase. No command in the README builds or flashes a device by
+default; retain the full backup and existing safe flash/restore procedure above.

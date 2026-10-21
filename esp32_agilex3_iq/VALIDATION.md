@@ -193,7 +193,7 @@ reported off at 500,803 µs; a separate 750 ms job stopped at 754,928 µs with a
 62.12 dB independently observed RF power drop. The repeatable `--automatic-stop`
 checker also passed a three-second job (3,004,956 µs, 62.34 dB measured fall).
 All 36 captures in the three full tone tests passed transport checks, without
-ADC rail hits.
+exact CI8 rail hits; absence of those codes does not establish analog headroom.
 
 Host-coordinated OOK recovered `A5C3` and `A55A0123456789FF` exactly: zero observed
 errors over 16 + 64 bits. Decision threshold comes from separate off/on training
@@ -212,6 +212,46 @@ Final hardware state: PMOD A runs the bounded TX probe, RF idle; RFS2 and PMOD B
 retain their receiver firmware; checkpoint 3 hub restored; RFS2 gain restored to
 hardware AGC. The prior viewer is paused and no test UART/JTAG owner remains.
 Private backup, capture logs and proof JSON remain ignored locally.
+
+## Original ESP32 NCO and phase control — 2026-10-21
+
+PMOD A's bounded v3 probe was built against pinned SDK
+`25fe69f946311abdaf9ad56591f25fedbc20ac98`, flashed with hash verification,
+and identified on its normal application UART after the requested physical
+resets. Application SHA-256:
+`9ba48ecbba51984375e055cb1c781c82239bd5fa8ce21fdbfa2eb3ebe874d170`.
+The normal checkpoint-3 FPGA hub was restored before boot:
+`3c1631a335072090dbd212e39ef6b8586c43aba5c5f8e98a2f73c0cd51bb0150`.
+
+Independent RFS2 IQ captures verified relative scalar-tone frequency increments
+0/1/2/4/8/16/32 on the nominal 39.0625 kHz grid. Both the v2 sweep and v3
+regression passed 21/21 payload CRCs with the same peak-bin displacements at
+1.953125 kHz FFT resolution. In v3 all seven stop events were observed, the
+existing text-drop counter stayed at 11, and command/framing/capture errors
+remained zero. This does not calibrate either radio clock or RF power.
+[Frequency measurements](docs/ESP32_NCO_RF_RESULTS.md).
+
+The v3 phase-continuity experiment acquired **30 physical captures** across five
+runs. All 10 full-width captures showed coherent near-antipodal plateaus and
+persistent approximately 180° events; all 10 zero-width carrier controls and
+all 10 half-width controls rejected the two-state criterion. Symbol-period and
+pattern controls changed the observed spacing. All 30 frames passed transport
+checks with zero command/framing/capture errors and no exact CI8 rail hits.
+Manual RX gain 0 avoided the extreme-code concentration found in earlier
+gain-20 CW data; absence of exact rail hits alone does not prove analog headroom.
+
+The offline event detector was corrected to group ringing lobes with 6 µs quiet
+resolution, then applied to every saved capture and independent synthetic
+controls. Original proofs remain local. CPU timing and received phase vary:
+the optional pulse-width calibration did not establish a unique RF timing
+calibration. These are host-analyzed RF phase measurements with FPGA capture
+transport, not decoded bits, BER, FPGA synchronization/FEC or arbitrary-IQ TX.
+[Phase measurements, controls, PNG and reproduction](docs/ESP32_PHASE_RF_RESULTS.md).
+
+Full working-tree host suite: **118 tests passed**, including actual native-C
+command parsing and six offline phase-analysis test groups. Final radio
+readback is idle with both tone generators disabled and extension cleared;
+RFS2 hardware AGC is restored. No test UART/JTAG owner remains.
 
 ## Checkpoint 06 modem — physical FPGA qualification, 2026-10-21
 
