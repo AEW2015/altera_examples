@@ -212,3 +212,38 @@ Final hardware state: PMOD A runs the bounded TX probe, RF idle; RFS2 and PMOD B
 retain their receiver firmware; checkpoint 3 hub restored; RFS2 gain restored to
 hardware AGC. The prior viewer is paused and no test UART/JTAG owner remains.
 Private backup, capture logs and proof JSON remain ignored locally.
+
+## Checkpoint 06 modem — physical FPGA qualification, 2026-10-21
+
+Programmed the source-matched checkpoint-6 image on the Atum A3 Nano and read
+modem block ID `0x4d440601` from hardware. SOF SHA-256:
+`f5c6f0f2010d1c08a5e7f2bb6dd4ef01ad5d78b53f72ea49dca28157aa9ebeb7`.
+Fit: 28,058/45,800 ALMs (61%), 146/353 M20Ks (41%), 32 reported DSP units;
+setup slack +1.194 ns and hold +0.026 ns at 50 MHz. These are compilation
+allocations, not measured live utilization.
+
+`scripts/check_modem_hardware.py` passed all four modes on **32-bit payloads**:
+BPSK, QPSK, 16-QAM and 64-QAM. Actual FPGA coded bits, quantized symbols, signed
+soft metrics and decoded payloads matched independent Python results. A seeded
+64-QAM symbol-noise case produced **6/76 coded-bit errors → 0/32 payload errors**.
+The 64-QAM decoder reported 5,938 cycles (118.76 µs at the configured clock);
+JTAG upload/readback is much slower and is excluded from this kernel time.
+
+These are physical FPGA **symbol-level** transactions with host-generated bits
+and symbol noise. They are not an RF synchronization or over-air QAM test.
+The full 256-bit capacity/noise case remains covered by actual Questa simulation
+(27/524 coded errors → 0/256 payload errors); the optional full-capacity hardware
+run is slower and was not completed. Reproduce with:
+
+```bash
+.venv-notebooks/bin/python scripts/modem_fpga.py program
+.venv-notebooks/bin/python scripts/check_modem_hardware.py
+# Optional slower maximum-frame case:
+.venv-notebooks/bin/python scripts/check_modem_hardware.py --payload-bits 256
+```
+
+The guarded programmer checks the source fingerprint/SOF hash; the tested block
+ID is hardware readback. Saved bitstream SHA is local programming provenance,
+not a SHA read back from the silicon. After testing, checkpoint 3 was restored
+for the ongoing radio TX probe. No ESP32 firmware change was required for these
+FPGA tests. Detailed local proof: `cyberether/run/modem-hardware-proof.json`.

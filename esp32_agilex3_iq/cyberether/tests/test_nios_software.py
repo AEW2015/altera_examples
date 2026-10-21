@@ -26,7 +26,7 @@ class DownloadTarget(unittest.TestCase):
         elf.parent.mkdir(parents=True)
         elf.write_bytes(b'fake ELF; subprocess execution is mocked')
 
-    def invoke(self, listing):
+    def invoke(self, listing, checkpoint=2):
         with patch.object(nios_download, 'ROOT', self.root), \
              patch.object(nios_download, 'stages', return_value=[None, self.stage]), \
              patch.object(nios_download, 'local_tools', return_value=True), \
@@ -34,7 +34,7 @@ class DownloadTarget(unittest.TestCase):
              patch.object(nios_download, 'stop_demo') as stop, \
              patch.object(nios_download.subprocess, 'check_output', return_value=listing), \
              patch.object(nios_download.subprocess, 'run') as run, \
-             patch.object(sys, 'argv', ['nios_download.py', '2', 'hello_world']), \
+             patch.object(sys, 'argv', ['nios_download.py', str(checkpoint), 'hello_world']), \
              patch.dict('os.environ', {'ATUM_JTAG_CABLE': 'Atum A3 Nano [usb]'}), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             try:
@@ -61,3 +61,13 @@ class DownloadTarget(unittest.TestCase):
         self.assertEqual(code, 2)
         stop.assert_not_called()
         run.assert_not_called()
+
+    def test_modem_checkpoint_selects_its_own_software(self):
+        self.state.write_text(json.dumps({'stage_relative': 'fpga_hub/iq_bridge/vds_demo_06_modem'}))
+        elf = self.root / 'software/checkpoint_06/hello_world/build/hello_world.elf'
+        elf.parent.mkdir(parents=True)
+        elf.write_bytes(b'fake ELF; subprocess execution is mocked')
+        code, stop, run = self.invoke('2) Atum A3 Nano [usb]\n', checkpoint=6)
+        self.assertIsNone(code)
+        self.assertEqual(run.call_args.args[0][-1], str(elf))
+        stop.assert_called_once()

@@ -37,7 +37,7 @@ def container_root():
     raise RuntimeError('Example is not mounted in '+CONTAINER+'; set ATUM_CONTAINER_ROOT after adding its bind mount')
 def env():
     return dict(os.environ,ATUM_CONTAINER_ROOT=container_root(),ATUM_CONTAINER=CONTAINER)
-def stages():return sorted((ROOT/'fpga_hub/iq_bridge').glob('vds_demo_0*'))
+def stages():return sorted((ROOT/'fpga_hub/iq_bridge').glob('vds_demo_0[1-5]_*'))
 
 def local_tools():
     return os.getenv('ATUM_TOOLS_MODE','local')!='docker'

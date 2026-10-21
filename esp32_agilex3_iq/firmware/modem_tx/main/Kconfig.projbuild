@@ -1,0 +1,11 @@
+menu "Modem TX transport"
+config MODEM_TX_UART
+    bool "Use PMOD UART instead of USB Serial/JTAG for commands and upload"
+    default n
+config MODEM_TX_UART_TX
+    int "UART transmit GPIO (verify board wiring)"
+    default 43
+config MODEM_TX_UART_RX
+    int "UART receive GPIO (verify board wiring)"
+    default 44
+endmenu

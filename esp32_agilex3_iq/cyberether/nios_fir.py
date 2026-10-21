@@ -12,14 +12,14 @@ HAMMING=[-42,-177,-406,-352,669,2961,5846,7885,7885,5846,2961,669,-352,-406,-177
 PROFILES={1:[2048]*16,2:HAMMING}
 CABLE=os.getenv('ATUM_JTAG_CABLE','Atum A3 Nano [1-4.3-iface0]')
 class NiosFir:
-    def __init__(self,log:Path|None=None):
+    def __init__(self,log:Path|None=None,pause_monitor=True):
         run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
         self.lock=(run/'nios-fir.lock').open('a')
         try:fcntl.flock(self.lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:
             self.lock.close();raise RuntimeError('Another Nios FIR control client is active') from None
         self.paused=None
-        self.pause_monitor()
+        if pause_monitor:self.pause_monitor()
         self.messages=queue.Queue();self.request=int(time.monotonic_ns()%1000000000);self.log=log.open('x') if log else None
         run=ROOT/'cyberether/run';run.mkdir(exist_ok=True)
         self.pidfile=run/f'nios-fir-{os.getpid()}.pid'

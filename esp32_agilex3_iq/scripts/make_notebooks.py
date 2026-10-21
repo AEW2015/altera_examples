@@ -448,3 +448,183 @@ Python examples above model **this checkout's original ESP32 backend**. Other ES
 ]
 firmware_notebook=nb.v4.new_notebook(cells=firmware_cells,metadata=notebook.metadata)
 write_notebook(firmware_notebook,ROOT/'notebooks/07_esp32_sdr_firmware.ipynb')
+
+# Offline modem education lesson. Keep this separate from FPGA lessons 01–05 and
+# RF Arcade: its Python synchronization path is a reference, not FPGA evidence.
+modem_cells = [
+ nb.v4.new_markdown_cell("""# 08 · Modem Lab · BPSK to 64-QAM
+
+**Local software lesson · no board access or radio capture**
+
+**What is added:** a Python reference chain and interactive browser lab for BPSK, QPSK, 16-QAM and 64-QAM.
+
+**Why it is useful:** adjust noise, carrier offset, timing and multipath, then see what synchronization, hard/soft decisions and FEC do to the same known frame.
+
+**How it works:** the seeded Python model creates a framed waveform, adds channel impairments, acquires the burst and compares decoded bits with the known payload. The local browser page displays raw and recovered samples, EVM, CRC/lock state and error counts.
+
+```text
+Python TX reference → seeded software channel → Python RX reference → measured BER / EVM
+```
+
+Every result is explicitly **Python simulation**. RF TX qualification is blocked: only original ESP32 modules are installed, and arbitrary-IQ playback is not qualified. The Python carrier/timing recovery and equalizer do not imply that matching FPGA blocks exist. The separate checkpoint 06 currently targets the symbol-level FEC/QAM path; waveform shaping and synchronization remain future RTL work. No hardware is touched by the cells in this notebook."""),
+ nb.v4.new_markdown_cell("## 1 · Set up the offline model\n\nRun from the repository's Atum A3 IQ Demos environment. This lesson needs the existing NumPy and Matplotlib packages. It does not need Quartus, Questa, a board, ESP32 firmware or a network connection."),
+ nb.v4.new_code_cell('''from pathlib import Path
+import sys
+ROOT = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "cyberether/modem_lab.py").exists())
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "cyberether"))
+from lessons import lan_ip
+from modem_reference import run_experiment
+print("Example root:", ROOT)
+print("Backend: Python reference simulation; no hardware source")''',metadata={'tags':['setup','offline']}),
+ nb.v4.new_markdown_cell("## 2 · Compare the modulation ladder\n\nAll four runs use the same SNR, seed and payload length. Higher-order modes carry more coded bits per symbol, while their ideal points sit closer together at the same average symbol energy. The following plots are synthetic simulation results."),
+ nb.v4.new_code_cell('''import matplotlib.pyplot as plt
+from notebook_progress import progress
+MODES = ("BPSK", "QPSK", "16QAM", "64QAM")
+ladder = {}
+with progress("Simulate modulation ladder"):
+    for mode in MODES:
+        ladder[mode] = run_experiment(modulation=mode, snr_db=18, cfo_hz=1500,
+            timing_offset=.25, multipath=False, seed=7, payload_bits=2048,
+            decode_mode="soft", coded=True, sample_rate=4_000_000, sps=4)
+fig, axes = plt.subplots(1, 4, figsize=(13, 3.5))
+for ax, mode in zip(axes, MODES):
+    plot = ladder[mode]["plots"]
+    ideal = plot["ideal_xy"]
+    received = plot["recovered_xy"]
+    ax.scatter([p[0] for p in ideal], [p[1] for p in ideal], s=9, c="#71869d", marker="s", label="ideal")
+    ax.scatter([p[0] for p in received], [p[1] for p in received], s=7, c="#18aeb2", alpha=.45, label="recovered")
+    ax.set(title=mode, xlabel="I", ylabel="Q", aspect="equal")
+    ax.grid(alpha=.2)
+axes[0].legend(loc="lower left", fontsize=8)
+fig.suptitle("Python simulation · recovered symbols and ideal reference")
+fig.tight_layout()
+plt.show()
+for mode, result in ladder.items():
+    m = result["metrics"]
+    print(f"{mode:6} EVM={m['evm_percent']:.2f}%  pre-FEC={m['pre_fec_errors']}/{m['pre_fec_bits']}  soft payload errors={m['soft_fec_errors']}/{m['post_fec_bits']}")''',metadata={'tags':['theory','offline']}),
+ nb.v4.new_markdown_cell("## 3 · Change one impairment at a time\n\nThis sweep keeps modulation, seed and payload fixed while changing carrier offset. Each result is a separate seeded simulation. Acquisition failure, a bad header or CRC failure is a real model outcome and stays visible in the metrics."),
+ nb.v4.new_code_cell('''carrier_sweep = []
+with progress("Measure carrier-offset sweep"):
+    for offset in (0, 1500, 5000, 10000):
+        result = run_experiment(modulation="64QAM", snr_db=18, cfo_hz=offset,
+            timing_offset=.25, multipath=False, seed=21, payload_bits=4096,
+            decode_mode="soft", coded=True, sample_rate=4_000_000, sps=4)
+        carrier_sweep.append((offset, result["metrics"]))
+for offset, m in carrier_sweep:
+    print(f"CFO {offset:5} Hz · lock={m['locked']} · EVM={m['evm_percent']:.2f}% · hard errors={m['hard_fec_errors']}/{m['post_fec_bits']} · soft errors={m['soft_fec_errors']}/{m['post_fec_bits']} · CRC={m['crc_ok']}")''',metadata={'tags':['theory','offline']}),
+ nb.v4.new_markdown_cell("## 4 · Accumulate a 64-QAM BER curve\n\nThis longer run aggregates 49 independent, seeded 2048-bit payloads at each Es/N0 point. It compares hard and soft Viterbi input over the same software channel and reports actual error counts and tested-bit denominators. The reference BER helper excludes frames that fail acquisition/header decoding and reports those separately. It labels every row as **Python simulation**. This takes longer than the single-frame controls, so the cell shows elapsed progress and the current SNR; reduce `BER_SEEDS` for a quick preview. A zero-error observation is shown as a separate annotated marker and count, not as BER=0 on the logarithmic axis."),
+ nb.v4.new_code_cell('''from modem_reference import ber_sweep
+
+BER_SNR_DB = (12, 16, 18, 22)
+BER_SEEDS = tuple(range(49))
+BER_PAYLOAD_BITS = 2048
+ber_rows = []
+with progress("Accumulate 64-QAM BER curve") as activity:
+    for snr in BER_SNR_DB:
+        activity.message(f"{len(BER_SEEDS)} independent frames · {BER_PAYLOAD_BITS} payload bits/frame · Es/N0 {snr} dB")
+        result = ber_sweep(modulation="64QAM", snr_values=(snr,), seeds=BER_SEEDS,
+            payload_bits=BER_PAYLOAD_BITS, cfo_hz=1500, timing_offset=.25,
+            multipath=False, coded=True, decode_mode="soft",
+            sample_rate=4_000_000, sps=4)
+        ber_rows.extend(result["rows"])
+
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(8, 4.8))
+for key, label, color, marker in (
+    ("hard_fec_ber", "Hard-decision Viterbi", "#d38b2c", "o"),
+    ("soft_fec_ber", "Soft-decision Viterbi", "#168f9b", "s"),
+):
+    measured = [row for row in ber_rows if row[key] is not None and row[key] > 0]
+    ax.plot([r["snr_db"] for r in measured], [r[key] for r in measured],
+            color=color, marker=marker, linewidth=2, label=label)
+    zeros = [row for row in ber_rows if row[key] == 0]
+    if zeros:
+        # The marker lives in the bottom annotation strip, not at an invented BER value.
+        ax.scatter([r["snr_db"] for r in zeros], [.055] * len(zeros),
+                   transform=ax.get_xaxis_transform(), marker="v", s=50,
+                   facecolors="none", edgecolors=color, linewidths=1.5,
+                   label=f"{label}: zero observed (annotation only)")
+        for row in zeros:
+            ax.annotate(f"0/{row['post_fec_bits']}",
+                        xy=(row["snr_db"], .055), xycoords=ax.get_xaxis_transform(),
+                        xytext=(0, 8), textcoords="offset points", ha="center",
+                        color=color, fontsize=8, rotation=90)
+ax.set_yscale("log")
+ax.set_xlabel("Es/N0 (dB)")
+ax.set_ylabel("Observed payload BER (nonzero counts)")
+ax.set_title("Python simulation · 64-QAM hard vs soft decoding")
+ax.grid(True, which="both", alpha=.25)
+ax.legend(fontsize=8)
+ax.text(.01, .015, "Hollow triangles and 0/N labels mark zero observed errors; they are not BER coordinates.",
+        transform=ax.transAxes, fontsize=8, color="#555")
+fig.tight_layout()
+plt.show()
+print("Source: Python simulation · Es/N0 sweep · same seeded frames for hard/soft decoding")
+for row in ber_rows:
+    total = row["post_fec_bits"]
+    def count(key):
+        errors = row[key]
+        return f"{errors}/{total} = {errors/total:.6g}" if errors else f"0/{total} observed; BER not plotted"
+    print(f"{row['snr_db']:>2.0f} dB · frames {row['frames']} · failures {row['frame_failures']} · hard {count('hard_fec_errors')} · soft {count('soft_fec_errors')}")''',metadata={'tags':['theory','offline','ber-sweep']}),
+ nb.v4.new_markdown_cell("## 5 · Open the interactive browser lab\n\nThis starts a Python server bound to `0.0.0.0` so a browser on your LAN can reach the notebook host. The printed URL uses `lan_ip()`; replace `HOST` below with an address reachable from your browser if route discovery chooses the wrong interface. The optional FPGA action remains off unless you explicitly set `ENABLE_FPGA_ACTION=True`; even then its separate button requires a click, a matching checkpoint 06 manifest/image and a free Nios/JTAG owner. Stop the process by interrupting this cell or use the cleanup cell. Python plots remain labeled simulation; FPGA results use a separate badge and evidence."),
+ nb.v4.new_code_cell('''import subprocess
+LAB_LOG = ROOT / "cyberether/run/modem-lab.log"
+LAB_LOG.parent.mkdir(parents=True, exist_ok=True)
+LAB_PORT = 8769
+HOST = lan_ip()  # Set to a reachable host/container LAN address if needed.
+ENABLE_FPGA_ACTION = False  # Opt in explicitly; still requires a manual click and checkpoint guard.
+lab_log = LAB_LOG.open("ab")
+args = [sys.executable, str(ROOT / "cyberether/modem_lab.py"), "--host", "0.0.0.0", "--port", str(LAB_PORT)]
+if ENABLE_FPGA_ACTION:
+    args.append("--enable-fpga-action")
+lab_process = subprocess.Popen(args, stdout=lab_log, stderr=subprocess.STDOUT, cwd=ROOT)
+LAB_URL = f"http://{HOST}:{LAB_PORT}/"
+print("Modem Lab:", LAB_URL)
+print("Server PID:", lab_process.pid, "· bind: 0.0.0.0 · source: Python simulation")''',metadata={'tags':['offline','browser']}),
+ nb.v4.new_markdown_cell("### Saved browser example\n\nThis static screenshot was captured from the working local page. Values are one seeded Python simulation run; the RF TX qualification banner records the current original-ESP32 hardware gate.\n\n![Modem Lab browser example](screenshots/08_modem_lab.png)\n\n[Open the full-resolution screenshot](screenshots/08_modem_lab.png)."),
+ nb.v4.new_markdown_cell("## 6 · FPGA path and its current boundary\n\nCheckpoint 06 implements symbol-rate encoding/mapping, max-log soft demapping and Viterbi FEC. Run the actual Questa assertions, then optionally generate the native VDS project and build a SOF using the executable cells below. Each action is controlled by a default-false switch so **Run All** stays offline. Generation/build use the project progress helper and log output. They do not program a board or flash a radio. The saved PNG is an actual Quartus VDS GUI export from checkpoint 06. Python waveform shaping, burst acquisition, carrier/timing recovery and equalization are not implemented in this RTL."),
+ nb.v4.new_markdown_cell("### Saved native Quartus VDS GUI export\n\n![Checkpoint 06 modem block design exported from the actual VDS GUI](diagrams/08_vds_gui.png)\n\nThis is the native design GUI export, not a Python topology drawing. The executable generate cell can recreate the project and export a fresh diagram locally."),
+ nb.v4.new_code_cell('''from IPython.display import Image, display
+from pathlib import Path
+from simulate_modem import simulate
+from modem_fpga import build as build_modem
+
+# Enable only the action you intend to run. Simulation/build/generation never program hardware.
+RUN_QUESTA_SIMULATION = False
+GENERATE_NATIVE_VDS = False
+BUILD_MODEM_SOF = False
+
+if RUN_QUESTA_SIMULATION:
+    rtl_result = simulate(gui=False)  # Actual RTL assertions; no FPGA/JTAG/serial access.
+    print("RTL simulation:", rtl_result["status"])
+if GENERATE_NATIVE_VDS:
+    modem_qpf = build_modem(generate_only=True)  # Tool invocation shows progress and writes a log.
+    print("Generated project:", modem_qpf)
+if BUILD_MODEM_SOF:
+    modem_qpf = build_modem(generate_only=False)  # Quartus compile only; no board programming.
+    print("Built SOF:", modem_qpf.with_suffix(".sof"))
+
+saved_diagram = ROOT / "notebooks/diagrams/08_vds_gui.png"
+display(Image(filename=str(saved_diagram)))
+print("Saved actual VDS export:", saved_diagram)''',metadata={'tags':['rtl','offline','optional-tools']}),
+ nb.v4.new_markdown_cell("### Optional · program checkpoint 06\n\nThis replaces the currently loaded FPGA image with the modem checkpoint. It checks the build fingerprint and SOF SHA, stops only this checkout's notebook-owned demo, refuses remaining serial/JTAG owners and uses the explicit Atum JTAG cable setting. Do not run this while another acquisition service or design owner is active. The cell is separate from generation/simulation and defaults off; it does not flash or reset an ESP32. Review the compiled image and its resource/timing reports before explicitly running this cell."),
+ nb.v4.new_code_cell('''from modem_fpga import program
+
+RUN_PROGRAM_MODEM = False  # Explicitly set True and run this cell to load checkpoint 06.
+if RUN_PROGRAM_MODEM:
+    active_modem = program()  # Hash/source guard + device-owner guard + progress.
+    print("Loaded:", active_modem["stage_relative"], "· hardware qualification remains separate.")
+else:
+    print("Programming skipped. Set RUN_PROGRAM_MODEM=True only for the explicit checkpoint 06 load.")''',metadata={'tags':['hardware','program','modem-checkpoint']}),
+ nb.v4.new_markdown_cell("## Cleanup\n\nStop the local page and release its port when finished. The process is separate from FPGA acquisition services."),
+ nb.v4.new_code_cell('''if "lab_process" in globals() and lab_process.poll() is None:
+    lab_process.terminate()
+    lab_process.wait(timeout=5)
+    lab_log.close()
+    print("Modem Lab stopped.")
+else:
+    print("No Modem Lab server is running from this kernel.")''',metadata={'tags':['cleanup']})
+]
+modem_notebook = nb.v4.new_notebook(cells=modem_cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
+write_notebook(modem_notebook, ROOT/'notebooks/08_modem_lab.ipynb')

@@ -18,6 +18,8 @@ For a presentation using checkpoint 5, open [06 RF Arcade setup](06_rf_arcade.ip
 
 Explore [07 ESP32 SDR firmware](07_esp32_sdr_firmware.ipynb) offline: firmware flow, tuning/gain/bandwidth controls, synthetic IQ plots, byte packing/CRC and UART limits. This is a Python lesson, not another FPGA checkpoint.
 
+Explore [08 Modem Lab](08_modem_lab.ipynb): BPSK/QPSK/16-QAM/64-QAM, seeded channel impairments, synchronized symbols, EVM, hard/soft BER counts and a 49-frame-per-point 64-QAM BER curve. The browser page is explicitly Python simulation by default; optional manual FPGA loopback is a separate symbol-rate source. Default-false notebook cells run actual Questa simulation, VDS generation or SOF build with progress. The notebook includes the saved VDS GUI export. See the [Modem Lab guide](../docs/MODEM_LAB.md).
+
 ## Install once
 
 From the example root:

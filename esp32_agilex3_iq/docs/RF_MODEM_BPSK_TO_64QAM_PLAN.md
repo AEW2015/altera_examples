@@ -1,6 +1,6 @@
 # Next major RF demo: BPSK to 64-QAM modem lab
 
-Status: implementation roadmap; new modem functions and ESP32 raw-IQ TX are not hardware-qualified in this checkout.
+Status: implementation in progress. See [measured implementation status](MODEM_IMPLEMENTATION_STATUS.md) for the Python reference, FPGA symbol/FEC checkpoint, validation and remaining raw-RF work.
 
 ## Outcome
 

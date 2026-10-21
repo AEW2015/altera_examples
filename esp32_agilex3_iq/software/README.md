@@ -111,3 +111,7 @@ For manual download, first run `openocd-cfg-gen --print /tmp/discover.cfg` to li
 ## Validation
 
 Four BSPs and eight Debug applications build with Quartus/Nios V 26.1.1 tools. The official RiscFree GUI imported checkpoint-2 and checkpoint-5 BSP/Hello World projects and built their ELFs. Its generated External Tools configuration downloaded the IDE-built checkpoint-5 Hello World successfully. On the physical Atum A3 Nano, checkpoint-5 Hello World printed its banner and timed heartbeats; the monitor ELF printed advancing IQMON counters. Hardware tests use the already-built checkpoint-5 FPGA image. See the repository [validation record](../VALIDATION.md).
+
+## Modem checkpoint 06
+
+After `python scripts/modem_fpga.py generate`, run `python scripts/nios_software.py 6` to generate/build its official HAL BSP, Hello World and modem-capable IQ monitor apps. Import the generated `software/checkpoint_06/bsp` and app directories in RiscFree as above. The original `all` shortcut still covers checkpoints 2–5; modem generation is explicit. Only after checkpoint06 is programmed, `python scripts/nios_download.py 6 hello_world` loads Hello World; restore its command monitor with `python scripts/nios_download.py 6 boot_monitor` before modem transactions. These software downloads are explicit hardware operations and are not part of the default notebook Run All.

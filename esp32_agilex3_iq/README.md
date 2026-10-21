@@ -17,7 +17,9 @@ This example includes the **five checkpoints and IQ Pipeline Lab**. The earlier 
 
 The [FIR notebook](notebooks/03_fir_filter.ipynb) includes [15 reloadable filter examples](docs/FIR_FILTER_LIBRARY.md), response plots, Python controls and a browser coefficient editor. Try the 4 MHz notch on the clean FPGA two-tone input; the page verifies the applied taps and measured output.
 
-**Next major RF demo:** [BPSK → QPSK → 16-QAM → 64-QAM modem lab](docs/RF_MODEM_BPSK_TO_64QAM_PLAN.md): three ESP32 radio roles, FPGA synchronization/equalization, soft demapping, FEC and measured BER.
+**Modem Lab:** [notebook 08](notebooks/08_modem_lab.ipynb) and [run guide](docs/MODEM_LAB.md) demonstrate BPSK → QPSK → 16-QAM → 64-QAM, synchronization, soft decoding and BER. A separate [VDS modem checkpoint](fpga_hub/iq_bridge/vds_demo_06_modem/README.md) implements the FPGA symbol/FEC path. [Implementation status](docs/MODEM_IMPLEMENTATION_STATUS.md) distinguishes Python, RTL, hardware and the unresolved original-ESP32 IQ transmitter. [Full roadmap](docs/RF_MODEM_BPSK_TO_64QAM_PLAN.md).
+
+**Original ESP32 TX bring-up:** [measured RF results and plots](docs/ESP32_TX_BRINGUP_RESULTS.md), [bounded diagnostic firmware](firmware/esp32_tx_probe/README.md), and repeatable CW/OOK checks. PMOD A sends; RFS2 receives; the FPGA transports captures. Arbitrary-IQ TX remains a separate investigation.
 
 ## Contents
 
