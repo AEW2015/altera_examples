@@ -8,13 +8,14 @@ def check():
     if not local_tools():
         raise SystemExit('For notebooks, run this check beside the tools with ATUM_TOOLS_MODE=local.')
     a = altera_root()
-    paths = {name: tool_exe(name) for name in ('quartus_sh','quartus_pgm','juart-terminal','vsim')}
+    paths = {name: tool_exe(name) for name in ('quartus','quartus_sh','quartus_pgm','juart-terminal','vsim')}
     paths['Python shared library']=Path(sysconfig.get_config_var('LIBDIR')or '')/(sysconfig.get_config_var('LDLIBRARY')or '')
     paths.update({
         'RV32 GCC': Path(os.getenv('ATUM_RISCV_GCC',str(a/'riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-gcc'))),
         'RV32 size': Path(os.getenv('ATUM_RISCV_SIZE',str(a/'riscfree/toolchain/riscv32-unknown-elf/bin/riscv32-unknown-elf-size'))),
         'elf2hex': Path(os.getenv('ATUM_ELF2HEX',str(a/'niosv/bin/elf2hex'))),
         'Graphviz': Path(shutil.which('dot')or '/missing/dot'),
+        **{name:Path(shutil.which(name)or '/missing/'+name)for name in('Xvfb','xdotool','scrot','pdftoppm','pdfinfo','pdftotext')},
     })
     missing = []
     print('Python:',sys.executable)

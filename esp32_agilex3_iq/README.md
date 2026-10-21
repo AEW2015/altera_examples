@@ -37,7 +37,7 @@ RTL, Nios firmware and the native VDS construction/connection Tcl definitions ar
 
 ## Run the notebooks locally
 
-Start with [the notebook guide](notebooks/README.md). Each checkpoint has a Python model, plots, a diagram exported from the generated VDS topology, an RTL simulation, an FPGA build/program step and its own focused CyberEther page.
+Start with [the notebook guide](notebooks/README.md). Each checkpoint has a Python model, plots, a PNG exported by the actual VDS GUI, an RTL simulation, an FPGA build/program step and its own focused CyberEther page.
 
 Use a **Linux x86-64 desktop where the FPGA tools are installed**. This can be your host or a desktop inside a container. Run the installer and Jupyter in that same environment; Docker is not required by the notebooks.
 

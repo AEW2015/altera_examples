@@ -54,3 +54,9 @@ The demo-night page uses the same checkpoint-5 image listed above. Hardware/brow
 Browser controls passed the fold / shift / reject sequence, exact 2× gain and power-meter checks, and 16× saturation (4,096 clipped pairs in the tested fixture). The native CyberEther view rendered throughout with no JavaScript errors. The automatic seven-scene cycle completed and returned to received RF in about **122 seconds**, with 0 LSB reference error in every scene. The page fitted a 1920×1080 browser viewport without document scrolling.
 
 **32 host tests pass**, including scene validation, waiting for applied/verified hardware settings, bounded waterfall history, duplicate-result suppression and history reset when frequency changes. Existing notebook-mode tests still pass. Screenshots and machine-readable hardware/browser proofs remain in the ignored run directory. See [RF Arcade](docs/RF_ARCADE.md) for the presentation sequence and signal provenance.
+
+## Native VDS GUI PNG exports
+
+All five native systems were opened in Quartus Visual Designer Studio 26.1.1 through isolated GUI project copies. **File → Export** produced native Nlview PDFs; rasterization produced 3,091 × 4,000 PNGs. Each PDF was checked for every expected cell name: **6 / 11 / 13 / 16 / 17** blocks. Raw IQ and DDC images were visually inspected. All five PNGs are included under `notebooks/diagrams/` and linked inline in their notebooks.
+
+Every generation cell now displays `Image(filename=str(diagram_png))`; `lesson.generate()` returns the native GUI PNG. The full GUI screenshot, original PDF and cell-name manifest are retained in each ignored results directory. The raw-IQ `lesson.generate()` path was rerun end to end, including native regeneration and GUI PNG export. GUI export does not program the FPGA. The local tool preflight and **32 host tests** pass.

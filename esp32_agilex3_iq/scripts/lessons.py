@@ -38,6 +38,9 @@ class Lesson:
   self.command([sys.executable,ROOT/'scripts/build.py',self.n,'--generate-only','--display',os.getenv('DISPLAY',':0')],self.out/'generate.log')
   return self.diagram()
  def diagram(self):
+  from vds_gui_export import export_gui
+  return export_gui(self.stage,self.out,[6,11,13,16,17][self.n-1])
+ def topology(self):
   export=self.stage/'scripts/iq_bridge_system_export.tcl'
   if not export.exists():raise RuntimeError('Generate the native VDS system first')
   cells={};edges=[]

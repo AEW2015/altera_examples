@@ -3,7 +3,7 @@
 Run Jupyter **where Quartus and Questa are installed**: a Linux host or a container desktop. All build, simulation, programming and viewer commands run directly in that environment. A browser can connect remotely.
 
 ```text
-Python model → VDS topology → Questa waveform → SOF → Atum A3 Nano → CyberEther
+Python model → VDS GUI diagram → Questa waveform → SOF → Atum A3 Nano → CyberEther
 ```
 
 | Open in order | Python model | Actual simulator test | Live page |
@@ -41,7 +41,7 @@ For a remote browser add `--ip=0.0.0.0`; use the Jupyter token printed in the te
 
 1. Open notebook 01 and select **Atum A3 IQ Demos**.
 2. Check the paths, board UART and JTAG cable in its configuration cell.
-3. Run the Python model, then generate the native VDS design. Its PNG/SVG is rendered from actual Quartus-exported connections, with clock/reset fanout hidden.
+3. Run the Python model, then generate the native VDS design. The actual VDS GUI opens on a private X display and uses **File → Export**. Its native PDF is rendered to PNG and displayed inline; the full GUI screenshot is saved too.
 4. Run the assertion-based RTL simulation and inspect its plot. The next cell prints commands to open the saved waveform in the Questa GUI.
 5. Build and program. A fresh checkout performs a full compile. Later runs reuse only a source-matched, SHA-verified SOF; use `FORCE_REBUILD=True` for a fresh compile.
 6. Open the focused CyberEther link printed by the final cell. Leave it running while presenting.
@@ -51,4 +51,4 @@ Stop unrelated board acquisition services first. One physical board runs one che
 
 The simulations test the named RTL/IP, not a complete Wi-Fi receiver or Nios instruction execution. Real DSP runs on the FPGA; the host handles transport, independent reference checks, plotting and display FFT. The final two lessons use FPGA-generated clean signals without RF transmission.
 
-Generated diagrams, simulation waves, builds and captures remain under each checkpoint's ignored `results/` and `run/` directories. Live invitation tokens stay in ignored runtime files. Authored notebooks contain no tokens or captured network data.
+Saved [GUI previews](diagrams/README.md) are included for all five lessons. Fresh native PDFs/PNGs, full GUI screenshots, simulation waves, builds and captures remain under each checkpoint's ignored `results/` and `run/` directories. Live invitation tokens stay in ignored runtime files. Authored notebooks contain no tokens or captured network data.

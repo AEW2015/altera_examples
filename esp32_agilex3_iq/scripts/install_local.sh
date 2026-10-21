@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 if [[ "${1:-}" == --system ]]; then
   if [[ $(id -u) == 0 ]]; then atum_sudo=(); else atum_sudo=(sudo); fi
   "${atum_sudo[@]}" apt-get update
-  "${atum_sudo[@]}" apt-get install -y python3-venv python3-pip python3-dev graphviz fonts-dejavu-core mesa-vulkan-drivers libvulkan1 libgl1 libegl1 build-essential
+  "${atum_sudo[@]}" apt-get install -y python3-venv python3-pip python3-dev graphviz xvfb xdotool scrot x11-utils poppler-utils fonts-dejavu-core mesa-vulkan-drivers libvulkan1 libgl1 libegl1 build-essential
 fi
 for atum_dep in python3 cc dot; do command -v "$atum_dep" >/dev/null || { echo "Missing $atum_dep; rerun with --system"; exit 1; }; done
 python3 -m venv .venv-notebooks
