@@ -2,6 +2,13 @@
 
 Status: **The FPGA 64-QAM symbol-replay milestone is complete: 100,096 payload bits per level at 12/16/20dB with constellation and BER displayed together. v6 framed BPSK/QPSK RF captures and checkpoint08 SPI/FIR plus coarse preamble observation are measured; BER remains preliminary and watchdog recovery is unproven. The 100,000-bit RF target, continuous capture, raw-IQ FPGA synchronization and higher-QAM RF remain open.** The [RF BPSK walkthrough](RF_BPSK_WALKTHROUGH.md) records the BPSK protocol and runs. The [QPSK qualification](QPSK_QUALIFICATION.md) records historical v5 and current v6 captures. The [BER qualification guide](BER_QUALIFICATION.md) documents the CLI, API and synthetic/RF boundaries.
 
+## Two OTA implementation tracks
+
+- [Plan A: native Wi-Fi 64-QAM OTA](NATIVE_WIFI_64QAM_OTA_PLAN.md): use the installed ESP32 Wi-Fi TX PHY, verify the actual modulation over RF, then add an FPGA/Nios OFDM receiver. Host is control/display only.
+- [Plan B: custom FPGA-generated 64-QAM OTA](CUSTOM_IQ_64QAM_OTA_PLAN.md): first establish original-chip IQ injection or a qualified polar backend; then add FPGA waveform generation and integrated RF reception. This research has explicit stop/go gates and does not assume an S3/S31 replacement.
+
+These plans describe future work. The current 64-QAM page remains generated-noise FPGA symbol replay.
+
 ## Current measured system
 
 The currently loaded image is checkpoint06 SOF `4297a6c946…`, with the Nios-driven noisy replay loop. The FPGA does encoding/mapping, soft demapping, Viterbi and error counting. The [64-QAM BER guide](FPGA_64QAM_BER.md) records the full 100k-per-point result and viewer on8773. This completes symbol-level qualification only; the 100k-bit RF gate below remains open. The separate RF/capture images are recorded here as measured history and can be explicitly reloaded.

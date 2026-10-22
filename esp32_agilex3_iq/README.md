@@ -311,3 +311,10 @@ ESP32 changes and transmits no RF. Notebook08 includes optional launch and
 hardware sweep cells. Noise is explicitly labeled approximate Gaussian.
 
 The same server offers a compact [TX/RX presentation layout](docs/FPGA_64QAM_BER.md#social--presentation-layout) at `/poster`: three TX/RX pairs arranged in two columns, with before/after-FEC overlays, FPGA pipeline diagrams and frame/sweep error counts. A measured example PNG is included for social posts. This view never starts hardware.
+
+### Planned over-the-air 64-QAM tracks
+
+- [Native Wi-Fi 64-QAM on the installed ESP32s](docs/NATIVE_WIFI_64QAM_OTA_PLAN.md).
+- [Custom FPGA-generated 64-QAM through an ESP32 RF backend](docs/CUSTOM_IQ_64QAM_OTA_PLAN.md).
+
+Both plans keep runtime processing on the ESP32s/FPGA and use the host for control/display. They distinguish measured packet reception, raw-IQ decoding and research-gated arbitrary-IQ transmission. Neither plan is an implemented OTA 64-QAM result yet.
