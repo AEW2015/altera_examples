@@ -767,3 +767,17 @@ RV32I ELF builds and native4/4 fixtures pass; it has not been downloaded yet.
 Use `wifi64_signal_nios_selftest.py` then `check_wifi64_nios.py --hardware --signal`
 with a new proof directory and checkpoint06 restored. No new synchronization or
 raw-IQ receiver integration is implied. Total host suite276 tests passes.
+
+
+### Compile-only original-chip amplitude probe
+
+Separate `firmware/original_iq_tx_probe` builds against the pinned original-chip
+SDK. ATTEN/CONTROL commands are bounded to3–50ms with2s cooldown. Register
+masking and strict parser tests pass1024 cases. RF-window snapshots are buffered
+and all job telemetry is emitted after stopping, paced2ms per row. Direct tone
+enable clearing does not wait for a vendor API mutex; vendor initialization and
+interrupts still prevent claiming a proven physical50ms cutoff. First setup may
+consume the whole budget and must not be reported as a successful RF trial.
+App SHA `e5f5e28787d5990505712573eff7b2a7fc59b5f06055ec808cb64d4f2bac49ad`.
+No installation, programmer whitelist, amplitude calibration or RF measurement
+was performed for this probe. Native PMOD A firmware is unchanged.

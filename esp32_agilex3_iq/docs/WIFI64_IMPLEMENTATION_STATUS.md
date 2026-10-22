@@ -26,7 +26,7 @@ flowchart LR
 | Wi-Fi DATA backend | s=3 deinterleave,3/4 depuncture, K7 soft Viterbi, SERVICE seed/descramble, FCS | 256-byte PSDU limit; not connected to live acquisition |
 | Actual Nios V test | **5/5 pass on Agilex3**, fixture92-byte PSDU,4 DATA symbols, CRC107563580; corrupt FCS rejected | CPU software on device, not RTL acceleration or received RF |
 | L-SIG header backend | All8 legacy rate fixtures pass; 54Mb/s wire code12,48Mb/s code8 | Offline C/RV32I compile only; acquisition remains missing |
-| Custom-TX research | Original-chip attenuation field and separate forced-gain ABI identified;1024 bitfield cases pass | No new amplitude RF probe or arbitrary-IQ playback proof |
+| Custom-TX research | Original-chip attenuation field and separate forced-gain ABI identified;1024 bitfield cases pass | Separate attenuation-only firmware compiles; not installed or RF-qualified; no arbitrary-IQ playback proof |
 
 Nios test ELF SHA:
 `674d89ee92cfd3cf7f4334359b8ee46bad1388f84a2c72e44c118ebce5772467`.
@@ -107,4 +107,5 @@ See [native plan](NATIVE_WIFI_64QAM_OTA_PLAN.md),
 [telemetry](WIFI64_OTA_TELEMETRY.md),
 [TX firmware](../firmware/wifi64_tx/README.md),
 [monitor firmware](../firmware/wifi64_monitor/README.md), and
-[original-chip research](ORIGINAL_IQ_TX_RESEARCH_20261021.md).
+[original-chip research](ORIGINAL_IQ_TX_RESEARCH_20261021.md), and
+[compile-only amplitude probe](../firmware/original_iq_tx_probe/README.md).

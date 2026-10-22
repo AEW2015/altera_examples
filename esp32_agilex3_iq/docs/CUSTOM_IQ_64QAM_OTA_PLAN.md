@@ -206,7 +206,10 @@ carrier, replay vector or attractive ideal grid is not completion of this gate.
 Proposed: `firmware/original_iq_tx_probe/`, an evidence journal,
 `fpga_hub/iq_bridge/vds_demo_12_custom_qam_ota/`, bounded controller commands,
 module/Questa tests, an educational notebook and a separate OTA display page.
-These are planned locations, not completed builds.
+The attenuation-only probe now exists and compiles; it is not installed or RF
+qualified. Its [guide](../firmware/original_iq_tx_probe/README.md) documents
+software guard limits and the initial calibration budget. The VDS receiver,
+custom modulation path, notebook and OTA page remain planned.
 
 First action: review the existing original-chip source/ROM evidence and identify
 one new, concrete TX-source or amplitude-control lead. In parallel at the project

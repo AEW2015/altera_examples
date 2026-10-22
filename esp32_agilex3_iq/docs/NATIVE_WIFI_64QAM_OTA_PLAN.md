@@ -187,10 +187,12 @@ capture hashes, actual RATE evidence, timing, firmware/SOF hashes and TX-off pro
    diagram, then actual FPGA RF decoding.
 5. A4 display page, notebook, bounded hardware qualification and longer RF sweeps.
 
-Proposed source locations: `firmware/wifi64_tx/`, `firmware/wifi64_monitor/`,
-`fpga_hub/iq_bridge/vds_demo_11_wifi64_ota/`, a receiver guide/notebook and a
-separate source-tagged browser page. These locations are planned, not existing
-or built deliverables. No estimated completion date substitutes for these gates.
+Implemented source locations: `firmware/wifi64_tx/`, `firmware/wifi64_monitor/`
+and the portable receiver primitives in `sw/wifi64_*.h`. PMOD A normal boot and
+a two-packet callback check pass; independent RF reception is pending.
+`fpga_hub/iq_bridge/vds_demo_11_wifi64_ota/`, a complete receiver notebook and
+a separate OTA browser page remain planned. See the implementation status for
+which modules are tested on Nios versus compiled offline.
 
 ## References
 
