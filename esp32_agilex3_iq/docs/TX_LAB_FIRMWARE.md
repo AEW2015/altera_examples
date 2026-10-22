@@ -29,7 +29,7 @@ RTC RAM, consumed on boot. The 2.1-second startup pause also enforces a mode-cha
 cooldown. Native and certification PHY contexts are separated by reboot.
 
 AMP retains 3–50 ms jobs and a two-second cooldown. PHASE in this combined image
-accepts at most 50 ms and requires backoff >=96 quarter-dB units; it adds a
+uses 50 ms jobs (the legacy parser minimum and the combined profile maximum) and requires backoff >=96 quarter-dB units; it adds a
 repeated software deadline guard and a two-second cooldown. Native retains its
 100 ms job deadline, bounded packet count and two-second cooldown. These are
 software guards, not a verified hardware RF cutoff. All RF experiments remain
@@ -44,3 +44,30 @@ This packages existing controls; it does not prove arbitrary Cartesian IQ playba
 or custom 64-QAM RF transmission on an original ESP32. Additional firmware features
 could still require a future installation, but switching these three experiments
 and varying their exposed parameters does not.
+
+
+## Unattended test batch
+
+```sh
+python scripts/tx_lab_soak.py --hours 3 --interval-minutes 20 --transmit \
+  --output cyberether/run/tx-lab-soak-NEW
+```
+
+The output directory must be new. The batch changes modes without programming,
+records sparse raw amplitude snapshots and checks two native Wi-Fi packets per
+round through PMOD B. It leaves TX off between rounds and stops on the first
+failed check. PHASE is exercised through software mode selection only; this batch
+does not qualify received QPSK/64-QAM, constellation quality or BER. Each round has
+at most 80 ms of requested amplitude jobs plus the native 100 ms job deadline;
+PHY setup/shutdown and software deadlines are not a measured hardware RF cutoff.
+
+The host accepts a missed startup announcement only when a fresh mode/quiet
+readback succeeds. A switch that returns to the RF-off AMP fallback is retried
+once; a repeated failure stops the batch. Mode transitions after certification
+PHY use need this recovery path on the installed image; the reset cause has not
+been isolated. No new flash or physical reset is performed by the runner.
+
+Long PHASE startup/INFO messages and some TX acknowledgements were missed during
+hardware checks. Saved short QFRAME telemetry includes configuration and TX_OFF,
+but that attempt lacks TX_ON and is not accepted as an RF frame qualification.
+The longer batch therefore excludes PHASE transmission.

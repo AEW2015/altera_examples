@@ -128,3 +128,10 @@ phase/BPSK/QPSK and native Wi-Fi experiments. One final PMOD A installation
 replaces per-experiment flashing; subsequent mode changes are software reboots
 with RF off. RFS2 and PMOD B remain unchanged. Hardware mode-switch and bounded
 RF checks are required after installation before unattended experimentation.
+
+
+Combined image installed and normal boot verified. Six RF-off software mode
+transitions and a full AMP/native-packet preflight round pass. Use
+`tx_lab_soak.py` for bounded endurance testing. PHASE telemetry losses remain an
+open qualification issue; custom-QAM and phase/RF BER gates remain open. The
+installed firmware needs no more physical resets for tested software mode changes.

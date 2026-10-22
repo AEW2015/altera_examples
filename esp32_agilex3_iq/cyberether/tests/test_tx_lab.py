@@ -35,8 +35,18 @@ int main(void){
   b=self.bridge();self.assertFalse(c.switch(b,'NATIVE')['transmit'])
   commands=[x.args[1] for x in b.radio_command.call_args_list]+[x.args[1] for x in b.radio_write.call_args_list]
   self.assertEqual(commands,['MODE?','MODE?','MODE NATIVE','MODE?','STOP\n'])
+ def test_lost_boot_text_requires_successful_live_readback(self):
+  b=self.bridge();b.wait_text.side_effect=TimeoutError('missed boot')
+  result=c.switch(b,'NATIVE');self.assertIn('announcement missed',result['ready'])
+  self.assertIn('mode=NATIVE,quiet=1',result['after'])
  def test_mismatched_readback_rejected(self):
   b=self.bridge();b.radio_command.side_effect=['TXLAB,MODE,mode=AMP,quiet=1','TXLAB,MODE,mode=AMP,quiet=1','TXLAB,SWITCH,mode=NATIVE','TXLAB,MODE,mode=PHASE,quiet=1']
+  with self.assertRaisesRegex(RuntimeError,'readback'):c.switch(b,'NATIVE')
+ def test_safe_amp_fallback_retried_once(self):
+  b=self.bridge();b.radio_command.side_effect=['TXLAB,MODE,mode=AMP,quiet=1','TXLAB,MODE,mode=AMP,quiet=1','TXLAB,SWITCH,mode=NATIVE','TXLAB,MODE,mode=AMP,quiet=1','TXLAB,SWITCH,mode=NATIVE','TXLAB,MODE,mode=NATIVE,quiet=1']
+  result=c.switch(b,'NATIVE');self.assertEqual(len(result['attempts']),2)
+ def test_repeated_fallback_rejected(self):
+  b=self.bridge();b.radio_command.side_effect=['TXLAB,MODE,mode=AMP,quiet=1','TXLAB,MODE,mode=AMP,quiet=1','TXLAB,SWITCH,mode=NATIVE','TXLAB,MODE,mode=AMP,quiet=1','TXLAB,SWITCH,mode=NATIVE','TXLAB,MODE,mode=AMP,quiet=1']
   with self.assertRaisesRegex(RuntimeError,'readback'):c.switch(b,'NATIVE')
  def test_unknown_image_not_touched(self):
   b=self.bridge();b.radio_command.side_effect=['TXLAB,MODE,mode=UNKNOWN,quiet=1']

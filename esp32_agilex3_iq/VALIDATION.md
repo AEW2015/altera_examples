@@ -1035,5 +1035,21 @@ owners were released after the final passive check.
   worker frame128B; both task stacks8192B). Image fits the1MiB app partition.
 - Host suite:388 tests pass, including strict RTC selector, mode/readback and
   PMOD-A-only flash-profile checks. These tests do not establish RF behavior.
-- Hardware installation/mode-switch checks are pending; no new custom-IQ or
-  custom64-QAM RF qualification is claimed by packaging these controls.
+- Installed image SHA256 `2c563abc99eb31a8fa595bbdc2db19c713e0fb90d678f725e47c2d51c976940a`
+  (651,936 bytes) passed flash/digest checks. Runtime checkpoint11 SOF and capture
+  app were restored; normal boot verified PMOD A MAC78:21:84:d4:4f:98 and RF off.
+- Six software mode transitions passed without another physical reset. Startup
+  text can be missed; live mode/quiet readback is required. A transition after
+  certification PHY use returned to RF-off AMP; one software retry recovered it.
+  The reset cause remains unisolated. Repeated fallback is a hard test failure.
+- Native channel11 test: PMOD B independently qualified both requested54Mb/s
+  packets, clean FPGA transport, final TX off. AMP initialization consumed its
+  first50ms budget; the next30ms TRAIN24/64us passed register and cleanup checks
+  with a saved independent RFS2 raw snapshot. This is not a received-QAM proof.
+- Short PHASE telemetry observed bounded TX_OFF, but missed startup/INFO/TX_ON
+  lines prevent accepting its attempt as a complete RF frame qualification.
+  No new custom-IQ or custom64-QAM RF claim is made.
+- Final host suite:393 tests pass. A full preflight round of mode changes, AMP
+  initialization/training, native two-packet reception and final AMP/RF-off passed.
+  The optional three-hour runner uses20-minute intervals, stops on first failure,
+  and excludes PHASE transmission. Its status/logs remain private under run/.

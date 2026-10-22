@@ -23,12 +23,26 @@ def switch(bridge,mode=None):
         if fields(state).get('quiet')=='1':break
         if time.monotonic()>until:raise TimeoutError('TX mode failed to become quiet')
         time.sleep(.05)
-    bridge.radio_command(1,'MODE '+mode,'TXLAB,SWITCH,')
-    prefix={'AMP':'OIQ,READY,','NATIVE':'WIFI64_TX,READY,','PHASE':'TX_PROBE_READY,'}[mode]
-    ready=bridge.wait_text(1,prefix,10)
-    after=bridge.radio_command(1,'MODE?','TXLAB,MODE,')
-    if fields(after).get('mode')!=mode or fields(after).get('quiet')!='1':raise RuntimeError('Mode/quiet readback mismatch')
-    return {'before':before,'ready':ready,'after':after,'transmit':False}
+    attempts=[]
+    for attempt in range(2):
+        bridge.radio_command(1,'MODE '+mode,'TXLAB,SWITCH,')
+        prefix={'AMP':'OIQ,READY,','NATIVE':'WIFI64_TX,READY,','PHASE':'TX_PROBE_READY,'}[mode]
+        try:
+            ready=bridge.wait_text(1,prefix,4)
+        except TimeoutError:
+            # ROM UART-speed changes can lose the one-time boot announcement.
+            ready='announcement missed; checking live mode readback'
+        after=bridge.radio_command(1,'MODE?','TXLAB,MODE,')
+        attempts.append({'ready':ready,'after':after})
+        state=fields(after)
+        if state.get('mode')==mode and state.get('quiet')=='1':
+            return {'before':before,'ready':ready,'after':after,'attempts':attempts,'transmit':False}
+        # The experimental certification PHY can reset into the cold-boot AMP
+        # fallback after use. Retry once only from this verified RF-off state.
+        if attempt==0 and state.get('mode')=='AMP' and state.get('quiet')=='1':
+            continue
+        raise RuntimeError('Mode/quiet readback mismatch: '+after)
+
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--mode',choices=('AMP','NATIVE','PHASE'));p.add_argument('--port',default='/dev/ttyUSB0');a=p.parse_args()
