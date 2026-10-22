@@ -88,3 +88,13 @@ firmware/esp32_spi_probe/build/
 
 # Standalone Nios Wi-Fi primitive builds
 /simulation/wifi64-nios-selftest/
+
+# Compile-only original-chip amplitude experiment
+/build-original-iq-tx-probe/
+firmware/original_iq_tx_probe/sdkconfig*
+!firmware/original_iq_tx_probe/sdkconfig.defaults
+firmware/original_iq_tx_probe/build/
+
+/simulation/wifi64-signal-test/
+
+/simulation/wifi64-signal-nios-selftest/

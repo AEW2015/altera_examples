@@ -9,16 +9,18 @@ from pathlib import Path
 from common import ROOT,local_tools,tool_exe
 from nios_software import software_env
 
-def run(out):
+def run(out,signal=False):
     if not local_tools():raise RuntimeError('Run beside Quartus/Nios tools')
     stage=ROOT/'fpga_hub/iq_bridge/vds_demo_06_modem'
     active=json.loads((ROOT/'cyberether/run/active-fpga.json').read_text())
     if active['stage_relative']!=str(stage.relative_to(ROOT)):raise RuntimeError('Requires active checkpoint06')
-    built=ROOT/'simulation/wifi64-nios-selftest'
+    built=ROOT/('simulation/wifi64-signal-nios-selftest' if signal else 'simulation/wifi64-nios-selftest')
     build=json.loads((built/'BUILD_RESULT.json').read_text())
     for name,digest in build['files'].items():
         if hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=digest:raise RuntimeError('Stale selftest source: '+name)
-    app=built/'wifi64_selftest.elf';restore=stage/'sw/monitor.elf'
+    app=built/('wifi64_signal_selftest.elf' if signal else 'wifi64_selftest.elf');restore=stage/'sw/monitor.elf'
+    prefix='WIFI64_SIGNAL_TEST' if signal else 'WIFI64_SELFTEST'
+    expected_summary='passed=4,total=4' if signal else 'passed=5,total=5'
     if hashlib.sha256(app.read_bytes()).hexdigest()!=build['elf_sha256']:raise RuntimeError('Stale selftest ELF')
     if not restore.is_file():raise RuntimeError('Missing rollback monitor ELF')
     out=Path(out).resolve();out.mkdir(parents=True,exist_ok=False)
@@ -53,12 +55,12 @@ def run(out):
                 try:line=messages.get(timeout=1)
                 except queue.Empty:continue
                 logs.append(line)
-                if 'WIFI64_SELFTEST' in line:print(line.strip(),flush=True)
-                if 'WIFI64_SELFTEST,READY,' in line and not triggered:
+                if prefix in line:print(line.strip(),flush=True)
+                if prefix+',READY,' in line and not triggered:
                     proc.stdin.write('T\n');proc.stdin.flush();triggered=True
-                if 'WIFI64_SELFTEST,SUMMARY,' in line:
-                    if 'passed=5,total=5' not in line:raise RuntimeError('Nios selftest failed')
-                    proof.update(hardware_tested=True,status='PASS_NIOS_PRIMITIVES');break
+                if prefix+',SUMMARY,' in line:
+                    if expected_summary not in line:raise RuntimeError('Nios selftest failed')
+                    proof.update(hardware_tested=True,status='PASS_NIOS_SIGNAL' if signal else 'PASS_NIOS_PRIMITIVES');break
             else:raise TimeoutError('Nios selftest timeout')
         except BaseException as e:proof['error']=str(e);raise
         finally:
@@ -73,4 +75,4 @@ def run(out):
     print(out)
     return proof
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--hardware',action='store_true',required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();run(a.output)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--hardware',action='store_true',required=True);p.add_argument('--signal',action='store_true',help='Test the separate L-SIG decoder ELF');p.add_argument('--output',type=Path,required=True);a=p.parse_args();run(a.output,a.signal)

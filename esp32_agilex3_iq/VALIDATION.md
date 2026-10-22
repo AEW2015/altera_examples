@@ -742,3 +742,28 @@ was installed. Bootloader, partition table and app all passed device hash
 verification. Checkpoint06 SOF restored, GPIO0 released; the normal-boot reset
 is pending. No native RF job has run. Evidence: ignored
 `cyberether/run/wifi64-install-a.json`, `wifi64-flash-a.log`, and private backups.
+
+
+### PMOD A normal boot and first bounded native TX job
+
+INFO/IDENT verified the new native11g firmware on the expected module. Initial
+busy/armed/rf/stop_err were all0. A two-packet channel8/power-code8 job completed
+with accepted2, rejected0, done2, failed0, rate54=2 and other0. Explicit STOP
+and STATUS confirmed busy0/rf0/stop_err0. This is transmitter-side callback
+evidence only; independent RX confirmation and raw-IQ FCS/BER remain pending.
+The expired boot listener was recovered with INFO/STATUS queries, requiring
+no additional reset. Proofs: `wifi64-a-boot-query.json` and
+`wifi64-a-first-native-job.json` in the ignored run directory.
+
+
+### Standalone L-SIG decoder
+
+New portable C header decodes48 equalized BPSK soft values through inverse
+interleaving and terminated K7 Viterbi, validates reserved/parity/tail/RATE/length,
+and reports all8 legacy rate metadata. First-transmitted-bit-as-LSB codes are
+54Mb/s=12 and48Mb/s=8, independently anchored to the existing6Mb/s RF reference
+and primary GNU Radio generator/parser. Five native test groups pass. A separate
+RV32I ELF builds and native4/4 fixtures pass; it has not been downloaded yet.
+Use `wifi64_signal_nios_selftest.py` then `check_wifi64_nios.py --hardware --signal`
+with a new proof directory and checkpoint06 restored. No new synchronization or
+raw-IQ receiver integration is implied. Total host suite276 tests passes.

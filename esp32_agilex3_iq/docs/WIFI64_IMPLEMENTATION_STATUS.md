@@ -8,7 +8,7 @@ symbol replay, labeled **NO RF TX**. No replacement RF results are fabricated.
 flowchart LR
   A[PMOD A: native 54Mb/s TX<br/>firmware FLASHED] -. boot / RF test pending .-> B[RFS2: raw IQ40MS/s<br/>3 captures / CRC PASS]
   A -. independent RX pending .-> M[PMOD B: passive monitor<br/>firmware BUILT]
-  B --> C[Acquisition / CFO / L-SIG<br/>NOT IMPLEMENTED in new path]
+  B --> C[Acquisition / CFO / timing<br/>NOT IMPLEMENTED in new path]
   C --> D[FFT64 / equalizer / soft QAM64]
   D --> E[Deinterleave / depuncture / Viterbi<br/>descramble / CRC]
   E --> F[Host display only<br/>OTA page pending]
@@ -18,21 +18,25 @@ flowchart LR
 
 | Item | Evidence | Remaining limit |
 |---|---|---|
-| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Flashed and hash-verified; normal-boot reset pending; no RF packet proof |
+| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Normal boot verified; 2/2 native TX callbacks at54Mb/s; independent RX pending |
 | Independent monitor firmware | Same SDK builds; passive native reception and payload identity check | Not flashed; replaces PMOD B's SPI image |
 | Bounded controller | Shared acquisition lock, explicit `--transmit`, readbacks, STOP/idle proof; fake-bridge tests | Not exercised against installed native firmware |
 | Wideband transport | Three16380-sample CI8 captures, nominal40MS/s, CRCs pass; reported capture411us; no hub errors | Passive; sample clock and complete20MHz analog response not measured |
 | Receiver primitives | Integer FFT64, two-LTF channel estimate, equalization, all64 QAM labels | Caller must supply acquired/CFO/pilot-corrected symbols |
 | Wi-Fi DATA backend | s=3 deinterleave,3/4 depuncture, K7 soft Viterbi, SERVICE seed/descramble, FCS | 256-byte PSDU limit; not connected to live acquisition |
 | Actual Nios V test | **5/5 pass on Agilex3**, fixture92-byte PSDU,4 DATA symbols, CRC107563580; corrupt FCS rejected | CPU software on device, not RTL acceleration or received RF |
+| L-SIG header backend | All8 legacy rate fixtures pass; 54Mb/s wire code12,48Mb/s code8 | Offline C/RV32I compile only; acquisition remains missing |
 | Custom-TX research | Original-chip attenuation field and separate forced-gain ABI identified;1024 bitfield cases pass | No new amplitude RF probe or arbitrary-IQ playback proof |
 
 Nios test ELF SHA:
 `674d89ee92cfd3cf7f4334359b8ee46bad1388f84a2c72e44c118ebce5772467`.
-Physical FPGA image remains checkpoint06 SHA `4297a6c946a7bb1381523eccd53ee99864871fb5a66c83edef6c90eb8b2f5441`.
+Tested FPGA image is checkpoint06 SHA `4297a6c946a7bb1381523eccd53ee99864871fb5a66c83edef6c90eb8b2f5441`.
 The original monitor ELF was restored and STATUS replied with no errors after that test.
-PMOD A was subsequently flashed and verified. The same runtime SOF is restored;
-GPIO0 is released and the normal-boot reset is pending.
+PMOD A was subsequently flashed, verified and booted normally. Its first bounded
+two-packet job reported accepted=2, done=2, rate54=2, failed/rejected/other=0.
+STOP and STATUS confirmed busy=0, rf=0, stop_err=0. These are transmitter
+callbacks, not independent reception or raw-IQ decoding. Programming bridges
+temporarily replace the runtime SOF during installation of the other module.
 
 The selftest uses42,804bytes of64KiB including BSS; workspace25,712bytes.
 At50MHz its FFT tone test took453085 timer ticks (~9.06ms), channel/null test
@@ -65,6 +69,7 @@ ATUM_ESP_IDF=/path/to/pinned/esp-idf-sdr bash scripts/build_wifi64_monitor.sh
 .venv-notebooks/bin/python -m unittest discover -s cyberether/tests -q
 .venv-notebooks/bin/python scripts/analyze_original_polar_qam.py --self-test
 .venv-notebooks/bin/python scripts/wifi64_nios_selftest.py
+.venv-notebooks/bin/python scripts/wifi64_signal_nios_selftest.py
 ```
 
 Explicit hardware test, only with checkpoint06 already loaded and devices free:
@@ -74,16 +79,18 @@ Explicit hardware test, only with checkpoint06 already loaded and devices free:
   --output cyberether/run/wifi64-nios-test-NEW
 ```
 
+Add `--signal` to test the separately built L-SIG ELF (native4/4 pass;
+hardware execution pending).
+
 This temporarily replaces **CPU software**, restores the original monitor even
 on failure, and does not change the SOF or issue radio commands. It tests offline
 fixtures on actual hardware. It is not a waveform replay through the RF chain.
 
 ## Next gates
 
-1. Complete PMOD A normal boot: firmware is flashed and hash-verified, GPIO0
-   released, runtime restored. A MAC-matched 4 MiB physical rollback backup is
-   saved privately. The original lower 2 MiB backup is combined with the upper
-   2 MiB, which the installation did not write. The normal-boot reset is pending.
+1. PMOD A installation and idle verification are complete, including a bounded
+   two-packet native TX callback check. A MAC-matched4MiB physical rollback
+   backup is saved privately. Independent receiver confirmation remains pending.
 2. Install independent PMOD B monitor, restore FPGA runtime, SPI selectorOFF,
    BOOTOFF, verify UART identity. Native monitor replaces the current SPI receiver.
 3. Confirm matching native54Mb/s packets in bounded jobs with final RF-off state.
