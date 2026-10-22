@@ -22,6 +22,7 @@
 #define TONE2 0x3ff460bcu
 #define EXT 0x3ff450a8u
 static QueueHandle_t jobs;
+static TaskHandle_t worker_task,guard_task;
 static SemaphoreHandle_t reports;
 static void emit(const char*fmt,...){
  xSemaphoreTake(reports,portMAX_DELAY);
@@ -36,6 +37,9 @@ static bool invariants(uint32_t a,uint32_t b,uint32_t e,unsigned code){
 }
 static portMUX_TYPE mux=portMUX_INITIALIZER_UNLOCKED;
 typedef struct {uint32_t a,b,e;int64_t at;bool valid;} tone_record;
+/* The PHY initialization call tree needs substantial task stack. Keep the
+ * diagnostic trace in static RAM, outside that call tree's stack frame. */
+static tone_record edge_trace[16];
 static tone_record capture(void){return (tone_record){DPORT_REG_READ(TONE1),DPORT_REG_READ(TONE2),DPORT_REG_READ(EXT),esp_timer_get_time(),true};}
 static void record(const char*name,tone_record r,int64_t start){if(r.valid)emit("OIQ,%s,at_us=%"PRIi64",t1=%08"PRIx32",t2=%08"PRIx32",ext=%08"PRIx32"\n",name,r.at-start,r.a,r.b,r.e);}
 static void snapshot(const char*name){tone_record r=capture();record(name,r,r.at);}
@@ -67,7 +71,7 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
   guard_trip=false;guard_active=true;
   uint32_t saved=0;bool have_saved=false,canonical_failed=false;unsigned fields_ok=1,baseline=0,trial=0;
   tone_record base={0},changed={0},returned={0},restored={0},off_state={0};
-  tone_record trace[16]={0};unsigned trace_count=0,edges=0,late_us=0;
+  unsigned trace_count=0,edges=0,late_us=0;
   int64_t on=0,trial_at=0,return_at=0;
   if(!initialized){
    esp_wifi_power_domain_on();periph_module_enable(PERIPH_WIFI_MODULE);registers_accessible=true;
@@ -94,7 +98,7 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
       if(!set_atten(code))break;
       tone_record edge=capture();
       if(!cancel&&!invariants(saved,b,e,code)){fields_ok=0;cancel=true;break;}
-      if(trace_count<16)trace[trace_count++]=edge;
+      if(trace_count<16)edge_trace[trace_count++]=edge;
       if((uint64_t)(now-next)>late_us)late_us=(unsigned)(now-next);
       edges++;next=now+job.period_us;
       /* Permit UART STOP/main and the guard to run. The resulting gaps are
@@ -131,11 +135,12 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
   record("BASELINE",base,start);record("TRIAL",changed,start);record("RETURN",returned,start);record("RESTORED",restored,start);
   if(job.period_us){
    emit("OIQ,TRAIN,job=%"PRIu32",period_us=%u,edges=%u,max_late_us=%u,trace=%u,uniform_clock=0\n",job_id,job.period_us,edges,late_us,trace_count);
-   for(unsigned k=0;k<trace_count;k++)record("TRACE",trace[k],start);
+   for(unsigned k=0;k<trace_count;k++)record("TRACE",edge_trace[k],start);
   }
   emit("OIQ,TIMING,setup_us=%"PRIi64",register_window_us=%"PRIi64",guard_trip=%u\n",(on?on:setup_done)-start,on?disabled-on:0,guard_trip);
   emit("OIQ,EDGES,trial_us=%"PRIi64",return_us=%"PRIi64",software_bound=1\n",trial_at?trial_at-start:0,return_at?return_at-start:0);
   record("OFF",off_state,start);
+  emit("OIQ,STACK,job=%"PRIu32",worker_min_bytes=%u,guard_min_bytes=%u\n",job_id,(unsigned)uxTaskGetStackHighWaterMark(worker_task),(unsigned)uxTaskGetStackHighWaterMark(guard_task));
   emit("OIQ,DONE,job=%"PRIu32",gain_restored=%u,fields_ok=%u,rf_off=%u\n",job_id,have_saved&&((DPORT_REG_READ(TONE1)^saved)&OIQ_ATTEN_MASK)==0,fields_ok,!(DPORT_REG_READ(TONE1)&OIQ_ENABLE_MASK)&&!(DPORT_REG_READ(TONE2)&OIQ_ENABLE_MASK));
   busy=false;
  }
@@ -143,7 +148,7 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
 static void command(char*s){
  if(!strcmp(s,"INFO")){
   esp_chip_info_t info;uint8_t mac[6];esp_chip_info(&info);ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA));
-  emit("OIQ,INFO,v=2,chip=esp32,uart=2000000,iq=unverified,busy=%u,amp_train=1,max_code=127\n",busy);
+  emit("OIQ,INFO,v=3,chip=esp32,uart=2000000,iq=unverified,busy=%u,amp_train=1,max_code=127,stack_min=%u\n",busy,(unsigned)uxTaskGetStackHighWaterMark(worker_task));
   emit("OIQ,IDENT,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x\n",info.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
  }
  else if(!strcmp(s,"STATE")){if(registers_accessible)snapshot("STATE");else emit("OIQ,STATE,rf_initialized=0\n");}
@@ -161,7 +166,7 @@ void app_main(void){
  uart_config_t u={.baud_rate=2000000,.data_bits=UART_DATA_8_BITS,.parity=UART_PARITY_DISABLE,.stop_bits=UART_STOP_BITS_1,.flow_ctrl=UART_HW_FLOWCTRL_DISABLE,.source_clk=UART_SCLK_DEFAULT};
  ESP_ERROR_CHECK(uart_param_config(UART_NUM_0,&u));ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0,17,16,UART_PIN_NO_CHANGE,UART_PIN_NO_CHANGE));ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0,1024,0,0,NULL,0));setvbuf(stdout,NULL,_IONBF,0);
  jobs=xQueueCreate(1,sizeof(oiq_job));reports=xSemaphoreCreateMutex();if(!jobs||!reports)abort();
- if(xTaskCreate(worker,"oiq_probe",4096,NULL,5,NULL)!=pdPASS||xTaskCreate(guard,"oiq_guard",3072,NULL,8,NULL)!=pdPASS)abort();
+ if(xTaskCreate(worker,"oiq_probe",8192,NULL,5,&worker_task)!=pdPASS||xTaskCreate(guard,"oiq_guard",3072,NULL,8,&guard_task)!=pdPASS)abort();
  emit("OIQ,READY,rf_initialized=0,arbitrary_iq=unverified\n");
  char s[96];unsigned n=0;bool overflow=false;
  for(;;){uint8_t c;if(uart_read_bytes(UART_NUM_0,&c,1,pdMS_TO_TICKS(2))!=1)continue;

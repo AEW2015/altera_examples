@@ -24,7 +24,7 @@ flowchart LR
 | 0 Preserve | Private native-A full-flash backup, source/image hashes, current stage11 restore path | Fresh4MiB native backup verified; V1 flash/digest and stage11 restoration passed |
 | 1 Source review | Find a concrete original-chip sample selector, packing, clocks, start/stop; no copied S3 register guesses | No sample input established |
 | 2 Amplitude diagnostic | CONTROL and ATTEN120..127, requested3..50ms, two seconds quiet; independent raw RX, invariant/restore checks | V1 stable RF amplitude change measured; no fine amplitude law yet |
-| 3 Polar calibration | Transfer curve, AM/PM, settling, phase directions and repeatability against unchanged-code controls | V2 transition diagnostic built; pending installation and RF measurements |
+| 3 Polar calibration | Transfer curve, AM/PM, settling, phase directions and repeatability against unchanged-code controls | V2 stack failure recorded; V3 correction built, pending installation / RF test |
 | 4 Backend decision | Direct IQ playback if demonstrated; otherwise calibrated polar TX, or explicit unresolved result | Pending evidence |
 | 5 FPGA implementation | Known bits, framing/pilots, K7 FEC, BPSK→QPSK→16-QAM→64-QAM, calibrated waveform/polar schedule | Replay mapper/FEC already works; RF backend pending |
 | 6 Complete RX | On-device acquisition/CFO/timing/equalization/soft demap/FEC/CRC, each module simulated and tested | Native Wi-Fi Nios receiver exists; custom waveform integration pending |

@@ -1,6 +1,7 @@
 # Original ESP32 attenuation probe
 
-**V1 installed; stable amplitude changes measured. V2 built, not installed. No
+**V1 stable amplitude changes measured. V2 failed PHY-init stack testing; V3
+fix built, not installed. No
 arbitrary-IQ playback or QAM qualification.** This
 separate original-chip image tests the next amplitude-control hypothesis from
 [the research gate](../../docs/ORIGINAL_IQ_TX_RESEARCH_20261021.md). Existing v6
@@ -36,6 +37,11 @@ law. Code121 was4.37; one nearby-code observation does not establish monotonicit
 or usable fine steps. See [measured results](../../docs/ORIGINAL_IQ_AMPLITUDE_RESULTS.md).
 
 V2 retains ATTEN120..127 and adds LEVEL/TRAIN0..127. It reports `v=2,amp_train=1`.
+Its initial worker stack overflowed on hardware; do not qualify that image.
+V3 reports `v=3,amp_train=1`, moves traces to static RAM, uses an8192-byte worker
+stack and emits INFO stack_min plus an after-job STACK row. Build-time compiler
+frame checks require the worker frame to be static and <=512bytes; the compiled
+V3 frame is384bytes. Vendor call-tree depth still needs measured runtime margin.
 TRAIN alternates only attenuation, saves the first16 register-edge timestamps,
 and reports edge count and maximum software lateness. It deliberately yields
 every32 edges so STOP and the guard can run. These scheduling gaps are part of

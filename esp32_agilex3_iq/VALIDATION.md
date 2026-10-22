@@ -977,3 +977,24 @@ RX gain and restores settings. All370 host tests pass, including corruption,
 clipping, gain-readback and firmware-capability rejection. Full saved proof
 names and the aggregate plot are in
 [the amplitude results](docs/ORIGINAL_IQ_AMPLITUDE_RESULTS.md).
+
+### V2 stack fault and V3 correction
+
+V2 `9c2330db…` passed flash/digest verification and normal RF-uninitialized boot,
+but CONTROL and TRAIN0 attempts crashed during PHY initialization with an
+`oiq_probe` stack overflow. No transition qualification follows. Proofs
+`original-iq-v2-init-001.json` and `original-iq-v2-train0-001.json` retain the
+fault/reboot; both cleanup sequences reached STOP/busy0, and a later STATE
+reports RF-uninitialized. The controller now refuses V2 before RF.
+
+V2's16-record stack trace made the compiler worker frame896bytes. V3 moves it
+to static RAM, reduces the frame to384bytes and increases the task stack from
+4096 to8192bytes. Compiler stack usage is generated and checked before accepting
+the build; runtime INFO/STACK report the measured minimum remaining stack.
+Local compiler frames do not include the vendor call tree, so hardware margin
+still requires qualification. V3 app SHA-256:
+`b112c38a155d66dceaa5a860ab850051280714a0e764c53fc2f7d43750de62a0`.
+It is built, not yet installed or hardware-qualified. The host watcher detects
+panic/reboot immediately while keeping STOP/cleanup usable. Tests cover the
+original896-byte-frame regression, panic/reboot detection and V2 refusal.
+All376 host tests pass; V3 flash dry-run and compiler stack checks pass.

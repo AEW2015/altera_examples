@@ -12,6 +12,17 @@ from wifi64_capture_ota import CaptureMonitorBridge,arm_bridge,save_raw
 from nios_fir import NiosFir
 from wifi64_capture import checked,artifact_guard
 
+class OriginalIqBridge(CaptureMonitorBridge):
+    """Detect a diagnostic panic/reboot immediately; cleanup remains usable."""
+    watch_faults=False
+    def _ingest(self,frame):
+        super()._ingest(frame)
+        if self.watch_faults and frame.kind==3 and frame.source==1:
+            line=frame.payload.decode('ascii',errors='replace')
+            if any(marker in line for marker in ('stack overflow','Guru Meditation','panic\'ed','OIQ,READY,')):
+                self.watch_faults=False
+                raise RuntimeError('PMOD A diagnostic fault/reboot during job: '+line.strip())
+
 def fields(line):
     return dict(piece.split('=',1) for piece in line.split(',') if '=' in piece)
 
@@ -56,13 +67,14 @@ def run(args):
           artifact_guard()
           with NiosFir(pause_monitor=False) as owner:
             checked(owner,'WCANCEL',required=('state','valid'))
-            with CaptureMonitorBridge(args.port,background=True) as bridge:
+            with OriginalIqBridge(args.port,background=True) as bridge:
               original_gain=None
               try:
                 bridge.control(2,1,2000000)
                 info=bridge.radio_command(1,'INFO','OIQ,INFO,');ident=bridge.wait_text(1,'OIQ,IDENT,',2)
                 if fields(info).get('chip')!='esp32' or fields(info).get('iq')!='unverified' or fields(info).get('busy')!='0':raise RuntimeError('Wrong/busy diagnostic image')
-                if (level is not None or period is not None) and (fields(info).get('v')!='2' or fields(info).get('amp_train')!='1'):raise RuntimeError('LEVEL/TRAIN requires installed v2 amplitude firmware')
+                if fields(info).get('v')=='2':raise RuntimeError('V2 diagnostic has a known PHY-init stack overflow; install corrected V3 before RF')
+                if (level is not None or period is not None) and (fields(info).get('v') not in ('2','3') or fields(info).get('amp_train')!='1'):raise RuntimeError('LEVEL/TRAIN requires installed v2+ amplitude firmware')
                 if fields(ident).get('mac','').lower()!=args.expect_mac.lower():raise RuntimeError('PMOD A identity mismatch')
                 proof.update(identity=ident,info=info,receiver=bridge.prepare_sdr(0,2447,40000000))
                 original_gain=bridge.radio_command(0,'GAIN?','GAIN ')
@@ -73,7 +85,7 @@ def run(args):
                 expected_gain='GAIN HARDWARE ' if gain_code is None else f'GAIN MANUAL {gain_code} '
                 if not proof['gain'].startswith(expected_gain):raise RuntimeError('Experiment gain mode/code readback mismatch')
                 job=arm_bridge(bridge,16380)
-                proof['tx_requested']=True;bridge.radio_write(1,command+'\n')
+                proof['tx_requested']=True;bridge.watch_faults=True;bridge.radio_write(1,command+'\n')
                 proof['start']=bridge.wait_text(1,'OIQ,START,',3)
                 # Host scheduling is not an RF trigger. Firmware edges are saved
                 # separately; no plateau/phase label is assigned to the samples.
@@ -88,6 +100,7 @@ def run(args):
                 proof['physical_rf_off_measured']=False
                 proof['completed']=True
               finally:
+                bridge.watch_faults=False
                 failures=[]
                 for name,action in [
                   ('stop',lambda:bridge.radio_command(1,'STOP','OIQ,STOP,',3)),
@@ -116,8 +129,8 @@ def main():
     parser.add_argument('--transmit',action='store_true',required=True)
     codes=parser.add_mutually_exclusive_group()
     codes.add_argument('--atten',type=int,choices=range(120,128))
-    codes.add_argument('--level',type=int,choices=range(128),help='v2 only: explicit amplitude code0..127')
-    parser.add_argument('--train-period-us',type=int,choices=range(32,129),help='v2 only: alternate baseline/trial at requested period; scheduling gaps are recorded')
+    codes.add_argument('--level',type=int,choices=range(128),help='v2+: explicit amplitude code0..127; use the corrected v3 firmware')
+    parser.add_argument('--train-period-us',type=int,choices=range(32,129),help='v2+: alternate baseline/trial at requested period; scheduling gaps are recorded')
     parser.add_argument('--milliseconds',type=int,choices=range(3,51),default=50)
     parser.add_argument('--capture-delay-ms',type=int,choices=range(31),default=10)
     parser.add_argument('--rx-gain',type=int,choices=range(128),help='Explicit manual RX gain code; omitted keeps hardware AGC')

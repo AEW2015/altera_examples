@@ -68,8 +68,24 @@ Flash and independent digest verification passed; stage11 SOF and Nios app were
 restored, and V1 normal boot reported RF uninitialized before any experiment.
 
 V2 app SHA `9c2330dbf20e6abc778ffc230a001daccd23a4d5516fc8b4135dfc4b7d036220`
-is built, not yet installed. It adds LEVEL and repeated TRAIN transitions with
-register traces. Next: unchanged-code TRAIN0 control, then TRAIN120, followed by
-one conservative intermediate LEVEL candidate only if headroom/readbacks pass.
+was installed and booted correctly, but its CONTROL and subsequent TRAIN0
+attempt failed during PHY initialization with a worker stack overflow. Neither
+run qualifies RF transitions. Crash/reboot lines remain in the private proofs;
+cleanup reports STOP, busy0 and RF-uninitialized. V1's measurements remain
+separate evidence.
+
+The added16-record automatic trace enlarged the worker compiler frame to896bytes
+inside a4096-byte task stack. V3 moves it to static RAM, reduces that frame to
+384bytes, allocates8192bytes to the worker, and exports runtime minimum stack
+margin. The build now checks compiler stack evidence: static worker frame <=512
+bytes. This is a local-frame check, not a proof of vendor call-tree stack depth.
+The controller detects panic/reboot lines immediately during jobs and permits
+cleanup after a fault. V3 SHA
+`b112c38a155d66dceaa5a860ab850051280714a0e764c53fc2f7d43750de62a0`
+is built, not hardware-tested.
+
+Next after installing the fix: initialization-only CONTROL, inspect its result
+before advancing, unchanged-code TRAIN0 control, then TRAIN120, followed by one
+conservative intermediate LEVEL candidate only if headroom/readbacks pass.
 Measure phase disturbance and settling **within each single capture** before
 building a polar-QAM calibration or claiming64 states.
