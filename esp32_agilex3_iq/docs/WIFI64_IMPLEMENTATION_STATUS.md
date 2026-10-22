@@ -148,7 +148,8 @@ reset. Then request ROM `info` and require the reported MAC to equal
 
 ```sh
 .venv-notebooks/bin/python scripts/flash_esp32.py --module pmod-b \
-  --port /dev/ttyUSB0 --action info --expect-mac e0:e2:e6:01:a9:30
+  --build-dir build-wifi64-monitor --port /dev/ttyUSB0 \
+  --action info --expect-mac e0:e2:e6:01:a9:30
 ```
 
 If ROM info still returns no bytes or reports a different MAC, stop there and
