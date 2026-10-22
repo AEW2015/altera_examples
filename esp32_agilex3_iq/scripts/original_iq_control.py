@@ -15,10 +15,16 @@ from wifi64_capture import checked,artifact_guard
 def fields(line):
     return dict(piece.split('=',1) for piece in line.split(',') if '=' in piece)
 
-def job_command(code,milliseconds):
+def job_command(code,milliseconds,level=None,period=None):
     if type(milliseconds) is not int or not 3<=milliseconds<=50:raise ValueError('Requested duration must be3..50ms')
+    if code is not None and (type(code) is not int or not 120<=code<=127):raise ValueError('Trial code must be120..127')
+    if level is not None and (code is not None or type(level) is not int or not 0<=level<=127):raise ValueError('One level0..127 or attenuation code required')
+    if period is not None:
+        selected=level if level is not None else code
+        if selected is None or type(selected) is not int or not 0<=selected<=127 or type(period) is not int or not 32<=period<=128:raise ValueError('Training requires a code and32..128us period')
+        return f'TRAIN {selected} {milliseconds} {period}'
+    if level is not None:return f'LEVEL {level} {milliseconds}'
     if code is None:return f'CONTROL {milliseconds}'
-    if type(code) is not int or not 120<=code<=127:raise ValueError('Trial code must be120..127')
     return f'ATTEN {code} {milliseconds}'
 
 def idle(bridge,timeout=5):
@@ -31,7 +37,8 @@ def idle(bridge,timeout=5):
     raise TimeoutError('Diagnostic did not report idle')
 
 def run(args):
-    command=job_command(args.atten,args.milliseconds)
+    level=getattr(args,'level',None);period=getattr(args,'train_period_us',None)
+    command=job_command(args.atten,args.milliseconds,level,period)
     if not args.transmit:raise ValueError('--transmit explicitly required')
     output=Path(args.output).resolve();output.relative_to((ROOT/'cyberether/run').resolve())
     # Reserve all evidence paths before hardware access; never overwrite captures.
@@ -55,12 +62,16 @@ def run(args):
                 bridge.control(2,1,2000000)
                 info=bridge.radio_command(1,'INFO','OIQ,INFO,');ident=bridge.wait_text(1,'OIQ,IDENT,',2)
                 if fields(info).get('chip')!='esp32' or fields(info).get('iq')!='unverified' or fields(info).get('busy')!='0':raise RuntimeError('Wrong/busy diagnostic image')
+                if (level is not None or period is not None) and (fields(info).get('v')!='2' or fields(info).get('amp_train')!='1'):raise RuntimeError('LEVEL/TRAIN requires installed v2 amplitude firmware')
                 if fields(ident).get('mac','').lower()!=args.expect_mac.lower():raise RuntimeError('PMOD A identity mismatch')
                 proof.update(identity=ident,info=info,receiver=bridge.prepare_sdr(0,2447,40000000))
                 original_gain=bridge.radio_command(0,'GAIN?','GAIN ')
-                bridge.radio_command(0,'GAIN HARDWARE','OK')
+                gain_code=getattr(args,'rx_gain',None)
+                requested_gain='GAIN HARDWARE' if gain_code is None else 'GAIN MANUAL '+str(gain_code)
+                bridge.radio_command(0,requested_gain,'OK')
                 proof['gain']=bridge.radio_command(0,'GAIN?','GAIN ')
-                if not proof['gain'].startswith('GAIN HARDWARE '):raise RuntimeError('Fixed experiment gain mode readback mismatch')
+                expected_gain='GAIN HARDWARE ' if gain_code is None else f'GAIN MANUAL {gain_code} '
+                if not proof['gain'].startswith(expected_gain):raise RuntimeError('Experiment gain mode/code readback mismatch')
                 job=arm_bridge(bridge,16380)
                 proof['tx_requested']=True;bridge.radio_write(1,command+'\n')
                 proof['start']=bridge.wait_text(1,'OIQ,START,',3)
@@ -103,9 +114,13 @@ def run(args):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--transmit',action='store_true',required=True)
-    parser.add_argument('--atten',type=int,choices=range(120,128))
+    codes=parser.add_mutually_exclusive_group()
+    codes.add_argument('--atten',type=int,choices=range(120,128))
+    codes.add_argument('--level',type=int,choices=range(128),help='v2 only: explicit amplitude code0..127')
+    parser.add_argument('--train-period-us',type=int,choices=range(32,129),help='v2 only: alternate baseline/trial at requested period; scheduling gaps are recorded')
     parser.add_argument('--milliseconds',type=int,choices=range(3,51),default=50)
     parser.add_argument('--capture-delay-ms',type=int,choices=range(31),default=10)
+    parser.add_argument('--rx-gain',type=int,choices=range(128),help='Explicit manual RX gain code; omitted keeps hardware AGC')
     parser.add_argument('--expect-mac',required=True);parser.add_argument('--port')
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()

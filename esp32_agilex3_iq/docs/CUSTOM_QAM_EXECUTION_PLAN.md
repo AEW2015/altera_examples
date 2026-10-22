@@ -21,16 +21,23 @@ flowchart LR
 
 | Gate | Work and acceptance | Status |
 |---|---|---|
-| 0 Preserve | Private native-A full-flash backup, source/image hashes, current stage11 restore path | Prior full-flash backup exists; take fresh native-A backup in ROM before writing |
+| 0 Preserve | Private native-A full-flash backup, source/image hashes, current stage11 restore path | Fresh4MiB native backup verified; V1 flash/digest and stage11 restoration passed |
 | 1 Source review | Find a concrete original-chip sample selector, packing, clocks, start/stop; no copied S3 register guesses | No sample input established |
-| 2 Amplitude diagnostic | CONTROL and ATTEN120..127, requested3..50ms, two seconds quiet; independent raw RX, invariant/restore checks | Firmware built; programmer checks and362 host tests pass; hardware pending manual reset |
-| 3 Polar calibration | Transfer curve, AM/PM, settling, phase directions and repeatability against unchanged-code controls | Needs gate2 hardware |
+| 2 Amplitude diagnostic | CONTROL and ATTEN120..127, requested3..50ms, two seconds quiet; independent raw RX, invariant/restore checks | V1 stable RF amplitude change measured; no fine amplitude law yet |
+| 3 Polar calibration | Transfer curve, AM/PM, settling, phase directions and repeatability against unchanged-code controls | V2 transition diagnostic built; pending installation and RF measurements |
 | 4 Backend decision | Direct IQ playback if demonstrated; otherwise calibrated polar TX, or explicit unresolved result | Pending evidence |
 | 5 FPGA implementation | Known bits, framing/pilots, K7 FEC, BPSK→QPSK→16-QAM→64-QAM, calibrated waveform/polar schedule | Replay mapper/FEC already works; RF backend pending |
 | 6 Complete RX | On-device acquisition/CFO/timing/equalization/soft demap/FEC/CRC, each module simulated and tested | Native Wi-Fi Nios receiver exists; custom waveform integration pending |
 | 7 RF qualification | Same-capture64 states, EVM, failures, pre/post BER with denominators and >=100000 unique payload bits per point | Not yet measured |
 
 ## First hardware experiment
+
+V1 stable-amplitude gate has now run on hardware. Repeated CONTROL RMS96–97ADC
+units versus code120 RMS4.20–4.25, with later TX-off1.05–1.12 and no rail hits at
+manual RX gain0. See [results and plot](ORIGINAL_IQ_AMPLITUDE_RESULTS.md).
+The initial clipped AGC run and initialization-only run are excluded. All370
+host tests pass. These observations do not establish phase continuity, a gain
+law,9radii/52directions, arbitrary IQ or custom QAM.
 
 The narrowest supported lead is tone attenuation, not guessed SRAM playback.
 Install the separate `atum_original_iq_tx_probe` image on PMOD A only; RFS2 and
@@ -77,7 +84,9 @@ bash scripts/build_original_iq_probe.sh
 # Prints a validated command; does not open the UART or flash:
 .venv-notebooks/bin/python scripts/flash_esp32.py --module pmod-a --build-dir build-original-iq-tx-probe --port /dev/ttyUSB0 --dry-run
 # After explicit installation, normal boot and restoration of stage11 only:
-.venv-notebooks/bin/python scripts/original_iq_control.py --transmit --expect-mac 78:21:84:d4:4f:98 --milliseconds 50 --output cyberether/run/original-iq-control-001.json
+.venv-notebooks/bin/python scripts/original_iq_control.py --transmit --expect-mac 78:21:84:d4:4f:98 --milliseconds 50 --rx-gain 0 --output cyberether/run/new-original-iq-control.json
+# Only after V2 installation: unchanged-code repeated-transition control first.
+.venv-notebooks/bin/python scripts/original_iq_control.py --transmit --expect-mac 78:21:84:d4:4f:98 --level 0 --train-period-us 32 --milliseconds 30 --rx-gain 0 --output cyberether/run/new-original-iq-train-control.json
 ```
 
 The one-job controller checks the image platform and target identity, requests a

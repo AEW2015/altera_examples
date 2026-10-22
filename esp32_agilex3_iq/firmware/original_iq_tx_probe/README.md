@@ -1,6 +1,7 @@
 # Original ESP32 attenuation probe
 
-**Not installed or RF-qualified. No arbitrary-IQ playback or QAM claim.** This
+**V1 installed; stable amplitude changes measured. V2 built, not installed. No
+arbitrary-IQ playback or QAM qualification.** This
 separate original-chip image tests the next amplitude-control hypothesis from
 [the research gate](../../docs/ORIGINAL_IQ_TX_RESEARCH_20261021.md). Existing v6
 and native Wi-Fi firmware remain separate.
@@ -11,6 +12,8 @@ ATTEN 120 30      baseline → trial code 120 → baseline, same deadline
 STOP             immediate known tone-enable clearing; worker performs API stop
 STATE            original tone-register readback (does not initialize RF)
 INFO             identity of this diagnostic and busy state
+LEVEL 24 50      v2: explicit code0..127 with the same three slow plateaus
+TRAIN 24 30 32   v2: repeat baseline/trial at requested32us period, <=30ms budget
 ```
 
 No RF command should be sent until guided installation and independent receiver
@@ -25,6 +28,20 @@ backoff command 120, UART0 GPIO17/16 at 2 Mbaud, unicore profile. Startup leaves
 uninitialized. `CONTROL` leaves the readback baseline attenuation unchanged;
 `ATTEN` accepts only trial codes 120..127. These are **uncalibrated codes**, not
 output power or a known dB scale. Direction, settling and AM/PM need measurement.
+
+V1 independent RF captures now show reproducible baseline RMS96–97ADC units
+versus4.20–4.25 for code120, with TX-off1.05–1.12 at manual RX gain0 and no rail
+hits. That is about27.18dB total ADC power difference, not a calibrated RF gain
+law. Code121 was4.37; one nearby-code observation does not establish monotonicity
+or usable fine steps. See [measured results](../../docs/ORIGINAL_IQ_AMPLITUDE_RESULTS.md).
+
+V2 retains ATTEN120..127 and adds LEVEL/TRAIN0..127. It reports `v=2,amp_train=1`.
+TRAIN alternates only attenuation, saves the first16 register-edge timestamps,
+and reports edge count and maximum software lateness. It deliberately yields
+every32 edges so STOP and the guard can run. These scheduling gaps are part of
+the experiment: this is not a uniform sample-clock or FPGA-timed waveform.
+Its purpose is to capture multiple transitions within one raw-RX snapshot and
+measure settling/phase disturbance. It is not a QAM modem or SRAM playback.
 
 Three plateaus share the time remaining **after setup**, within a requested
 3..50 ms job deadline. The start timestamp precedes PHY/TX calls, so setup consumes

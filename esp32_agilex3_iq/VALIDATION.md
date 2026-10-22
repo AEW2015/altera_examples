@@ -950,3 +950,30 @@ guards pass. Fresh native-A full-flash backup must be taken after the manual
 bootloader reset and before any write. This is preparation, not measured RF
 amplitude/phase or arbitrary-IQ qualification. See the
 [execution plan](docs/CUSTOM_QAM_EXECUTION_PLAN.md).
+
+### Original ESP32 RF amplitude gate measured
+
+DiagnosticV1 `e5f5e287…` was actually installed on MAC78:21:84:d4:4f:98 after a
+fresh4MiB native-TX backup (SHA88a517b5…) matched the original app bytes. Flash
+and independent digest verification passed; stage11 SOF0d164d03… and Nios app
+a720cb72… were restored. The manual normal-boot reset yielded READY, correct
+identity, busy0 and RF-uninitialized before RF experiments.
+
+One initialization-only CONTROL and one clipped AGC CONTROL are excluded. Two
+manual-gain0 CONTROL captures measure RMS96.9639/96.0927; two ATTEN120 captures
+measure4.2458/4.2010; one ATTEN121 capture measures4.3695. All five have zero exact
+rail hits. Three later TX-off snapshots measure1.0479/1.1183/1.0908. Every accepted
+job restores attenuation/protected fields and reports STOP/busy0/registers-off.
+The measured register windows are about50.5–50.6ms for requested50ms jobs, not a
+proven hard RF cutoff. The carrier is near17.094kHz in the same FFT search for
+all five active snapshots. Offline host audit gives27.1799dB median total ADC
+power difference for CONTROL/code120; no calibrated attenuation, phase
+continuity, linearity, EVM, arbitrary-IQ or QAM claim follows.
+
+V2 `9c2330db…` builds with explicit LEVEL0..127 and TRAIN32..128us, first16 register
+edge traces and scheduling-lateness counts. It is not yet installed or RF-tested.
+The controller refuses these commands on V1 before TX, supports checked manual
+RX gain and restores settings. All370 host tests pass, including corruption,
+clipping, gain-readback and firmware-capability rejection. Full saved proof
+names and the aggregate plot are in
+[the amplitude results](docs/ORIGINAL_IQ_AMPLITUDE_RESULTS.md).

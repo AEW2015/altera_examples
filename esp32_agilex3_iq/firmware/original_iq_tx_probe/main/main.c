@@ -67,6 +67,7 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
   guard_trip=false;guard_active=true;
   uint32_t saved=0;bool have_saved=false,canonical_failed=false;unsigned fields_ok=1,baseline=0,trial=0;
   tone_record base={0},changed={0},returned={0},restored={0},off_state={0};
+  tone_record trace[16]={0};unsigned trace_count=0,edges=0,late_us=0;
   int64_t on=0,trial_at=0,return_at=0;
   if(!initialized){
    esp_wifi_power_domain_on();periph_module_enable(PERIPH_WIFI_MODULE);registers_accessible=true;
@@ -85,11 +86,28 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
     /* Setup is charged against the original deadline. Three plateaus use the
      * remaining register window; timestamps report actual scheduling. */
     int64_t window=deadline-on;
+    if(job.period_us){
+     int64_t next=esp_timer_get_time()+job.period_us;
+     while(!cancel&&esp_timer_get_time()<deadline){
+      int64_t now=esp_timer_get_time();if(now<next)continue;
+      unsigned code=(edges&1u)?baseline:trial;
+      if(!set_atten(code))break;
+      tone_record edge=capture();
+      if(!cancel&&!invariants(saved,b,e,code)){fields_ok=0;cancel=true;break;}
+      if(trace_count<16)trace[trace_count++]=edge;
+      if((uint64_t)(now-next)>late_us)late_us=(unsigned)(now-next);
+      edges++;next=now+job.period_us;
+      /* Permit UART STOP/main and the guard to run. The resulting gaps are
+       * part of the measured actuator, not a claimed uniform sample clock. */
+      if(!(edges%32u))vTaskDelay(pdMS_TO_TICKS(1));
+     }
+    }else{
     wait_until(on+window/3);
     if(set_atten(trial)){trial_at=esp_timer_get_time();changed=capture();if(!invariants(saved,b,e,trial)){fields_ok=0;cancel=true;}}
     wait_until(on+2*window/3);
     if(set_atten(baseline)){return_at=esp_timer_get_time();returned=capture();if(!invariants(saved,b,e,baseline)){fields_ok=0;cancel=true;}}
     wait_until(deadline);
+    }
    }else canonical_failed=true;
   }
   /* Clear enable first, before any potentially blocking vendor stop routine.
@@ -111,6 +129,10 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
   if(canonical_failed)emit("OIQ,ERR,canonical_or_deadline\n");
   if(have_saved)emit("OIQ,CODES,job=%"PRIu32",baseline=%u,trial=%u,control=%u\n",job_id,baseline,trial,job.control);
   record("BASELINE",base,start);record("TRIAL",changed,start);record("RETURN",returned,start);record("RESTORED",restored,start);
+  if(job.period_us){
+   emit("OIQ,TRAIN,job=%"PRIu32",period_us=%u,edges=%u,max_late_us=%u,trace=%u,uniform_clock=0\n",job_id,job.period_us,edges,late_us,trace_count);
+   for(unsigned k=0;k<trace_count;k++)record("TRACE",trace[k],start);
+  }
   emit("OIQ,TIMING,setup_us=%"PRIi64",register_window_us=%"PRIi64",guard_trip=%u\n",(on?on:setup_done)-start,on?disabled-on:0,guard_trip);
   emit("OIQ,EDGES,trial_us=%"PRIi64",return_us=%"PRIi64",software_bound=1\n",trial_at?trial_at-start:0,return_at?return_at-start:0);
   record("OFF",off_state,start);
@@ -121,7 +143,7 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
 static void command(char*s){
  if(!strcmp(s,"INFO")){
   esp_chip_info_t info;uint8_t mac[6];esp_chip_info(&info);ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA));
-  emit("OIQ,INFO,v=1,chip=esp32,uart=2000000,iq=unverified,busy=%u\n",busy);
+  emit("OIQ,INFO,v=2,chip=esp32,uart=2000000,iq=unverified,busy=%u,amp_train=1,max_code=127\n",busy);
   emit("OIQ,IDENT,rev=%d,mac=%02x:%02x:%02x:%02x:%02x:%02x\n",info.revision,mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
  }
  else if(!strcmp(s,"STATE")){if(registers_accessible)snapshot("STATE");else emit("OIQ,STATE,rf_initialized=0\n");}
