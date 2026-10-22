@@ -1,9 +1,14 @@
 # Plan A — Native Wi-Fi 64-QAM over the air
 
-Status: native Wi-Fi 64-QAM OTA verified: PMOD B independently received 2/2
-known PMOD A packets at 54 Mb/s on channel 8, with matching payloads and clean RX
-status. FPGA/Nios raw-IQ integration runs on hardware, but its first passive
-snapshot found no preamble; raw-IQ packet decoding and BER remain unqualified.
+Status: native Wi-Fi 64-QAM OTA is verified. PMOD B independently received
+8/8 known PMOD A packets at 54 Mb/s on channel11 with matching payloads and clean
+RX status. In a separate raw-IQ path, Stage11 Nios software decoded one known
+92-byte packet from RFS2 IQ, with L-SIG RATE12/length92 and matching DATA FCS.
+The real capture used conjugation and four DATA symbols; the computed and
+received FCS matched `0x94dce7e8`. This is a finite CPU-software milestone; raw
+BER, a 100,000-bit trial and RTL acceleration remain open. The earlier
+first-capture acquisition failure is historical and retained in the
+implementation status.
 See [implementation status and next gates](WIFI64_IMPLEMENTATION_STATUS.md).
 Hardware: installed original ESP32s, Atum A3 Nano / Agilex 3.
 Host: control and display only. No runtime host synchronization, FFT, equalization,
@@ -20,7 +25,7 @@ covers that separate goal.
 ```mermaid
 flowchart LR
     P[FPGA/Nios: known payload + sequence] --> T[PMOD A ESP32: Wi-Fi FEC / 64-QAM / OFDM]
-    T -. 2.4 GHz RF .-> R[RFS2 ESP32: raw IQ]
+    T -. 2.462 GHz RF .-> R[RFS2 ESP32: raw IQ]
     R --> C[FPGA: CRC-qualified capture RAM]
     C --> S[FPGA/Nios: acquisition / CFO / timing]
     S --> F[FPGA: FFT / channel estimate / equalizer / pilots]
@@ -36,6 +41,23 @@ fixed-point acquisition/control algorithms there, but must label Nios software
 versus RTL/IP explicitly. The host never fills in a missing runtime DSP stage.
 Offline Python reference vectors and verification are allowed as development
 checks; their results must not become the live receiver's output.
+
+### Verified finite-burst milestone
+
+The native monitor observed PMOD A's bounded channel11 burst as8/8 packets at
+RATE12 (54 Mb/s), SIG mode0, RX state0 and matching bodies. Separately, the
+Stage11 Nios C receiver processed a real RFS2 source0 capture (nominal40MS/s,
+16,380 CI8 samples, conjugation enabled) and decoded RATE12, length92, four DATA
+symbols/192 real Q13 points and a matching payload. Computed and received FCS
+were both `0x94dce7e8`; the known offline 92-byte payload matched for run
+2026102111, packet0, seed1. Nios processing took 7,515,341,840 ticks
+(150.3068368s at50MHz). The source, native TX and monitor proofs are recorded in
+`cyberether/run/wifi64-raw-native-ota-007.json`.
+
+This establishes one captured-packet decode using Nios CPU software. It does
+not establish raw BER, a 100,000-bit denominator, RTL acceleration or a
+continuous streaming receiver. Earlier acquisition-failure results describe a
+different capture/run and remain valid historical evidence.
 
 ## Roles and first operating point
 
@@ -137,11 +159,14 @@ as the recovered 64-QAM constellation. Require decoded legacy RATE/LENGTH and
 matching native-monitor metadata before labeling a capture 54-Mb/s 64-QAM.
 
 The current checkpoint06 modem is not a drop-in Wi-Fi decoder: it has a 256-bit
-payload limit, unpunctured rate-1/2 coding and a symbol-rate input. Add an LLR
-input mode and sufficient frame/traceback capacity, or a verified streaming
-Viterbi implementation. Budget SERVICE, MAC, payload, FCS, tail and pad bits;
-freeze encoder polynomials, ordering and scrambler conventions against independent
-Wi-Fi vectors before connecting the RF path.
+payload limit, unpunctured rate-1/2 coding and a symbol-rate input, and lacks the
+puncturing and direct soft-LLR interface required by the Wi-Fi DATA path. The
+successful Stage11 packet used a separate Nios C software receiver; it did not
+remove these checkpoint06 limitations. RTL/IP acceleration still needs an LLR
+input mode and sufficient frame/traceback capacity, or verified streaming
+Viterbi. Budget SERVICE, MAC, payload, FCS, tail and pad bits; freeze encoder
+polynomials, ordering and scrambler conventions against independent Wi-Fi
+vectors before the RTL RF path is qualified.
 
 Use native FFT/FIR IP or verified RTL, and use DSP/memory inference deliberately.
 A Nios-only prototype is an explicitly labeled functional milestone; it does not
@@ -186,15 +211,16 @@ capture hashes, actual RATE evidence, timing, firmware/SOF hashes and TX-off pro
 2. Independent native packet/rate proof; retain original firmware rollback.
 3. A2 wideband raw capture qualification.
 4. A3 synthetic module/Questa tests, fixed-point reference checks and native VDS
-   diagram, then actual FPGA RF decoding.
-5. A4 display page, notebook, bounded hardware qualification and longer RF sweeps.
+   diagram; one finite raw-IQ packet has decoded on Nios, while continuous capture
+   and RTL/IP acceleration remain open.
+5. A4 display page, notebook, BER qualification and longer RF sweeps.
 
-Implemented source locations: `firmware/wifi64_tx/`, `firmware/wifi64_monitor/`
-and the portable receiver primitives in `sw/wifi64_*.h`. PMOD A normal boot and
-a two-packet callback check pass; independent RF reception is pending.
-`fpga_hub/iq_bridge/vds_demo_11_wifi64_ota/`, a complete receiver notebook and
-a separate OTA browser page remain planned. See the implementation status for
-which modules are tested on Nios versus compiled offline.
+Implemented source locations: `firmware/wifi64_tx/`, `firmware/wifi64_monitor/`,
+`sw/wifi64_*.h` and `fpga_hub/iq_bridge/vds_demo_11_wifi64_ota/`. PMOD A/B
+independent RF reception and one finite raw-IQ packet decode are verified. BER,
+100,000-bit RF qualification, continuous capture-RAM operation and RTL
+acceleration remain open. See the implementation status for tested Nios modules
+versus offline-only stages.
 
 ## References
 

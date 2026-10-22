@@ -39,9 +39,9 @@ class AcquireTests(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
   cls.tmp=tempfile.TemporaryDirectory();p=Path(cls.tmp.name)
-  (p/'test.c').write_text('#include "wifi64_acquire.h"\nint frontend(const int8_t*x,unsigned n,unsigned rate,w64a_complex*y,unsigned c,w64a_result*r){return w64a_frontend(x,n,rate,y,c,r);}\nint acquire(w64a_complex*x,unsigned n,w64a_complex*w,unsigned c,w64a_result*r){return w64a_acquire(x,n,w,c,r);}\nint angle(int x,int y){return w64a_angle(x,y);}\nvoid sine(int p,int*c,int*s){w64a_sincos(p,c,s);}\nvoid rotate(const w64a_complex*x,w64a_complex*y,unsigned n,int inc,unsigned*c){w64a_rotate(x,y,n,inc,c);}\n')
+  (p/'test.c').write_text('#include "wifi64_acquire.h"\nint frontend(const int8_t*x,unsigned n,unsigned rate,w64a_complex*y,unsigned c,w64a_result*r){return w64a_frontend(x,n,rate,y,c,r);}\nint frontend_ex(const int8_t*x,unsigned n,unsigned rate,w64a_complex*y,unsigned c,w64a_result*r,unsigned conjugate){return w64a_frontend_ex(x,n,rate,y,c,r,conjugate);}\nint acquire(w64a_complex*x,unsigned n,w64a_complex*w,unsigned c,w64a_result*r){return w64a_acquire(x,n,w,c,r);}\nint angle(int x,int y){return w64a_angle(x,y);}\nvoid sine(int p,int*c,int*s){w64a_sincos(p,c,s);}\nvoid rotate(const w64a_complex*x,w64a_complex*y,unsigned n,int inc,unsigned*c){w64a_rotate(x,y,n,inc,c);}\n')
   subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-O2','-shared','-fPIC','-I',str(ROOT/'sw'),str(p/'test.c'),'-o',str(p/'test.so')],check=True,capture_output=True)
-  cls.lib=C.CDLL(str(p/'test.so'));cls.lib.frontend.argtypes=[C.POINTER(C.c_int8),C.c_uint,C.c_uint,C.POINTER(IQ),C.c_uint,C.POINTER(Result)];cls.lib.acquire.argtypes=[C.POINTER(IQ),C.c_uint,C.POINTER(IQ),C.c_uint,C.POINTER(Result)]
+  cls.lib=C.CDLL(str(p/'test.so'));cls.lib.frontend.argtypes=[C.POINTER(C.c_int8),C.c_uint,C.c_uint,C.POINTER(IQ),C.c_uint,C.POINTER(Result)];cls.lib.frontend_ex.argtypes=cls.lib.frontend.argtypes+[C.c_uint];cls.lib.acquire.argtypes=[C.POINTER(IQ),C.c_uint,C.POINTER(IQ),C.c_uint,C.POINTER(Result)]
  @classmethod
  def tearDownClass(cls):cls.tmp.cleanup()
  def raw(self,z,scale=40):
@@ -104,4 +104,14 @@ class AcquireTests(unittest.TestCase):
   large=(IQ*2)(IQ(32767,32767),IQ(32767,32767));rot=(IQ*2)();clips=C.c_uint()
   self.lib.rotate(large,rot,2,2**29,C.byref(clips))
   self.assertEqual(rot[1].i,32767);self.assertGreater(clips.value,0)
+ def test_conjugation_preclip_preserves_negative128_and_filter_sign(self):
+  for fs,n in ((20000000,2),(40000000,200)):
+   raw=np.zeros(2*n,dtype=np.int8);raw[1::2]=-128;arr=(C.c_int8*len(raw))(*raw);out=(IQ*n)();r=Result()
+   self.assertEqual(self.lib.frontend_ex(arr,n,fs,out,n,C.byref(r),1),0)
+   self.assertTrue(all(out[k].q==16384 for k in range(r.output_samples)));self.assertEqual(r.frontend_clips,0)
+   self.assertEqual(self.lib.frontend_ex(arr,n,fs,out,n,C.byref(r),2),-1)
+  rng=np.random.default_rng(19);raw=rng.integers(-128,128,2000,dtype=np.int16).astype(np.int8)
+  _,normal,r=self.front(raw);arr=(C.c_int8*len(raw))(*raw);out=(IQ*1000)();conj=Result()
+  self.lib.frontend_ex(arr,1000,40000000,out,1000,C.byref(conj),1)
+  self.assertTrue(np.array_equal(self.values(out,conj.output_samples),np.conj(self.values(normal,r.output_samples))))
 if __name__=='__main__':unittest.main()

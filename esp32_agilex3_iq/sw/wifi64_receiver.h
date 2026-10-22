@@ -102,15 +102,15 @@ static void w64r_attempt(w64r_workspace*w,unsigned n,w64r_result*r){
  if(rc||r->packet.status){r->status=(r->packet.status&W64D_BAD_FCS)?W64R_FCS_FAILED:W64R_DATA_FAILED;return;}
  r->stage=5;r->accepted=1;
 }
-static int w64r_decode(const int8_t*raw,unsigned samples,unsigned rate,w64r_workspace*w,w64r_result*r){
+static int w64r_decode_ex(const int8_t*raw,unsigned samples,unsigned rate,w64r_workspace*w,w64r_result*r,unsigned conjugate_q){
  if(!r)return -1;
  memset(r,0,sizeof(*r));
- if(!raw||!w||!samples||samples>W64A_MAX_SAMPLES||
+ if(!raw||!w||!samples||samples>W64A_MAX_SAMPLES||conjugate_q>1||
     ((uintptr_t)raw<(uintptr_t)w+sizeof(*w)&&(uintptr_t)w<(uintptr_t)raw+2*samples)||
     ((uintptr_t)r<(uintptr_t)w+sizeof(*w)&&(uintptr_t)w<(uintptr_t)r+sizeof(*r))){r->status=W64R_BAD_INPUT;return -1;}
  if(rate!=40000000){r->status=W64R_UNSUPPORTED_RATE;return -1;}
  for(unsigned k=0;k<2*samples;k++)if(raw[k]==127||raw[k]==-128)r->capture_clipped_components++;
- if(w64a_frontend(raw,samples,rate,w->data,W64R_MAX_OUTPUT,&r->frontend)){r->status=W64R_FRONTEND_FAILED;return 1;}
+ if(w64a_frontend_ex(raw,samples,rate,w->data,W64R_MAX_OUTPUT,&r->frontend,conjugate_q)){r->status=W64R_FRONTEND_FAILED;return 1;}
  unsigned n=r->frontend.output_samples;r->stage=1;
  if(w64a_acquire(w->data,n,w->scratch,W64R_MAX_OUTPUT,&r->acquisition)){r->status=W64R_ACQUISITION_FAILED;return 1;}
  /* Acquisition's metadata lives separately from its mutable processing arrays. */
@@ -122,7 +122,7 @@ static int w64r_decode(const int8_t*raw,unsigned samples,unsigned rate,w64r_work
   memset(&w->trial,0,sizeof(w->trial));w->trial.frontend=r->frontend;w->trial.acquisition=candidates;
   w->trial.capture_clipped_components=r->capture_clipped_components;
   /* Recreate the same capture before each alternate CFO trial. */
-  if(w64a_frontend(raw,samples,rate,w->data,W64R_MAX_OUTPUT,&w->trial.frontend)){r->status=W64R_FRONTEND_FAILED;return 1;}
+  if(w64a_frontend_ex(raw,samples,rate,w->data,W64R_MAX_OUTPUT,&w->trial.frontend,conjugate_q)){r->status=W64R_FRONTEND_FAILED;return 1;}
   w64r_correct_candidate(w,n,&w->trial.acquisition,&c);attempted++;
   w64r_attempt(w,n,&w->trial);statuses[attempted-1]=w->trial.status;indices[attempted-1]=c.ltf_index;
   if(w->trial.stage>r->stage||w->trial.accepted)*r=w->trial;
@@ -130,4 +130,6 @@ static int w64r_decode(const int8_t*raw,unsigned samples,unsigned rate,w64r_work
  }
  r->candidates_attempted=attempted;memcpy(r->candidate_status,statuses,sizeof(statuses));memcpy(r->candidate_ltf,indices,sizeof(indices));return 1;
 }
+/* Original API remains nonconjugating; raw CI8 is never modified. */
+static inline int w64r_decode(const int8_t*raw,unsigned samples,unsigned rate,w64r_workspace*w,w64r_result*r){return w64r_decode_ex(raw,samples,rate,w,r,0);}
 #endif

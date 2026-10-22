@@ -33,10 +33,10 @@ typedef struct {
 static const int16_t w64a_fir[129]={0,0,0,-1,0,1,1,-2,-2,3,4,-3,-7,1,11,2,-14,-8,16,16,-16,-27,11,39,0,-50,-18,57,42,-57,-73,45,106,-19,-136,-23,157,83,-162,-155,142,236,-90,-314,0,377,129,-409,-297,393,496,-308,-716,132,944,167,-1164,-644,1357,1439,-1509,-3070,1605,10292,14748,10292,1605,-3070,-1509,1439,1357,-644,-1164,167,944,132,-716,-308,496,393,-297,-409,129,377,0,-314,-90,236,142,-155,-162,83,157,-23,-136,-19,106,45,-73,-57,42,57,-18,-50,0,39,11,-27,-16,16,16,-8,-14,2,11,1,-7,-3,4,3,-2,-2,1,1,0,-1,0,0,0};
 /* The exact symmetric FIR array is checked against an independent formula. */
 static int16_t w64a_clip(int64_t x,uint32_t *clips){if(x>32767){(*clips)++;return 32767;}if(x< -32768){(*clips)++;return -32768;}return(int16_t)x;}
-static int w64a_frontend(const int8_t *raw,unsigned n,unsigned rate,w64a_complex*out,unsigned capacity,w64a_result*r){
+static int w64a_frontend_ex(const int8_t *raw,unsigned n,unsigned rate,w64a_complex*out,unsigned capacity,w64a_result*r,unsigned conjugate_q){
  if(!r)return -1;
  memset(r,0,sizeof(*r));
- if(!raw||!out||!n||n>W64A_MAX_SAMPLES){r->status=W64A_BAD_INPUT;return -1;}
+ if(!raw||!out||!n||n>W64A_MAX_SAMPLES||conjugate_q>1){r->status=W64A_BAD_INPUT;return -1;}
  if(rate!=20000000&&rate!=40000000){r->status=W64A_UNSUPPORTED_RATE;return -1;}
  unsigned length=rate==20000000?n:(n>=129?(n-129)/2+1:0);
  if(!length){r->status=W64A_TRUNCATED;return 1;}
@@ -44,15 +44,18 @@ static int w64a_frontend(const int8_t *raw,unsigned n,unsigned rate,w64a_complex
  r->output_samples=length;r->decimation=rate==20000000?1:2;r->input_offset=rate==20000000?0:64;
  for(unsigned k=0;k<length;k++){
   int64_t i=0,q=0;
-  if(rate==20000000){i=(int32_t)raw[2*k]*128;q=(int32_t)raw[2*k+1]*128;}
+  if(rate==20000000){i=(int32_t)raw[2*k]*128;q=(int32_t)raw[2*k+1]*128;if(conjugate_q)q=-q;}
   else{
    for(unsigned j=0;j<129;j++){i+=(int32_t)raw[2*(2*k+j)]*w64a_fir[j];q+=(int32_t)raw[2*(2*k+j)+1]*w64a_fir[j];}
+   if(conjugate_q)q=-q;
    /* Q15 filter times128; nearest rounding, half away fromzero. */
    i=i>=0?(i+128)/256:-((-i+128)/256);q=q>=0?(q+128)/256:-((-q+128)/256);
   }
   out[k].i=w64a_clip(i,&r->frontend_clips);out[k].q=w64a_clip(q,&r->frontend_clips);
  }return 0;
 }
+/* Compatibility entry: preserve the original nonconjugating behavior. */
+static inline int w64a_frontend(const int8_t*raw,unsigned n,unsigned rate,w64a_complex*out,unsigned capacity,w64a_result*r){return w64a_frontend_ex(raw,n,rate,out,capacity,r,0);}
 static const int32_t w64a_atan[24]={536870912,316933406,167458907,85004756,42667331,21354465,10679838,5340245,2670163,1335087,667544,333772,166886,83443,41722,20861,10430,5215,2608,1304,652,326,163,81};
 static int32_t w64a_angle(int64_t x,int64_t y){
  if(!x&&!y)return 0;

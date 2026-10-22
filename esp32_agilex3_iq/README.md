@@ -1,11 +1,11 @@
 # ESP32 → Agilex 3 IQ Pipeline Lab
 
-**Demo sources:** The current 64-QAM constellation/BER page is physical FPGA
+**Demo sources:** The 64-QAM BER Lab (port 8773) uses physical FPGA
 symbol replay with Nios-generated noise; it does not transmit or receive RF.
 The earlier ESP32 BPSK/QPSK experiments are actual PMOD A → RFS2 RF captures,
 with host waveform synchronization and separate FPGA symbol/FEC replay tests.
-Native Wi-Fi 54 Mb/s (64-QAM) packet reception is demonstrated below; FPGA
-decoding of captured raw IQ and BER remain unqualified.
+Native Wi-Fi 54 Mb/s (64-QAM) packet reception and a single captured raw-IQ
+packet decode are demonstrated below; raw-IQ BER remains unqualified.
 
 [Native/custom OTA implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md):
 native TX/monitor firmware, measured RF evidence, offline receiver primitives
@@ -13,20 +13,26 @@ and the current raw-IQ decode limit.
 
 ## Native Wi-Fi64 OTA and Checkpoint 11
 
-Two evidence paths are deliberately separate:
+One transmitter, two receiver paths:
 
 ```mermaid
 flowchart LR
-  A[ESP32 A · native Wi-Fi TX] -->|54 Mb/s · 2/2 matched| B[RF · ESP32 B native PHY monitor]
-  C[RFS2 · source0 raw CI8] -->|stable copy| D[Checkpoint 11 · Nios C receiver]
-  D --> E[147 s run · no acquisition candidate]
+  A[PMOD A ESP32 · native Wi-Fi TX] --> R[2.462 GHz RF]
+  R --> B[PMOD B ESP32 · 8/8 packets matched]
+  R --> C[RFS2 ESP32 · raw CI8]
+  C --> D[Agilex 3 FPGA · Nios receiver]
+  D --> E[54 Mb/s · 92 bytes · FCS passed]
 ```
 
-The bounded native over-air test matched **2/2 packets at 54 Mb/s** on the
+The bounded native over-air test matched **8/8 packets at 54 Mb/s** on the
 independent ESP32 monitor. Separately, Checkpoint 11 ran the full C receiver on
-a real RFS2 capture, but found no acquisition candidate; no header, payload FCS
-or BER result was produced. This confirms hardware integration, not successful
-raw-IQ Wi-Fi decoding.
+a real RFS2 capture and recovered RATE12 / 54 Mb/s, the 92-byte payload and
+matching FCS on Nios software. This is one finite-burst raw-IQ decode, not BER
+qualification or parallel RTL acceleration. An earlier capture attempt found
+no acquisition candidate; that historical failure and its proof remain recorded
+in the implementation status.
+
+<img src="docs/images/wifi64_real_ota_constellation.png" width="640" alt="192 measured over-air 64-QAM points recovered by Nios on Agilex 3">
 
 See the [implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md),
 [capture-app guide](docs/WIFI64_CAPTURE_APP.md), and
@@ -346,9 +352,12 @@ hardware sweep cells. Noise is explicitly labeled approximate Gaussian.
 
 The same server offers a compact [TX/RX presentation layout](docs/FPGA_64QAM_BER.md#social--presentation-layout) at `/poster`: three TX/RX pairs arranged in two columns, with before/after-FEC overlays, FPGA pipeline diagrams and frame/sweep error counts. A measured example PNG is included for social posts. This view never starts hardware.
 
-### Planned over-the-air 64-QAM tracks
+### Over-the-air 64-QAM tracks
 
 - [Native Wi-Fi 64-QAM on the installed ESP32s](docs/NATIVE_WIFI_64QAM_OTA_PLAN.md).
 - [Custom FPGA-generated 64-QAM through an ESP32 RF backend](docs/CUSTOM_IQ_64QAM_OTA_PLAN.md).
 
-Both plans keep runtime processing on the ESP32s/FPGA and use the host for control/display. They distinguish measured packet reception, raw-IQ decoding and research-gated arbitrary-IQ transmission. Neither plan is an implemented OTA 64-QAM result yet.
+Both plans keep runtime processing on the ESP32s/FPGA and use the host for
+control/display. Native Wi-Fi packet reception and one raw-IQ packet decode are
+now demonstrated; BER qualification and custom arbitrary-IQ transmission remain
+open and separately gated.

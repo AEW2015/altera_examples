@@ -65,10 +65,10 @@ class ReceiverTests(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
   cls.tmp=tempfile.TemporaryDirectory();p=Path(cls.tmp.name)
-  (p/'test.c').write_text('#include "wifi64_receiver.h"\nstatic w64r_workspace w;\nint decode(const int8_t*x,unsigned n,unsigned rate,w64r_result*r){return w64r_decode(x,n,rate,&w,r);}\nunsigned memory(void){return sizeof(w);}\nunsigned result_size(void){return sizeof(w64r_result);}\n')
+  (p/'test.c').write_text('#include "wifi64_receiver.h"\nstatic w64r_workspace w;\nint decode(const int8_t*x,unsigned n,unsigned rate,w64r_result*r){return w64r_decode(x,n,rate,&w,r);}\nint decode_ex(const int8_t*x,unsigned n,unsigned rate,w64r_result*r,unsigned conjugate){return w64r_decode_ex(x,n,rate,&w,r,conjugate);}\nunsigned memory(void){return sizeof(w);}\nunsigned result_size(void){return sizeof(w64r_result);}\n')
   process=subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-O2','-shared','-fPIC','-I',str(ROOT/'sw'),str(p/'test.c'),'-o',str(p/'test.so')],capture_output=True,text=True)
   if process.returncode:raise RuntimeError(process.stderr)
-  cls.lib=C.CDLL(str(p/'test.so'));cls.lib.decode.argtypes=[C.POINTER(C.c_int8),C.c_uint,C.c_uint,C.POINTER(Result)]
+  cls.lib=C.CDLL(str(p/'test.so'));cls.lib.decode.argtypes=[C.POINTER(C.c_int8),C.c_uint,C.c_uint,C.POINTER(Result)];cls.lib.decode_ex.argtypes=cls.lib.decode.argtypes+[C.c_uint]
  @classmethod
  def tearDownClass(cls):cls.tmp.cleanup()
  def decode(self,raw,rate=40000000):
@@ -104,4 +104,15 @@ class ReceiverTests(unittest.TestCase):
   self.assertEqual(list(r.candidate_status[:2]),[64,0])
   self.assertEqual(bytes(r.packet.psdu[:92]),expected)
   self.assertGreater(r.candidate_ltf[1],r.candidate_ltf[0])
+ def test_conjugated_waveform_optional_flag_and_alternate_regeneration(self):
+  valid,expected,_=waveform(cfo=120000,snr=30)
+  unsupported=waveform(printed_rate=1)[0]
+  for raw in (valid,np.r_[unsupported,waveform()[0]]):
+   inverted=raw.copy();inverted[1::2]=(-raw[1::2].astype(np.int16)).astype(np.int8)
+   array=(C.c_int8*len(inverted))(*inverted);before=bytes(array);r=Result()
+   rc=self.lib.decode_ex(array,len(inverted)//2,40000000,C.byref(r),1)
+   self.assertEqual((rc,r.accepted,r.packet.status),(0,1,0))
+   self.assertEqual(bytes(r.packet.psdu[:92]),expected);self.assertEqual(bytes(array),before)
+   self.assertFalse(self.decode(inverted)[1].accepted)
+  self.assertEqual(r.candidates_attempted,2)
 if __name__=='__main__':unittest.main()

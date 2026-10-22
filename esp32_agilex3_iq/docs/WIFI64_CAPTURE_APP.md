@@ -87,6 +87,7 @@ with lease_path.open("a") as lease:
         try:
             bridge.prepare_sdr(source=0, frequency_mhz=2447, rate=40_000_000)
             cpu.command("WCANCEL")
+            # Optional calibrated IQ-polarity correction: cpu.command("WCONJ", 1)
             cpu.command("WARM")
             job = bridge.submit(source=0, samples=16380, rate=40_000_000)
             while True:
@@ -169,10 +170,11 @@ Only one UART/JTAG owner may hold the device at a time.
 
 | Verb | Operation |
 |---|---|
-| `WVERSION` | Version1, RAM/timer/component IDs, host-DSP0, `cancel_supported=1` |
+| `WVERSION` | Version1, RAM/timer/component IDs, host-DSP0, cancel/conjugation capabilities |
 | `WSTATUS` | Live frozen-capture state and cached-result validity |
 | `WARM` | Disable PAIR and arm the manual raw mirror; does not start ESP32 RX/TX |
 | `WCANCEL` | Clear manual FIR arm/ready/done and invalidate cached results |
+| `WCONJ 0` / `WCONJ 1` | Preserve or negate input Q on device; invalidates cached results |
 | `WRUN` | Validate/copy the ready source0 capture and run the receiver |
 | `WPOINT n` | Actual equalized DATA point at index`n` |
 | `WBYTE n` | Decoded PSDU byte at index`n`, including failed FCS |
@@ -184,6 +186,19 @@ mirror. Cancel after an abandoned capture or after reading its results.
 **Do not cancel between a successful capture and `WRUN`: it clears ready RAM
 validity.** A software-only cancel does not interrupt a running blocking decode;
 wait for its result before issuing another command.
+
+## Optional IQ polarity correction
+
+`WVERSION` reports `conjugate_supported=1` on the new app. `WCONJ 1` negates Q
+inside the Nios frontend **before rounding and clipping**; even rawQ=-128 is
+handled without8-bit overflow. `WCONJ 0` preserves the original behavior and is
+the boot default. `WSTATUS` and `WRUN` report the applied `conjugate_q` value.
+
+Configure only after `WCANCEL` and before `WARM`; armed/busy/owned RAM rejects a
+mode change. Read the setting back, and restore the original mode after a test.
+The spectral-polarity calibration motivated this option, but conjugation alone
+is not evidence that a real Wi-Fi packet decoded. Require the same L-SIG, packet
+identity and FCS evidence as for the unmodified mode.
 
 ## Restore the normal monitor
 

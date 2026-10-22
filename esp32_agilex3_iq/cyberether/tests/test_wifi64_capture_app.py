@@ -36,7 +36,7 @@ void setup(const int8_t*data,unsigned n,unsigned crc,unsigned rate,unsigned sour
  memset(fir,0,sizeof(fir));memset(ddc,0,sizeof(ddc));cursor=previous=timer=reads=torn=0;raw_words=n;
  for(unsigned k=0;k<n&&k<W64A_MAX_SAMPLES;k++)memory[k]=(uint8_t)data[2*k]|((unsigned)(uint8_t)data[2*k+1]<<8);
  fir[0]=0x46495231;fir[1]=state;fir[3]=n;fir[4]=17;fir[5]=source;fir[11]=crc;fir[13]=rate;fir[14]=2447000000u;ddc[0]=0x44444331;ddc[1]=busy;
- result_valid=command_used=overflow=0;
+ result_valid=command_used=overflow=conjugate_q=0;
 }
 const char*send_command(const char*s){log_used=0;log_buffer[0]=0;while(*s)input((uint8_t)*s++);input('\n');return log_buffer;}
 void make_torn(void){torn=1;}
@@ -55,7 +55,7 @@ void bad_id(void){fir[0]=0;}
  def send(self,s):return self.lib.send_command(s.encode()).decode().strip()
  def fields(self,s):return {k:v for k,v in (p.split('=',1) for p in s.split(',')[4:] if '=' in p)}
  def test_version_arm_and_strict_commands(self):
-  self.setup();s=self.send('FIR 42 WVERSION');self.assertTrue(s.startswith('FIR,42,OK,WVERSION,'));self.assertEqual(self.fields(s)['timer_base'],'327680');self.assertEqual(self.fields(s)['cancel_supported'],'1')
+  self.setup();s=self.send('FIR 42 WVERSION');self.assertTrue(s.startswith('FIR,42,OK,WVERSION,'));self.assertEqual(self.fields(s)['timer_base'],'327680');self.assertEqual(self.fields(s)['cancel_supported'],'1');self.assertEqual(self.fields(s)['conjugate_supported'],'1')
   self.assertIn('FIR,43,OK,WARM,state=1,pair=0',self.send('FIR 43 WARM'))
   self.assertIn('ERR,WRUN,error=2',self.send('FIR 44 WRUN'))
   self.assertIn('ERR,WPOINT,error=9',self.send('FIR 45 WPOINT 0'))
@@ -92,4 +92,16 @@ void bad_id(void){fir[0]=0;}
   for state,busy in ((8,0),(128,0),(0,1)):
    self.setup(state=state,busy=busy);self.assertIn('ERR,WCANCEL,error=2',self.send('FIR 87 WCANCEL'))
    self.assertEqual(int(self.fields(self.send('FIR 88 WSTATUS'))['state']),state)
+ def test_conjugation_configuration_and_cached_result_guards(self):
+  self.setup();line=self.send('FIR 90 WCONJ 1');self.assertIn('OK,WCONJ,conjugate_q=1',line)
+  self.assertEqual(self.fields(self.send('FIR 91 WSTATUS'))['conjugate_q'],'1')
+  for value in ('2','-1','4294967296'):
+   self.assertIn('FIR,92,ERR,WCONJ,error=1',self.send('FIR 92 WCONJ '+value))
+  self.setup();self.send('FIR 93 WRUN');self.assertEqual(self.fields(self.send('FIR 94 WSTATUS'))['valid'],'1')
+  self.send('FIR 95 WCONJ 0');self.assertEqual(self.fields(self.send('FIR 96 WSTATUS'))['valid'],'0')
+  for state,busy in ((1,0),(8,0),(128,0),(0,1)):
+   self.setup(state=state,busy=busy);self.assertIn('ERR,WCONJ,error=2',self.send('FIR 97 WCONJ 1'))
+  raw=waveform()[0];raw=raw.copy();raw[1::2]=(-raw[1::2].astype('int16')).astype('int8')
+  self.setup(raw=raw);self.send('FIR 98 WCONJ 1');fields=self.fields(self.send('FIR 99 WRUN'))
+  self.assertEqual((fields['accepted'],fields['conjugate_q']),('1','1'))
 if __name__=='__main__':unittest.main()

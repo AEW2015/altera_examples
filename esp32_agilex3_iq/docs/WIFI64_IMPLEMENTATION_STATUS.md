@@ -1,33 +1,35 @@
 # Wi-Fi 64-QAM implementation — 2026-10-21
 
-The two OTA plans are **in progress**. Native 54 Mb/s PHY packet reception has
-now been observed over the air on PMOD B, but no raw-IQ decode, BER, or custom
-64-QAM transmission has been qualified. Existing port8773 still shows FPGA
-symbol replay, labeled **NO RF TX**. No replacement RF results are fabricated.
+The two OTA plans are **in progress**. Native 54 Mb/s PHY reception is confirmed
+on PMOD B, and one known 92-byte packet has now been decoded from RFS2 raw IQ by
+the Stage11 Nios C receiver with matching FCS. This is a single finite-burst
+CPU-software success, not BER qualification or parallel RTL acceleration.
+Custom-IQ transmission remains research-gated. Existing port8773 still shows
+FPGA symbol replay, labeled **NO RF TX**.
 
 ```mermaid
 flowchart LR
-  A[PMOD A: native 54Mb/s TX<br/>firmware FLASHED] -->|actual RF| M[PMOD B: native PHY monitor<br/>2/2 payloads matched]
-  A -. raw-IQ decode pending .-> B[RFS2: raw IQ40MS/s<br/>source0 capture]
-  B --> C[Stage11 Nios receiver<br/>ran; no acquisition candidate]
+  A[PMOD A: native 54Mb/s TX<br/>firmware FLASHED] -->|actual RF| M[PMOD B: native PHY monitor<br/>8/8 payloads matched]
+  A -. actual RF .-> B[RFS2: source0 raw IQ<br/>16,380 CI8 samples]
+  B --> C[Stage11 Nios C receiver<br/>one packet: L-SIG + FCS pass]
   C --> D[FFT64 / equalizer / soft QAM64]
   D --> E[Deinterleave / depuncture / Viterbi<br/>descramble / CRC]
-  E --> F[Read-only native viewer<br/>FPGA decode pending]
+  E --> F[Read-only native viewer<br/>BER / larger trials pending]
 ```
 
 ## Implemented and tested
 
 | Item | Evidence | Remaining limit |
 |---|---|---|
-| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Normal boot verified; bounded job produced 2/2 native monitor matches at54Mb/s |
-| Independent monitor firmware | Flashed and normal boot verified; bounded OTA job matched2/2 payloads | Native PHY monitor evidence only; does not decode RFS2 raw IQ |
+| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Eight-packet bounded job produced 8/8 native monitor matches at54Mb/s |
+| Independent monitor firmware | Flashed and normal boot verified; 8/8 packets at RATE12, SIG mode0, RX state0, matching body | Native PHY evidence; separate from RFS2 raw-IQ decode |
 | Bounded controller | Shared acquisition lock, explicit `--transmit`, readbacks, STOP/idle proof; fake-bridge tests and one successful native OTA job | Larger packet/error-rate trials remain open |
 | Wideband transport | Three16380-sample CI8 captures, nominal40MS/s, CRCs pass; reported capture411us; no hub errors | Passive; sample clock and complete20MHz analog response not measured |
 | Receiver primitives | Integer FFT64, two-LTF channel estimate, equalization, all64 QAM labels | Caller must supply acquired/CFO/pilot-corrected symbols |
-| Wi-Fi DATA backend | s=3 deinterleave,3/4 depuncture, K7 soft Viterbi, SERVICE seed/descramble, FCS | 256-byte PSDU limit; not connected to live acquisition |
-| Actual Nios V test | **5/5 synthetic fixtures pass**; Stage11 also ran the C receiver on a CRC-exact/stable copy of real RFS2 IQ | Real capture returned acquisition failure; no header, FCS, or BER result; CPU software, not RTL acceleration |
-| Full C receiver prototype | Synthetic40MS/s IQ through FIR, acquisition/CFO, FFT/equalizer/pilots, L-SIG,64-QAM and DATA FCS pass; one Stage11 real-capture run | Hardware integration exercised, but Wi-Fi decode not qualified; requires successful acquisition and continuous capture-RAM integration |
-| L-SIG header backend | All8 legacy rate fixtures pass; 54Mb/s wire code12,48Mb/s code8 | Offline C/RV32I fixtures pass; tested real capture produced no acquisition candidate |
+| Wi-Fi DATA backend | s=3 deinterleave,3/4 depuncture, K7 soft Viterbi, SERVICE seed/descramble, FCS | 256-byte PSDU limit; finite capture only, no continuous live stream |
+| Actual Nios V test | **5/5 synthetic fixtures pass**; Stage11 decoded one known raw-IQ packet through L-SIG and DATA FCS | Finite-burst Nios software, not parallel RTL acceleration; BER and repeatability remain open |
+| Full C receiver prototype | Synthetic40MS/s fixtures pass; one RFS2 capture decoded at54Mb/s with four DATA symbols and matching FCS | One finite capture only; no BER, 100k-bit trial, or continuous capture-RAM pipeline |
+| L-SIG header backend | All8 legacy rate fixtures pass; real capture decoded RATE12 / 54Mb/s, length92 | Additional independent captures and repeated packet trials remain open |
 | Custom-TX research | Original-chip attenuation field and separate forced-gain ABI identified;1024 bitfield cases pass | Separate attenuation-only firmware compiles; not installed or RF-qualified; no arbitrary-IQ playback proof |
 
 Nios test ELF SHA:
@@ -50,15 +52,29 @@ packets matched on channel8 at54Mb/s (RATE code12, SIG mode0, RX state0), RSSI
 were zero; A verified RF-off and B stopped. This is actual native PHY packet
 reception over RF, not FPGA raw-IQ decoding and not BER.
 
-Stage11 integration proof `cyberether/run/wifi64-stage11-passive-first-decode.json`
-records a programmed hardware run with baseline bridge/NIOSSTATUS/MSVERSION
-identity checks passing. The exact-copy/stability check passed for RFS2 source0,
-nominal40MS/s, 16,380 CI8 samples (reported411us). The full C decoder ran on the
-capture for 7,369,960,022 timer ticks (147.39920044s at50MHz), returning status4
-(acquisition failed), zero candidates, no decoded header, and 134 clipped raw
-components. Payload FCS and BER were not reached. No TX was requested. This is
-hardware integration validation, not a Wi-Fi decode pass; raw-IQ reception and
-BER remain unqualified.
+The first Stage11 passive attempt, recorded in
+`cyberether/run/wifi64-stage11-passive-first-decode.json`, is historical: the
+capture copy was exact and stable, but that capture returned status4, zero
+candidates, and 134 clipped raw components. It ran 7,369,960,022 ticks
+(147.39920044s at50MHz) without a decoded header or FCS. A later distinct run
+successfully decoded one capture as documented below; the first failure remains
+useful acquisition-failure evidence.
+
+The successful proof `cyberether/run/wifi64-raw-native-ota-007.json` used the
+Stage11 SOF SHA-256
+`0d164d03ca627e9d3007070631cab273043e268eb806b077815ad78c61f25efa` and Nios app SHA
+`a720cb729a318e9c9d98e66a8fa7c0236c9258d37d4eca63e1007e1171eb128c`. On
+channel11 (2462MHz nominal), RFS2 source0 supplied 16,380 CI8 samples at nominal
+40MS/s; conjugation was enabled. Nios decoded L-SIG RATE12 (54Mb/s), length92,
+and four DATA symbols represented by192 real Q13 points, with zero clipped
+points. Computed and received FCS both equal 2497505256 (`0x94dce7e8`); the
+decoded 92-byte payload exactly matches the offline known payload for run
+2026102111, packet0, seed1. Runtime was 7,515,341,840 ticks (150.3068368s at
+50MHz). PMOD B independently observed8/8 packets at RATE12, SIG mode0, RX state0,
+RSSI −17dBm with matching bodies. PMOD A accepted and completed8/8 at54Mb/s;
+normal DONE and all STOP/idle checks passed with zero counter deltas. No raw-IQ
+BER or 100,000-bit measurement was made. This proves one finite raw-IQ packet
+decode on Nios software, not RTL acceleration or a BER-qualified receiver.
 
 The selftest uses42,804bytes of64KiB including BSS; workspace25,712bytes.
 At50MHz its FFT tone test took453085 timer ticks (~9.06ms), channel/null test
@@ -78,8 +94,9 @@ Local ignored evidence:
 - `cyberether/run/original-iq-research-20261021/`
 
 These paths hold captures/binaries and stay out of Git. No TX was requested during
-these tests or the Stage11 passive decode run. PMOD A's existing v6 firmware
-reported idle with both tones disabled during the earlier Nios selftest.
+the earlier Stage11 passive decode or Nios selftest; the later bounded A/B TX job
+is documented in the successful proof above. PMOD A's existing v6 firmware
+reported idle with both tones disabled during the earlier selftest.
 
 ## Reproduce without RF
 
@@ -112,12 +129,13 @@ fixtures on actual hardware. It is not a waveform replay through the RF chain.
 ## Next gates
 
 1. PMOD A TX and PMOD B native PHY monitor are flashed and normal boot is
-   verified; bounded two-packet RF reception matched both payloads and ended
-   RF-off. Repeatability and larger packet/error-rate trials remain open.
-2. Implement in-device40→20MS/s filtering, acquisition/CFO/timing, pilot correction
-   and validated L-SIG. Integrate these primitives with actual capture RAM.
-3. Qualify actual raw-IQ FCS/BER and build the separate source-tagged OTA GUI;
-   then run100,000 unique known payload bits per RF condition with cooldowns.
+   verified; the bounded channel11 job matched8/8 over RF and produced one
+   successful raw-IQ packet decode. Repeatability and error-rate trials remain open.
+2. Repeat the raw-IQ packet decode across captures and operating points; integrate
+   a continuous capture-RAM pipeline and move qualified stages from Nios software
+   into RTL/IP where needed.
+3. Qualify raw-IQ BER with explicit denominators and a 100,000-unique-bit trial
+   per RF condition with cooldowns; complete the source-tagged OTA GUI.
 4. Separately, build a bounded original-chip attenuation-only probe, qualify
    amplitude settling/AM-PM, then decide whether a polar64-QAM backend is viable.
    Direct arbitrary-IQ TX remains research-gated.

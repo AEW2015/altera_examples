@@ -789,12 +789,15 @@ Portable C frontend accepts20/40MS/s vectors and rejects16MS/s;40MS/s uses
 129 Q15 taps with valid filtering/2 decimation. Independent exact FIR and
 13MHz alias rejection (>35dB), STF/LTF timing, CORDIC quadrants, CFO, noise,
 multipath, clipping and failure/input-preservation tests pass in5 groups.
-RV32I compilation succeeds. This is an unintegrated CPU prototype, not an OTA
-receiver qualification or streaming RTL accelerator.
+RV32I compilation succeeds. This finite-burst CPU prototype is now integrated
+into Stage11 Nios for one successful captured-packet decode (documented below),
+but it is not a streaming RTL accelerator or BER qualification.
 
 Display-only `cyberether/wifi64_native.py` and HTML show saved native packet
-observations separately from pending FPGA raw-IQ decoding. Three server tests
-pass. Actual Chromium checks in the desktop container pass without JavaScript
+observations separately from FPGA raw-IQ decoder output. At the time of these
+initial UI checks no successful raw-IQ decode proof had been published; the
+later packet decode is documented below. Three server tests pass. Actual
+Chromium checks in the desktop container pass without JavaScript
 errors: GET-only requests, waiting state, per-run transmitter precedence, chart
 rendering and mobile width. Chart checks used clearly separate synthetic UI
 fixtures, not radio evidence; waiting-RX screenshot uses actual saved A callback
@@ -802,7 +805,7 @@ evidence with independent RX explicitly unknown. No service was left running
 and no RF was started by these browser checks.
 
 
-### Complete portable C receiver prototype, still offline
+### Complete portable C receiver prototype and finite hardware integration
 
 `sw/wifi64_receiver.h` integrates40→20MS/s FIR, STF/LTF acquisition/CFO,
 FFT64, channel equalization, pilot phase tracking, L-SIG,64-QAM soft demapping
@@ -816,9 +819,9 @@ Caller workspace/result total107840bytes. A freestanding RV32I link needs
 126980bytes before its4KiB stack allowance, so128KiB fails the linker guard;
 256KiB passes. The Stage11 larger-memory-map build passes timing (setup +2.777ns,
 hold +0.016ns) with27,769/45,800 ALMs,242/353 M20Ks and32/368 DSP units
-reported. A bounded hardware integration run is now recorded below. Raw-capture
-RAM integration as a continuous receive path and real Wi-Fi decoding remain
-pending. Earlier offline checks did not change the existing hardware/runtime or
+reported. Bounded hardware integration and one successful real-packet decode
+are recorded below. Continuous raw-capture RAM operation and BER qualification
+remain pending. Earlier offline checks did not change the existing hardware/runtime or
 selftest ELFs.
 
 `wifi64_ota.py --publish` is opt-in, validates a new proof path under the run
@@ -845,7 +848,7 @@ Stage11 FPGA build timing passed with setup slack +2.777ns and hold slack
 +0.016ns. Reported resource use was27,769/45,800 ALMs,242/353 M20K blocks and
 32/368 DSP units. These are build results, separate from receiver qualification.
 
-### Stage 11 passive real-capture integration
+### Stage 11 first passive real-capture attempt (historical failure)
 
 Stage11 was programmed, and baseline bridge identity, NIOSSTATUS and MSVERSION
 checks passed. The capture ELF ran on the real RFS2 source0 capture at nominal
@@ -857,9 +860,63 @@ clipped raw components. Proof:
 `cyberether/run/wifi64-stage11-passive-first-decode.json`. No TX was requested
 during this passive check.
 
-This passes the bounded hardware integration and capture-copy checks, but is a
-decoder failure for this capture, not a Wi-Fi decode pass. The source capture
-did not produce an acquisition candidate, so L-SIG/payload/FCS validation and
-BER were not reached. No actual raw-IQ Wi-Fi reception is qualified yet. The
-current host suite reports314 passing tests, including eight tests for the new
-`program_wifi64.py` helper.
+This first attempt passed bounded hardware integration and capture-copy checks,
+but failed decoding this particular capture. It produced no acquisition
+candidate, so L-SIG/payload/FCS validation and BER were not reached. This is
+historical per-capture failure evidence; a separate later run successfully
+decoded one raw-IQ packet (see below). At the time of this run,314 host tests
+passed, including eight tests for the new `program_wifi64.py` helper.
+
+### Stage 11 FPGA modem replay and capture-app controls
+
+Checkpoint11 FPGA modem replay passed four fixed64-bit payload fixtures: BPSK,
+QPSK, 16-QAM and64-QAM all decoded exactly, with raw and decoded error counts
+both zero. Each waveform's symbols were generated and decoded in FPGA RAM;
+the host issued batched CSR controls and assertions. Encode/decode cycles were
+210/10,704 (BPSK), 140/10,564 (QPSK), 105/11,614 (16-QAM) and94/15,496
+(64-QAM). Proof: `cyberether/run/wifi64-stage11-modem-replay-hardware.json`.
+This is FPGA modem replay validation, with **no RF** and no IEEE Wi-Fi packet
+qualification.
+
+The capture-app ELF `e7525f3a67f8cb63a221177cb4ec90ce05f3f2b1fdd2eced89a56cfa54589c26`
+adds and passes hardware WCANCEL validation (ready→idle with cache invalidation)
+and reports `WVERSION cancel_supported=1`. The previously reported147.399-second
+real-capture decoder run is a separate proof and ELF identity (`99e9…`); these
+modem replay results do not change its acquisition-failure result. The capture
+app was restored after this test. The host suite had315 passing tests before the
+new RF-controller tests were added.
+
+### Stage 11 raw-IQ native OTA packet decode
+
+The later proof `cyberether/run/wifi64-raw-native-ota-007.json` records a
+successful finite-burst decode with Stage11 SOF SHA-256
+`0d164d03ca627e9d3007070631cab273043e268eb806b077815ad78c61f25efa` and Nios app SHA-256
+`a720cb729a318e9c9d98e66a8fa7c0236c9258d37d4eca63e1007e1171eb128c`. A bounded
+PMOD A channel11 burst accepted/completed8/8 packets at54Mb/s, all completed
+normally, and STOP/idle checks passed with zero counter deltas. PMOD B
+independently matched8/8 packets with RATE12, SIG mode0, RX state0, RSSI −17dBm
+and matching bodies.
+
+RFS2 source0 captured nominal40MS/s, 16,380 CI8 samples at 2462MHz; conjugation
+was enabled. The Nios C receiver decoded L-SIG RATE12 (54Mb/s), length92, then
+four DATA symbols (192 real Q13 points, zero clipped points). Its exact 92-byte
+payload matched run2026102111, packet0, seed1; computed and received FCS were
+2497505256 (`0x94dce7e8`). The run took 7,515,341,840 timer ticks
+(150.3068368s at50MHz). This confirms one raw-IQ packet decode using Nios CPU
+software, not parallel RTL acceleration. No raw BER or 100,000-bit measurement
+was made; continuous capture-RAM operation and raw-IQ BER remain open. This
+proof is separate from the earlier147.399-second acquisition-failure run and
+does not replace its historical record. The host suite had341 passing tests
+before the GUI work.
+
+The final host suite passes **354 tests**, including the raw-proof publisher,
+bounded capture controller and viewer. Desktop and 390-pixel mobile browser
+checks show the actual 192-point constellation, channel11, 54Mb/s, passing FCS,
+92 bytes and 150.3 seconds. The older channel8 native-monitor proof is explicitly
+labeled as a separate saved run. Browser requests were GET-only, with no
+JavaScript exceptions or mobile horizontal overflow. The read-only page is on
+port8774; it does not transmit. Screenshot and browser evidence are retained in
+`cyberether/run/wifi64-native-real-raw-007{,-mobile}.png` and
+`cyberether/run/wifi64-native-real-raw-007-browserproof.json`. A portable picture
+of the real decoded points is included at
+`docs/images/wifi64_real_ota_constellation.png`.
