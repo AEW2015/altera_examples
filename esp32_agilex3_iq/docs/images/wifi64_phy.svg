@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="330" viewBox="0 0 900 330" role="img" aria-labelledby="title desc">
+<title id="title">Native Wi-Fi and custom IQ boundaries</title><desc id="desc">Packet bytes enter the native ESP32 PHY. Raw RF reception and decoding happen in RFS2 and Agilex 3. Arbitrary FPGA IQ injection into the original ESP32 transmitter is not proven.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#70e5d4"/></marker></defs>
+<rect width="900" height="330" rx="16" fill="#0b202b"/>
+<g font-family="system-ui,sans-serif" fill="#e8f5f5"><text x="24" y="32" fill="#70e5d4" font-size="12" letter-spacing="2">WHO BUILDS THE WAVEFORM?</text>
+<g stroke="#355866" fill="#102c38"><rect x="24" y="55" width="150" height="84" rx="10"/><rect x="212" y="55" width="420" height="84" rx="10"/><rect x="670" y="55" width="206" height="84" rx="10"/></g>
+<g text-anchor="middle" font-size="15"><text x="99" y="83">Packet bytes</text><text x="99" y="108" fill="#9db6c0" font-size="12">Our firmware</text><text x="422" y="80">PMOD A ESP32 · native Wi-Fi PHY</text><text x="422" y="103" fill="#ffd083" font-size="12">Scramble → FEC → interleave → 64-QAM</text><text x="422" y="123" fill="#9db6c0" font-size="12">OFDM / IFFT → DAC → 2.4 GHz RF</text><text x="773" y="83">RFS2 ESP32</text><text x="773" y="109" fill="#9db6c0" font-size="12">RF → ADC → raw CI8</text></g>
+<g fill="none" stroke="#70e5d4" stroke-width="2" marker-end="url(#arrow)"><path d="M175 97H208"/><path d="M633 97H666"/><path d="M773 140V173H528V196"/></g>
+<rect x="268" y="201" width="608" height="105" rx="10" fill="#113332" stroke="#3e766a"/>
+<g text-anchor="middle"><text x="572" y="226" font-size="16">Agilex 3 FPGA</text><text x="572" y="249" font-size="12" fill="#9db6c0">RTL capture / RAM → Nios V SOFTWARE receiver</text><text x="572" y="272" font-size="13">FIR → sync / CFO → FFT → equalizer → soft demap</text><text x="572" y="293" font-size="13" fill="#a4f4cb">Viterbi → descramble → packet bytes / FCS</text></g>
+<rect x="24" y="180" width="220" height="126" rx="10" fill="#2d251a" stroke="#796242" stroke-dasharray="5 4"/>
+<g text-anchor="middle" font-size="12"><text x="134" y="208" fill="#ffd083">CUSTOM IQ TX · UNPROVEN</text><text x="134" y="234">FPGA QAM samples</text><text x="134" y="257">⇢ missing original-ESP32</text><text x="134" y="278">TX sample injection path</text></g></g></svg>

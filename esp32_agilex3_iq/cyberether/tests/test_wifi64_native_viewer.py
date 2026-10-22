@@ -29,6 +29,9 @@ class NativeViewer(unittest.TestCase):
    try:
     with urlopen(url+'/api/state') as response:self.assertEqual(json.load(response)['status'],'waiting')
     with urlopen(url) as response:self.assertIn(b'Native Wi-Fi 64-QAM',response.read())
+    with urlopen(url+'/story') as response:self.assertIn(b'Exact remapped constellation needs a new device export',response.read())
+    with urlopen(url+'/wifi-phy.svg') as response:
+     self.assertEqual(response.headers['Content-Type'],'image/svg+xml');self.assertIn(b'CUSTOM IQ TX',response.read())
     with self.assertRaises(HTTPError) as result:urlopen(Request(url+'/api/run',method='POST'))
     self.assertEqual(result.exception.code,405)
    finally:server.shutdown();server.server_close();thread.join()

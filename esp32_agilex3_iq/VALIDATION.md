@@ -920,3 +920,15 @@ port8774; it does not transmit. Screenshot and browser evidence are retained in
 `cyberether/run/wifi64-native-real-raw-007-browserproof.json`. A portable picture
 of the real decoded points is included at
 `docs/images/wifi64_real_ota_constellation.png`.
+
+### Narrow native-RF presentation
+
+The read-only `/story` page on port8774 presents an ideal TX alphabet reference,
+the actual192 received points, and actual decoded packet bits (not a fabricated
+post-FEC IQ cloud). An SVG diagram distinguishes the native Wi-Fi PHY from
+Agilex3/Nios reception and marks original-chip custom IQ injection as unproven.
+Desktop1200px and mobile390px browser checks passed: correct channel11/54Mb/s,
+92bytes/FCS/150.3seconds, loaded diagram, GET-only requests, no JavaScript
+exceptions or horizontal overflow. All354 host tests pass. No radio or FPGA
+programming was performed for this display change. See
+[presentation scope](docs/WIFI64_PRESENTATION.md).

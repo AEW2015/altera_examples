@@ -98,6 +98,10 @@ def handler(pointer=None,transmitter=None,raw_pointer=None):
                 payload=json.dumps(state(pointer,transmitter,raw_pointer),allow_nan=False).encode();content_type='application/json'
             elif route in ('/','/index.html'):
                 payload=(ROOT/'cyberether/wifi64_native.html').read_bytes();content_type='text/html; charset=utf-8'
+            elif route=='/story':
+                payload=(ROOT/'cyberether/wifi64_story.html').read_bytes();content_type='text/html; charset=utf-8'
+            elif route=='/wifi-phy.svg':
+                payload=(ROOT/'docs/images/wifi64_phy.svg').read_bytes();content_type='image/svg+xml'
             else:self.send_error(404);return
             self.send_response(200);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
         def do_POST(self):self.send_error(405,'Display only; no RF controls')
