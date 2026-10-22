@@ -304,4 +304,4 @@ then run `python scripts/start_qam64_lab.py start` (port 8773). This needs no
 ESP32 changes and transmits no RF. Notebook08 includes optional launch and
 hardware sweep cells. Noise is explicitly labeled approximate Gaussian.
 
-The same server offers a compact [TX/RX presentation layout](docs/FPGA_64QAM_BER.md#social--presentation-layout) at `/poster`: a 2×3 constellation grid with FPGA pipeline diagrams and pre-/post-FEC results. A measured example PNG is included for social posts. This view never starts hardware.
+The same server offers a compact [TX/RX presentation layout](docs/FPGA_64QAM_BER.md#social--presentation-layout) at `/poster`: a 2×3 before/after-FEC constellation layout with paired overlays, FPGA pipeline diagrams and frame/sweep error counts. A measured example PNG is included for social posts. This view never starts hardware.

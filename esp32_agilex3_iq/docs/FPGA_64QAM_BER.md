@@ -150,10 +150,10 @@ Build, reference and physical-board verification are also recorded in
 ## Social / presentation layout
 
 Open `/poster` on the same port (for example `http://HOST_IP:8773/poster`).
-The read-only 2×3 layout shows TX mapper constellations above noisy RX inputs
-for 12, 16 and 20 dB. Separate TX/RX diagrams identify Nios replay and the
-FPGA encoder, mapper, demapper and Viterbi blocks. Every RX panel includes its
-aggregate pre-/post-FEC result. All six plots use the same scale and equal
+The read-only 2×3 layout shows noisy received samples above before/after-FEC
+overlays for 12, 16 and 20 dB. Separate TX/RX diagrams identify Nios replay,
+the FPGA encoder/mapper/demapper/Viterbi, and the host display reconstruction.
+Each lower panel shows frame error counts alongside the full-sweep result. All six plots use the same scale and equal
 I/Q aspect ratio. The page uses actual audited FPGA snapshots, never a
 new acquisition or TX command.
 
@@ -165,3 +165,26 @@ measurement. The supplied PNG is 1440 pixels wide and can be used directly
 in a social post.
 
 ![FPGA TX/RX six-panel example](../notebooks/screenshots/08_fpga_64qam_social.png)
+
+### What the before/after overlay means
+
+Amber dots are the actual noisy symbols presented to the FPGA receiver.
+Green rings reconstruct the **same 88 coded-symbol positions** by re-encoding
+and remapping the actual FPGA-decoded payload bits. This display-only step
+runs on the host; the FPGA still performs the real soft demapping and Viterbi.
+Faint paths pair corresponding positions. They are a comparison aid, not a
+claim that FEC moves or denoises the received IQ samples. Toggle **Correction
+paths** to hide them.
+
+Red points in the upper row mark symbol groups with wrong hard-decision bits.
+Red crosses in the overlay mark reconstructed symbols that still differ from
+the known TX sequence. Incorrect decoded bits remain incorrect; this view
+does not simply snap every sample to a convenient ideal point. A regression
+test flips a decoded payload bit and verifies that red mismatches remain.
+
+The displayed frames contain 52, 17 and 6 coded errors respectively, with
+zero payload errors after FPGA decoding. These are single-frame counts
+(524 coded bits and 256 payload bits). The 100k-bit sweep still includes
+176 payload errors at 12 dB. Old saved proofs are enriched from their NPZ
+snapshots after repeating the exact reference audit; completed results are
+cached. Opening the overlay never starts a hardware action.

@@ -677,3 +677,16 @@ same FPGA image. `qam64-browser-hardware.json` records actual button/selector
 checks. See [the guide](docs/FPGA_64QAM_BER.md) for formats, plots and limits.
 The 95% zero-error bit bound assumes independent trials and is educational;
 convolutional decoder errors may be bursty. No RF BER claim follows.
+
+
+The presentation view now overlays actual noisy input with coded symbols
+reconstructed from the actual FPGA-decoded payload (host display re-encoding/
+remapping). All 88 positions are paired. Existing saved NPZ snapshots are
+re-audited before enriching older JSON proofs. This does not replace measured
+IQ with ideal points or claim that the received waveform was cleaned.
+
+All 238 tests pass, including a deliberate decoded-bit error that must leave
+wrong reconstructed symbols visible. Browser checks verify all three frame
+error counts, six plots, path toggling, 1080/1500-pixel layouts and absence of
+JavaScript errors or POST/hardware requests. No firmware/FPGA changes or new
+RF/replay jobs were needed; the saved physical sweep supplies the evidence.

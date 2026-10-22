@@ -42,6 +42,22 @@ int main(void){
         with self.assertRaises(AssertionError):q.audit_snapshot(broken,407,918,2)
         with self.assertRaises(AssertionError):q.audit_snapshot(a,408,918,2)
 
+    def test_overlay_reconstructs_matching_symbol_positions_and_keeps_errors(self):
+        r=q.replay_reference(407,918,1)
+        llr=fixedpoint_soft_demapper(r['rx'],'64QAM')[:524]
+        a=dict(bits=r['bits'],decoded=r['bits'].copy(),coded=r['coded'],tx=r['tx'],rx=r['rx'],llr=llr)
+        overlay=q.correction_overlay(a)
+        np.testing.assert_array_equal(overlay['after_xy'],r['tx'].astype(float)/8192)
+        self.assertEqual(overlay['wrong_reconstructed_symbols'],0)
+        self.assertEqual(len(overlay['after_xy']),88)
+        self.assertFalse(overlay['received_waveform_changed'])
+        a['decoded'][50]^=1
+        damaged=q.correction_overlay(a)
+        self.assertEqual(damaged['payload_bit_errors'],1)
+        self.assertGreater(damaged['wrong_reconstructed_symbols'],0)
+        self.assertTrue(any(damaged['after_wrong']))
+        np.testing.assert_array_equal(damaged['before_xy'],overlay['before_xy'])
+
     def test_zero_noise_and_prng_bounds(self):
         r=q.replay_reference(1,0,1);np.testing.assert_array_equal(r['tx'],r['rx'])
         for args in ((0,1,1),(1,-1,1),(1,8193,1),(1,1,33)):

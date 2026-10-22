@@ -11,7 +11,7 @@ class Manager:
     def __init__(self,root=ROOT):
         self.root=Path(root);self.lock=threading.Lock();self.child=None;self.closed=False
         self.pointer=self.root/'cyberether/run/qam64-latest.json'
-        self.job=dict(busy=False,status='idle')
+        self.job=dict(busy=False,status='idle');self.overlay_cache=None
         try:self.output=Path(json.loads(self.pointer.read_text())['output'])
         except (OSError,ValueError,KeyError):self.output=None
     def state(self):
@@ -21,6 +21,16 @@ class Manager:
         if out:
             try:proof=json.loads((out/'proof.json').read_text())
             except (OSError,ValueError):pass
+        if proof and proof.get('status')=='PASS':
+            try:
+                key=(str(out),(out/'proof.json').stat().st_mtime_ns,
+                     tuple(p.stat().st_mtime_ns for p in sorted(out.glob('*-last-frame.npz'))))
+                if self.overlay_cache and self.overlay_cache[0]==key:proof=self.overlay_cache[1]
+                else:
+                    from qam64_sweep import attach_correction_overlays
+                    proof=attach_correction_overlays(proof,out);self.overlay_cache=(key,proof)
+            except (OSError,ValueError,KeyError,AssertionError,RuntimeError) as exc:
+                proof['overlay_error']='Saved correction evidence unavailable: '+str(exc)
         try:cp=require_modem_checkpoint(self.root);ready=True;reason='Checkpoint 06 build manifest matches selected image; actual block ID checked on Run.'
         except RuntimeError as exc:cp=None;ready=False;reason=str(exc)
         return dict(job=job,proof=proof,ready=ready,reason=reason,current_image=cp)
