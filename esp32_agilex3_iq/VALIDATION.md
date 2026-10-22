@@ -814,11 +814,12 @@ unsupported, second valid). Equalized EVM across three synthetic cases is
 
 Caller workspace/result total107840bytes. A freestanding RV32I link needs
 126980bytes before its4KiB stack allowance, so128KiB fails the linker guard;
-256KiB passes. The Stage11 larger-memory-map build now passes timing (setup
-+2.777ns, hold +0.016ns) with27,769/45,800 ALMs,242/353 M20Ks and32/368 DSP
-units reported. This is a build result only; hardware execution, raw-capture
-RAM integration and real RF decoding remain pending. Earlier offline checks did
-not change the existing hardware/runtime or selftest ELFs.
+256KiB passes. The Stage11 larger-memory-map build passes timing (setup +2.777ns,
+hold +0.016ns) with27,769/45,800 ALMs,242/353 M20Ks and32/368 DSP units
+reported. A bounded hardware integration run is now recorded below. Raw-capture
+RAM integration as a continuous receive path and real Wi-Fi decoding remain
+pending. Earlier offline checks did not change the existing hardware/runtime or
+selftest ELFs.
 
 `wifi64_ota.py --publish` is opt-in, validates a new proof path under the run
 directory before device access and atomically updates the display pointer only
@@ -842,6 +843,23 @@ decoding, constellation/EVM, or BER; those remain unqualified.
 
 Stage11 FPGA build timing passed with setup slack +2.777ns and hold slack
 +0.016ns. Reported resource use was27,769/45,800 ALMs,242/353 M20K blocks and
-32/368 DSP units. The current offline host suite reports306 passing tests.
-These are build and host-test results, not Stage11 hardware execution or
-raw-IQ receiver qualification.
+32/368 DSP units. These are build results, separate from receiver qualification.
+
+### Stage 11 passive real-capture integration
+
+Stage11 was programmed, and baseline bridge identity, NIOSSTATUS and MSVERSION
+checks passed. The capture ELF ran on the real RFS2 source0 capture at nominal
+40MS/s: 16,380 CI8 samples, reported duration411us. Nios verified the capture
+copy was exact and stable. The full C decoder ran for 7,369,960,022 timer ticks
+(147.39920044s at50MHz) and returned status4 (acquisition failed), zero
+candidates, no decoded header, and no payload FCS or BER result. It reported134
+clipped raw components. Proof:
+`cyberether/run/wifi64-stage11-passive-first-decode.json`. No TX was requested
+during this passive check.
+
+This passes the bounded hardware integration and capture-copy checks, but is a
+decoder failure for this capture, not a Wi-Fi decode pass. The source capture
+did not produce an acquisition candidate, so L-SIG/payload/FCS validation and
+BER were not reached. No actual raw-IQ Wi-Fi reception is qualified yet. The
+current host suite reports314 passing tests, including eight tests for the new
+`program_wifi64.py` helper.

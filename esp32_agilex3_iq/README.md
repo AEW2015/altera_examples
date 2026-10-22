@@ -4,12 +4,41 @@
 symbol replay with Nios-generated noise; it does not transmit or receive RF.
 The earlier ESP32 BPSK/QPSK experiments are actual PMOD A → RFS2 RF captures,
 with host waveform synchronization and separate FPGA symbol/FEC replay tests.
-64-QAM over the installed ESP32 RF link is not yet qualified.
+Native Wi-Fi 54 Mb/s (64-QAM) packet reception is demonstrated below; FPGA
+decoding of captured raw IQ and BER remain unqualified.
 
 [Native/custom OTA implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md):
-native TX/monitor firmware builds, integer receiver primitives and five passing
-tests on the actual Nios V processor. Firmware installation and live RF decoding
-remain separate gates.
+native TX/monitor firmware, measured RF evidence, offline receiver primitives
+and the current raw-IQ decode limit.
+
+## Native Wi-Fi64 OTA and Checkpoint 11
+
+Two evidence paths are deliberately separate:
+
+```mermaid
+flowchart LR
+  A[ESP32 A · native Wi-Fi TX] -->|54 Mb/s · 2/2 matched| B[RF · ESP32 B native PHY monitor]
+  C[RFS2 · source0 raw CI8] -->|stable copy| D[Checkpoint 11 · Nios C receiver]
+  D --> E[147 s run · no acquisition candidate]
+```
+
+The bounded native over-air test matched **2/2 packets at 54 Mb/s** on the
+independent ESP32 monitor. Separately, Checkpoint 11 ran the full C receiver on
+a real RFS2 capture, but found no acquisition candidate; no header, payload FCS
+or BER result was produced. This confirms hardware integration, not successful
+raw-IQ Wi-Fi decoding.
+
+See the [implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md),
+[capture-app guide](docs/WIFI64_CAPTURE_APP.md), and
+[Checkpoint 11 README](fpga_hub/iq_bridge/vds_demo_11_wifi64_ota/README.md).
+To open the proof viewer on the current machine, run:
+
+```bash
+.venv-notebooks/bin/python cyberether/wifi64_native.py --port 8774
+```
+
+The viewer is read-only and starts no RF job. Browse to
+`http://<host-LAN-IP>:8774/` from a browser on the same network.
 
 Five independently editable **Quartus Visual Designer Studio** checkpoints for the **Terasic Atum A3 Nano**, plus a focused notebook and browser demo for each step.
 

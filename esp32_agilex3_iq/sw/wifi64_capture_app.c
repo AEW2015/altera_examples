@@ -106,13 +106,20 @@ static void command(char*line){
  const char*verb=tokens[2];
  if(READ(0,0)!=0x46495231u){error(id,verb,6);return;}
  if(equal(verb,"WVERSION")&&count==3){
-  prefix(id,"OK",verb);field("version",1);field("ram_bytes",WIFI64_NIOS_RAM_BYTES);field("timer_base",WIFI64_NIOS_MTIME_BASE);field("fir_id",READ(0,0));field("ddc_id",READ(1,0));field("host_dsp",0);output('\n');
+  prefix(id,"OK",verb);field("version",1);field("ram_bytes",WIFI64_NIOS_RAM_BYTES);field("timer_base",WIFI64_NIOS_MTIME_BASE);field("fir_id",READ(0,0));field("ddc_id",READ(1,0));field("host_dsp",0);field("cancel_supported",1);output('\n');
  }else if(equal(verb,"WSTATUS")&&count==3){prefix(id,"OK",verb);status_fields();output('\n');
  }else if(equal(verb,"WARM")&&count==3){
   if((READ(0,1)&0x89)||(READ(1,1)&1u)){error(id,verb,2);return;}
   result_valid=0;WRITE(0,18,0);fence();if(READ(0,18)){error(id,verb,7);return;}
   WRITE(0,1,1);fence();if((READ(0,1)&3u)!=1){error(id,verb,8);return;}
   prefix(id,"OK",verb);field("state",READ(0,1));field("pair",READ(0,18));output('\n');
+ }else if(equal(verb,"WCANCEL")&&count==3){
+  /* Command4 clears the manual mirror's armed/ready/done state. Bridge opcode6
+   * alone cancels its own capture request; it does not cancel this FIR arm. */
+  if((READ(0,1)&0x88u)||(READ(1,1)&1u)){error(id,verb,2);return;}
+  result_valid=0;WRITE(0,1,4);fence();
+  if((READ(0,1)&0x8bu)||(READ(1,1)&1u)){error(id,verb,11);return;}
+  prefix(id,"OK",verb);field("state",READ(0,1));field("valid",result_valid);output('\n');
  }else if(equal(verb,"WRUN")&&count==3){
   result_valid=0;int copied=capture_copy();if(copied){error(id,verb,(unsigned)copied);return;}
   uint64_t began=clock_ticks();(void)w64r_decode(raw,saved.samples,saved.rate,&workspace,&result);elapsed=clock_ticks()-began;result_valid=1;

@@ -28,6 +28,7 @@ uint32_t wifi64_test_read(unsigned block,unsigned index){
 }
 void wifi64_test_write(unsigned block,unsigned index,uint32_t value){
  if(block==1){ddc[index]=value;return;}
+ if(index==1){if(value==1)fir[1]=1;else if(value==4)fir[1]&=~7u;return;}
  fir[index]=value;if(index==6)cursor=value;
 }
 void wifi64_test_emit(char c){if(log_used+1<sizeof(log_buffer))log_buffer[log_used++]=c;log_buffer[log_used]=0;}
@@ -54,7 +55,7 @@ void bad_id(void){fir[0]=0;}
  def send(self,s):return self.lib.send_command(s.encode()).decode().strip()
  def fields(self,s):return {k:v for k,v in (p.split('=',1) for p in s.split(',')[4:] if '=' in p)}
  def test_version_arm_and_strict_commands(self):
-  self.setup();s=self.send('FIR 42 WVERSION');self.assertTrue(s.startswith('FIR,42,OK,WVERSION,'));self.assertEqual(self.fields(s)['timer_base'],'327680')
+  self.setup();s=self.send('FIR 42 WVERSION');self.assertTrue(s.startswith('FIR,42,OK,WVERSION,'));self.assertEqual(self.fields(s)['timer_base'],'327680');self.assertEqual(self.fields(s)['cancel_supported'],'1')
   self.assertIn('FIR,43,OK,WARM,state=1,pair=0',self.send('FIR 43 WARM'))
   self.assertIn('ERR,WRUN,error=2',self.send('FIR 44 WRUN'))
   self.assertIn('ERR,WPOINT,error=9',self.send('FIR 45 WPOINT 0'))
@@ -80,4 +81,15 @@ void bad_id(void){fir[0]=0;}
   self.assertEqual((f['accepted'],f['status'],f['packet_status'],f['points']),('0','256','4','192'))
   self.assertEqual(self.fields(self.send('FIR 71 WBYTE 0'))['value'],'8')
   self.assertIn('OK,WPOINT',self.send('FIR 72 WPOINT 0'))
+ def test_cancel_idle_armed_and_cached_result_with_busy_refusal(self):
+  for state in (0,1,2):
+   self.setup(state=state);line=self.send('FIR 80 WCANCEL')
+   self.assertIn('FIR,80,OK,WCANCEL,state=0,valid=0',line)
+   self.assertIn('OK,WARM,state=1',self.send('FIR 81 WARM'))
+  self.setup();self.send('FIR 82 WRUN');self.assertEqual(self.fields(self.send('FIR 83 WSTATUS'))['valid'],'1')
+  self.send('FIR 84 WCANCEL');self.assertEqual(self.fields(self.send('FIR 85 WSTATUS'))['valid'],'0')
+  self.assertIn('ERR,WPOINT,error=9',self.send('FIR 86 WPOINT 0'))
+  for state,busy in ((8,0),(128,0),(0,1)):
+   self.setup(state=state,busy=busy);self.assertIn('ERR,WCANCEL,error=2',self.send('FIR 87 WCANCEL'))
+   self.assertEqual(int(self.fields(self.send('FIR 88 WSTATUS'))['state']),state)
 if __name__=='__main__':unittest.main()

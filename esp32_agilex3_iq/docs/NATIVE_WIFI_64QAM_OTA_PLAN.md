@@ -1,7 +1,9 @@
 # Plan A — Native Wi-Fi 64-QAM over the air
 
-Status: implementation in progress; firmware builds and Nios primitive hardware
-tests pass. No native 64-QAM RF result has been measured in this project.
+Status: native Wi-Fi 64-QAM OTA verified: PMOD B independently received 2/2
+known PMOD A packets at 54 Mb/s on channel 8, with matching payloads and clean RX
+status. FPGA/Nios raw-IQ integration runs on hardware, but its first passive
+snapshot found no preamble; raw-IQ packet decoding and BER remain unqualified.
 See [implementation status and next gates](WIFI64_IMPLEMENTATION_STATUS.md).
 Hardware: installed original ESP32s, Atum A3 Nano / Agilex 3.
 Host: control and display only. No runtime host synchronization, FFT, equalization,
