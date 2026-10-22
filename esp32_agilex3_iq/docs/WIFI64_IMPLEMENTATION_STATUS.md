@@ -25,6 +25,7 @@ flowchart LR
 | Receiver primitives | Integer FFT64, two-LTF channel estimate, equalization, all64 QAM labels | Caller must supply acquired/CFO/pilot-corrected symbols |
 | Wi-Fi DATA backend | s=3 deinterleave,3/4 depuncture, K7 soft Viterbi, SERVICE seed/descramble, FCS | 256-byte PSDU limit; not connected to live acquisition |
 | Actual Nios V test | **5/5 pass on Agilex3**, fixture92-byte PSDU,4 DATA symbols, CRC107563580; corrupt FCS rejected | CPU software on device, not RTL acceleration or received RF |
+| Full C receiver prototype | Synthetic40MS/s IQ through FIR, acquisition/CFO, FFT/equalizer/pilots, L-SIG,64-QAM and DATA FCS passes | Not integrated with live capture RAM or hardware-qualified; requires larger Nios RAM |
 | L-SIG header backend | All8 legacy rate fixtures pass; 54Mb/s wire code12,48Mb/s code8 | Offline C/RV32I compile only; acquisition remains missing |
 | Custom-TX research | Original-chip attenuation field and separate forced-gain ABI identified;1024 bitfield cases pass | Separate attenuation-only firmware compiles; not installed or RF-qualified; no arbitrary-IQ playback proof |
 
@@ -109,3 +110,50 @@ See [native plan](NATIVE_WIFI_64QAM_OTA_PLAN.md),
 [monitor firmware](../firmware/wifi64_monitor/README.md), and
 [original-chip research](ORIGINAL_IQ_TX_RESEARCH_20261021.md), and
 [compile-only amplitude probe](../firmware/original_iq_tx_probe/README.md).
+
+
+## Native monitor viewer
+
+The new display is read-only and starts no RF job:
+
+```sh
+.venv-notebooks/bin/python cyberether/wifi64_native.py --port 8774
+```
+
+It shows the most recent published native monitor proof. After firmware and
+runtime installation are verified, an explicit bounded job may publish one:
+
+```sh
+.venv-notebooks/bin/python scripts/wifi64_ota.py --transmit --count 2 \
+  --run 2026102102 --seed 1 --publish \
+  --output cyberether/run/wifi64-native-ota-002.json
+```
+
+Each output path must be new. Publishing atomically updates the latest-proof
+pointer after retaining the complete proof, including failed jobs. Opening the
+viewer never starts acquisition or RF. Native packet reception is separate from
+FPGA raw-IQ decoding; unavailable receiver evidence remains unknown.
+
+## PMOD B ROM no-response check
+
+The current PMOD B ROM diagnostic returned no response bytes. No flash writes
+were issued. The physical BOOT-switch test below is still pending; it has not
+been performed or verified.
+
+Before retrying, identify PMOD B and record both physical selector positions:
+the SPI/UART selector and BOOT selector. Route the application/ROM UART, set the
+SPI selector to UART (SPI OFF), and test with BOOT ON followed by a manual B
+reset. Then request ROM `info` and require the reported MAC to equal
+`e0:e2:e6:01:a9:30` before any flash operation. For example:
+
+```sh
+.venv-notebooks/bin/python scripts/flash_esp32.py --module pmod-b \
+  --port /dev/ttyUSB0 --action info --expect-mac e0:e2:e6:01:a9:30
+```
+
+If ROM info still returns no bytes or reports a different MAC, stop there and
+recheck the selected module, both switch positions, reset sequence and UART
+routing. Do not flash on absent or mismatched identity. After any authorized
+installation, restore the runtime FPGA bridge first, set BOOT OFF, then manually
+reset B for normal boot; keep the SPI selector OFF for the monitor UART. Verify
+normal firmware INFO/STATUS before starting a monitor job.
