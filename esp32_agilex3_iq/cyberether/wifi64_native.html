@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07121b">
+  <title>Native Wi-Fi 64-QAM · OTA monitor</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07121b;--panel:#0d1e2a;--panel2:#102634;--line:#233d4b;--text:#ecf5f4;--muted:#9ab2b8;--teal:#66e1ce;--blue:#7cc8e8;--gold:#ffc777;--red:#ff8e91;--green:#9cf0c5}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 8% -10%,#133844 0,transparent 35%),radial-gradient(ellipse at 100% 0,#172c43 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+    .wrap{width:min(1200px,100% - 40px);margin:auto;padding:28px 0 36px}.top{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--teal);font-weight:800}.top h1{font-size:clamp(28px,4vw,46px);line-height:1.02;letter-spacing:-.045em;margin:7px 0}.sub{color:var(--muted);margin:0}.live{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:99px;padding:9px 13px;color:var(--muted);white-space:nowrap;font-size:12px}.dot{width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px currentColor}.dot.ok{background:var(--green)}.dot.err{background:var(--red)}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start}.maincol,.side{display:grid;gap:16px}.card{background:linear-gradient(145deg,#102532eF,#0b1a25f2);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 14px 45px #0002;min-width:0}.card h2{font-size:17px;margin:0 0 4px;letter-spacing:-.02em}.hint{margin:0;color:var(--muted);font-size:12px}.pipeline{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:stretch;gap:10px;margin-top:19px}.node{border:1px solid #285163;background:#102a38;border-radius:14px;padding:14px;min-height:105px;display:flex;flex-direction:column;justify-content:space-between}.node .letter{font-weight:900;color:var(--teal);font-size:11px;letter-spacing:.12em}.node strong{font-size:15px;line-height:1.2}.node small{color:var(--muted);font-size:11px}.node.rf{background:#242616;border-color:#51492d}.node.rf .letter{color:var(--gold)}.arrow{align-self:center;color:#83c7d5;font-size:24px}.caption{margin:13px 0 0;color:var(--muted);font-size:11px}
+    .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px}.metric{background:#0a1923;border:1px solid #1d3945;border-radius:13px;padding:13px;min-width:0}.metric span{display:block;color:var(--muted);font-size:11px;min-height:32px}.metric strong{display:block;font-size:clamp(17px,2vw,23px);line-height:1.2;overflow-wrap:anywhere}.metric small{color:var(--muted);font-size:10px}
+    .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}.chartcard{background:#0a1923;border:1px solid #1c3743;border-radius:14px;padding:15px;min-width:0}.charthead{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.charthead h3{font-size:14px;margin:0}.charthead span{color:var(--muted);font-size:10px}.chart{width:100%;height:210px;display:block;margin-top:8px;overflow:visible}.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:6px}.key{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:5px}.key.missing{background:#415563}.key.unqualified{background:var(--gold)}.chart-empty{height:210px;display:grid;place-items:center;text-align:center;color:#718891;font-size:12px;border:1px dashed #28424d;border-radius:10px;margin-top:8px;padding:15px}
+    .side .card{padding:18px}.badge{display:inline-flex;align-items:center;gap:7px;border-radius:99px;border:1px solid #355567;padding:5px 9px;color:#bad2d4;text-transform:uppercase;letter-spacing:.08em;font-weight:800;font-size:9px;margin-bottom:12px}.badge.monitor{color:var(--teal);border-color:#276052}.badge.progress{color:var(--gold);border-color:#635333}.side h2{font-size:16px}.mini-pipe{display:grid;gap:8px;margin:16px 0}.mini-node{border:1px solid #284654;background:#102634;border-radius:10px;padding:11px;font-size:12px}.mini-arrow{text-align:center;color:#85b6c5;line-height:1}.sidecopy{color:var(--muted);font-size:12px;margin:8px 0 0}.statusline{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #1c3743;font-size:11px}.statusline span{color:var(--muted)}.notice{border-left:3px solid var(--gold);padding:9px 11px;background:#2a2518;color:#e5d1a9;border-radius:0 9px 9px 0;font-size:11px;margin-top:13px}.foot{color:#789099;font-size:10px;text-align:center;margin:18px 0 0}
+    @media(max-width:850px){.layout{grid-template-columns:1fr}.side{grid-template-columns:1fr 1fr}.wrap{width:min(100% - 28px,680px);padding-top:20px}}
+    @media(max-width:560px){.top{align-items:flex-start;flex-direction:column}.live{align-self:flex-start}.pipeline{grid-template-columns:1fr;gap:7px}.node{min-height:74px}.arrow{transform:rotate(90deg);font-size:18px;line-height:12px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.charts{grid-template-columns:1fr}.side{grid-template-columns:1fr}.card{padding:16px}.chart{height:190px}.chart-empty{height:190px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div><div class="eyebrow">Atum A3 Nano · native Wi-Fi OTA</div><h1 id="heroTitle">Native Wi-Fi 64-QAM</h1><p class="sub">A native ESP32 PHY packet check with an independent receiver.</p></div>
+      <div class="live"><i class="dot" id="liveDot"></i><span id="connection">Waiting for status</span></div>
+    </header>
+    <div class="layout">
+      <div class="maincol">
+        <section class="card" aria-labelledby="pathTitle">
+          <div class="eyebrow">Packet path</div><h2 id="pathTitle">Native PHY packet monitor</h2>
+          <p class="hint">The ESP32 Wi-Fi modem creates and sends this packet. No custom IQ transmitter is involved.</p>
+          <div class="pipeline" aria-label="Transmitter, radio channel, independent receiver">
+            <div class="node"><span class="letter">A · TRANSMIT</span><strong>ESP32 native Wi-Fi</strong><small>Legacy 802.11g · requested 54 Mb/s</small></div>
+            <span class="arrow" aria-hidden="true">→</span>
+            <div class="node rf"><span class="letter">2.447 GHz RF</span><strong>Over the air</strong><small>Channel 8 · 20 MHz</small></div>
+            <span class="arrow" aria-hidden="true">→</span>
+            <div class="node"><span class="letter">B · RECEIVE</span><strong>ESP32 packet monitor</strong><small>Independent native PHY metadata</small></div>
+          </div>
+          <p class="caption">A successful monitor record confirms a received packet and reported PHY rate. It does not measure bit errors in rejected packets.</p>
+        </section>
+
+        <section class="card" aria-labelledby="metricsTitle">
+          <div class="eyebrow">Latest retained proof</div><h2 id="metricsTitle">Waiting for a native OTA run</h2>
+          <p class="hint" id="proofTime">Waiting for independent receiver evidence.</p>
+          <div class="metrics">
+            <div class="metric"><span>Monitor-qualified packets</span><strong id="qualified">—</strong><small id="packetTotal">Waiting for evidence</small></div>
+            <div class="metric"><span>54 Mb/s observed over air</span><strong id="rateObserved">Unknown</strong><small>Independent B-side PHY record</small></div>
+            <div class="metric"><span>Transmitter job</span><strong id="txSuccess">Unknown</strong><small>Firmware counters and bounded job</small></div>
+            <div class="metric"><span>Final TX idle</span><strong id="txIdle">Unknown</strong><small>Explicit stop and idle readback</small></div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Monitor packet charts">
+          <div class="charts">
+            <article class="chartcard"><div class="charthead"><h3>Actual RX RSSI by packet</h3><span id="rssiNote">Waiting for joined monitor rows</span></div><div id="rssiView" class="chart-empty">No receiver samples yet</div><div class="legend"><span><i class="key"></i>Monitor-reported RSSI</span></div></article>
+            <article class="chartcard"><div class="charthead"><h3>Received / missing packets</h3><span id="packetNote">Waiting for expected packet IDs</span></div><div id="packetView" class="chart-empty">No packet list yet</div><div class="legend"><span><i class="key"></i>Qualified</span><span><i class="key unqualified"></i>Observed · checks incomplete</span><span><i class="key missing"></i>Missing</span></div></article>
+          </div>
+        </section>
+      </div>
+
+      <aside class="side" aria-label="Receiver implementation status">
+        <section class="card">
+          <div class="badge monitor">Native PHY · packet observations</div>
+          <h2>What this view proves</h2>
+          <p class="sidecopy">Packet identity, deterministic body check, independent rate code, receive state and monitor RSSI.</p>
+          <div class="notice">Callback <code>rate54</code> is transmitter-side telemetry. It never counts as over-air receiver proof.</div>
+        </section>
+        <section class="card">
+          <div class="badge progress">FPGA decoder · in progress</div>
+          <h2>Raw-IQ receiver path</h2>
+          <div class="mini-pipe"><div class="mini-node">RFS2 ESP32 · raw IQ capture</div><div class="mini-arrow">↓</div><div class="mini-node">Agilex 3 FPGA / Nios · decoder</div></div>
+          <div class="statusline"><span>FPGA Wi-Fi decode</span><strong>Not reported</strong></div>
+          <p class="sidecopy">This prototype does not show a constellation, decoded payload or BER. Those remain unavailable until an on-board raw-IQ decoder reports them.</p>
+        </section>
+      </aside>
+    </div>
+    <p class="foot">Read-only proof display · Native packet monitoring is separate from FPGA raw-IQ decoding.</p>
+  </main>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const ns = 'http://www.w3.org/2000/svg';
+    const setText = (id, value) => { $(id).textContent = value; };
+    const isBool = value => typeof value === 'boolean';
+    const yesNo = value => isBool(value) ? (value ? 'Yes' : 'No') : 'Unknown';
+    const makeSvg = (name, attrs={}) => {
+      const el = document.createElementNS(ns, name);
+      for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
+      return el;
+    };
+    function emptyChart(container, message) {
+      container.className = 'chart-empty';
+      container.textContent = message;
+    }
+    function drawRssi(rows) {
+      const view = $('rssiView');
+      const actual = rows.map((row, index) => row && Number.isFinite(row.rssi)
+        ? {index: Number.isFinite(row.packet) ? row.packet : index, rssi: row.rssi, qualified: row.qualified === true}
+        : null).filter(Boolean);
+      if (!actual.length) { emptyChart(view, 'No joined receiver RSSI samples yet'); setText('rssiNote', 'Waiting for receiver samples'); return; }
+      const width = 360, height = 210, left = 39, right = 10, top = 12, bottom = 28;
+      const plotW = width-left-right, plotH = height-top-bottom, xMax = Math.max(1, ...actual.map(point => point.index));
+      let low=Math.max(-100,Math.floor((Math.min(...actual.map(p=>p.rssi))-4)/5)*5), high=Math.min(0,Math.ceil((Math.max(...actual.map(p=>p.rssi))+4)/5)*5);
+      if(high-low<10)low=high-10;
+      const y = value => top + (high - Math.max(low, Math.min(high, value))) / (high-low) * plotH;
+      const x = value => left + value / xMax * plotW;
+      const svg = makeSvg('svg', {viewBox:`0 0 ${width} ${height}`, class:'chart', role:'img', 'aria-label':'Actual monitor-reported RSSI by received packet index'});
+      for (const tick of Array.from({length:5},(_,i)=>Math.round(low+(high-low)*i/4))) {
+        const yy = y(tick);
+        svg.append(makeSvg('line',{x1:left,y1:yy,x2:width-right,y2:yy,stroke:'#29424d','stroke-width':1}));
+        const label = makeSvg('text',{x:left-7,y:yy+3,'text-anchor':'end',fill:'#8ba3aa','font-size':9}); label.textContent = String(tick); svg.append(label);
+      }
+      for (const point of actual) {
+        const cx=x(point.index), cy=y(point.rssi);
+        svg.append(makeSvg('line',{x1:cx,y1:y(low),x2:cx,y2:cy,stroke:point.qualified?'#9cf0c5':'#ffc777','stroke-width':2,opacity:.55}));
+        const dot=makeSvg('circle',{cx,cy,r:5,fill:point.qualified?'#9cf0c5':'#ffc777',stroke:'#0a1923','stroke-width':2});
+        const title=makeSvg('title'); title.textContent=`Packet ${point.index}: ${point.rssi} dBm`; dot.append(title); svg.append(dot);
+      }
+      const xLabel=makeSvg('text',{x:width/2,y:height-4,'text-anchor':'middle',fill:'#8ba3aa','font-size':9});xLabel.textContent='Packet index';svg.append(xLabel);
+      view.className='';view.replaceChildren(svg);setText('rssiNote',`${actual.length} actual receiver sample${actual.length===1?'':'s'}`);
+    }
+    function drawPackets(rows) {
+      const view=$('packetView');
+      if (!Array.isArray(rows)) { emptyChart(view,'Waiting for expected packet IDs');setText('packetNote','No run evidence yet');return; }
+      if (!rows.length) { emptyChart(view,'The proof contains no expected packets');setText('packetNote','No packet IDs');return; }
+      const width=360,height=210,left=15,right=12,top=22,bottom=34,plotW=width-left-right,plotH=height-top-bottom,gap=5;
+      const barW=Math.max(5,Math.min(24,(plotW-gap*(rows.length-1))/rows.length));
+      const occupied=barW*rows.length+gap*(rows.length-1),start=left+(plotW-occupied)/2;
+      const svg=makeSvg('svg',{viewBox:`0 0 ${width} ${height}`,class:'chart',role:'img','aria-label':'Expected packet IDs, received and missing'});
+      let received=0,missing=0,qualified=0;
+      rows.forEach((row,index)=>{
+        const observed=!!row;const good=observed&&row.qualified===true;
+        if(observed)received++;else missing++;if(good)qualified++;
+        const xx=start+index*(barW+gap), yy=top+(good?0:plotH*.38), hh=plotH-(good?0:plotH*.38);
+        const rect=makeSvg('rect',{x:xx,y:yy,width:barW,height:hh,rx:3,fill:good?'#9cf0c5':observed?'#ffc777':'#415563'});
+        const title=makeSvg('title');title.textContent=`Packet ${row&&Number.isFinite(row.packet)?row.packet:index}: ${good?'qualified':observed?'observed, checks incomplete':'missing'}`;rect.append(title);svg.append(rect);
+        if(rows.length<=12){const label=makeSvg('text',{x:xx+barW/2,y:height-13,'text-anchor':'middle',fill:'#8ba3aa','font-size':9});label.textContent=String(row&&Number.isFinite(row.packet)?row.packet:index);svg.append(label);}
+      });
+      view.className='';view.replaceChildren(svg);
+      setText('packetNote',`${qualified} qualified · ${received} received · ${missing} missing`);
+    }
+    function render(state) {
+      const proof=state&&state.proof, tx=proof?(proof.transmitter||null):((state&&state.transmitter)||null);
+      setText('heroTitle',proof&&proof.native_rate54_observed_over_air===true?'54 Mb/s, seen over air.':'Native Wi-Fi 64-QAM');
+      if (!proof) {
+        setText('metricsTitle','Waiting for a native OTA run');setText('proofTime','Awaiting independent receiver evidence. TX values describe the last saved job.');
+        setText('qualified','—');setText('packetTotal','Waiting for evidence');setText('rateObserved','Unknown');setText('txSuccess',yesNo(tx&&tx.tx_success));setText('txIdle',yesNo(tx&&tx.radio&&tx.radio.idle_verified));
+        drawRssi([]);drawPackets(null);return;
+      }
+      const monitor=proof.monitor||{}, rows=monitor.expected_observations;
+      const qualified=Array.isArray(rows)?rows.filter(row=>row&&row.qualified===true).length:null;
+      setText('metricsTitle',proof.completed===true?'Latest run evidence':'Latest available run');
+      const date=Number.isFinite(proof.finished_unix)?new Date(proof.finished_unix*1000):Number.isFinite(proof.started_unix)?new Date(proof.started_unix*1000):null;
+      setText('proofTime',date?`Proof timestamp · ${date.toLocaleString()}`:'Proof loaded · timestamp unavailable');
+      setText('qualified',qualified===null?'—':String(qualified));
+      setText('packetTotal',Array.isArray(rows)?`of ${rows.length} expected packets`:'Expected packet list unavailable');
+      setText('rateObserved',yesNo(proof.native_rate54_observed_over_air));
+      setText('txSuccess',yesNo(tx&&tx.tx_success));
+      setText('txIdle',yesNo(proof.final_tx_idle_verified));
+      drawRssi(Array.isArray(rows)?rows:[]);drawPackets(rows);
+    }
+    let polling=false;
+    async function refresh() {
+      if(polling)return;polling=true;
+      try {
+        const response=await fetch('/api/state',{method:'GET',cache:'no-store',headers:{'Accept':'application/json'}});
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const state=await response.json();render(state);$('liveDot').className='dot ok';setText('connection','Saved evidence · refreshed just now');
+      } catch(error) { $('liveDot').className='dot err';setText('connection',`State unavailable · ${error.message}`); }
+      finally { polling=false; }
+    }
+    refresh();setInterval(refresh,1000);
+  </script>
+</body>
+</html>

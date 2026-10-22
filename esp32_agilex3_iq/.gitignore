@@ -98,3 +98,5 @@ firmware/original_iq_tx_probe/build/
 /simulation/wifi64-signal-test/
 
 /simulation/wifi64-signal-nios-selftest/
+
+/simulation/wifi64-acquire/

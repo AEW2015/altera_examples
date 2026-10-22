@@ -781,3 +781,22 @@ consume the whole budget and must not be reported as a successful RF trial.
 App SHA `e5f5e28787d5990505712573eff7b2a7fc59b5f06055ec808cb64d4f2bac49ad`.
 No installation, programmer whitelist, amplitude calibration or RF measurement
 was performed for this probe. Native PMOD A firmware is unchanged.
+
+
+### Fixed-point acquisition and display-only native viewer
+
+Portable C frontend accepts20/40MS/s vectors and rejects16MS/s;40MS/s uses
+129 Q15 taps with valid filtering/2 decimation. Independent exact FIR and
+13MHz alias rejection (>35dB), STF/LTF timing, CORDIC quadrants, CFO, noise,
+multipath, clipping and failure/input-preservation tests pass in5 groups.
+RV32I compilation succeeds. This is an unintegrated CPU prototype, not an OTA
+receiver qualification or streaming RTL accelerator.
+
+Display-only `cyberether/wifi64_native.py` and HTML show saved native packet
+observations separately from pending FPGA raw-IQ decoding. Three server tests
+pass. Actual Chromium checks in the desktop container pass without JavaScript
+errors: GET-only requests, waiting state, per-run transmitter precedence, chart
+rendering and mobile width. Chart checks used clearly separate synthetic UI
+fixtures, not radio evidence; waiting-RX screenshot uses actual saved A callback
+evidence with independent RX explicitly unknown. No service was left running
+and no RF was started by these browser checks.
