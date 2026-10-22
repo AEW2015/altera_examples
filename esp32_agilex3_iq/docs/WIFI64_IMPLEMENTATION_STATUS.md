@@ -1,13 +1,14 @@
 # Wi-Fi 64-QAM implementation — 2026-10-21
 
-The two OTA plans are **in progress**. No native 64-QAM OTA reception or custom
+The two OTA plans are **in progress**. Native 54 Mb/s PHY packet reception has
+now been observed over the air on PMOD B, but no raw-IQ decode, BER, or custom
 64-QAM transmission has been qualified. Existing port8773 still shows FPGA
 symbol replay, labeled **NO RF TX**. No replacement RF results are fabricated.
 
 ```mermaid
 flowchart LR
-  A[PMOD A: native 54Mb/s TX<br/>firmware FLASHED] -. boot / RF test pending .-> B[RFS2: raw IQ40MS/s<br/>3 captures / CRC PASS]
-  A -. independent RX pending .-> M[PMOD B: passive monitor<br/>firmware BUILT]
+  A[PMOD A: native 54Mb/s TX<br/>firmware FLASHED] -->|actual RF| M[PMOD B: native PHY monitor<br/>2/2 payloads matched]
+  A -. raw-IQ decode pending .-> B[RFS2: raw IQ40MS/s<br/>3 captures / CRC PASS]
   B --> C[Acquisition / CFO / timing<br/>NOT IMPLEMENTED in new path]
   C --> D[FFT64 / equalizer / soft QAM64]
   D --> E[Deinterleave / depuncture / Viterbi<br/>descramble / CRC]
@@ -18,9 +19,9 @@ flowchart LR
 
 | Item | Evidence | Remaining limit |
 |---|---|---|
-| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Normal boot verified; 2/2 native TX callbacks at54Mb/s; independent RX pending |
-| Independent monitor firmware | Same SDK builds; passive native reception and payload identity check | Not flashed; replaces PMOD B's SPI image |
-| Bounded controller | Shared acquisition lock, explicit `--transmit`, readbacks, STOP/idle proof; fake-bridge tests | Not exercised against installed native firmware |
+| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Normal boot verified; bounded job produced 2/2 native monitor matches at54Mb/s |
+| Independent monitor firmware | Flashed and normal boot verified; bounded OTA job matched2/2 payloads | Native PHY monitor evidence only; does not decode RFS2 raw IQ |
+| Bounded controller | Shared acquisition lock, explicit `--transmit`, readbacks, STOP/idle proof; fake-bridge tests and one successful native OTA job | Larger packet/error-rate trials remain open |
 | Wideband transport | Three16380-sample CI8 captures, nominal40MS/s, CRCs pass; reported capture411us; no hub errors | Passive; sample clock and complete20MHz analog response not measured |
 | Receiver primitives | Integer FFT64, two-LTF channel estimate, equalization, all64 QAM labels | Caller must supply acquired/CFO/pilot-corrected symbols |
 | Wi-Fi DATA backend | s=3 deinterleave,3/4 depuncture, K7 soft Viterbi, SERVICE seed/descramble, FCS | 256-byte PSDU limit; not connected to live acquisition |
@@ -38,6 +39,16 @@ two-packet job reported accepted=2, done=2, rate54=2, failed/rejected/other=0.
 STOP and STATUS confirmed busy=0, rf=0, stop_err=0. These are transmitter
 callbacks, not independent reception or raw-IQ decoding. Programming bridges
 temporarily replace the runtime SOF during installation of the other module.
+
+The PMOD B physical4MiB backup SHA-256 is
+`780d150511dcd0544e16bda55045d117aab2d995cf05b0aadf7e880e19444d51`. All three
+firmware images were hash-verified after flashing, and normal boot was verified
+with INFO/STOP/STATUS. The bounded native OTA proof
+`cyberether/run/wifi64-native-ota-002.json` completed successfully: 2/2 monitor
+packets matched on channel8 at54Mb/s (RATE code12, SIG mode0, RX state0), RSSI
+−17dBm, length92, and matching run/seed/body. Transport-error and drop deltas
+were zero; A verified RF-off and B stopped. This is actual native PHY packet
+reception over RF, not FPGA raw-IQ decoding and not BER.
 
 The selftest uses42,804bytes of64KiB including BSS; workspace25,712bytes.
 At50MHz its FFT tone test took453085 timer ticks (~9.06ms), channel/null test
@@ -89,17 +100,14 @@ fixtures on actual hardware. It is not a waveform replay through the RF chain.
 
 ## Next gates
 
-1. PMOD A installation and idle verification are complete, including a bounded
-   two-packet native TX callback check. A MAC-matched4MiB physical rollback
-   backup is saved privately. Independent receiver confirmation remains pending.
-2. Install independent PMOD B monitor, restore FPGA runtime, SPI selectorOFF,
-   BOOTOFF, verify UART identity. Native monitor replaces the current SPI receiver.
-3. Confirm matching native54Mb/s packets in bounded jobs with final RF-off state.
-4. Implement in-device40→20MS/s filtering, acquisition/CFO/timing, pilot correction
+1. PMOD A TX and PMOD B native PHY monitor are flashed and normal boot is
+   verified; bounded two-packet RF reception matched both payloads and ended
+   RF-off. Repeatability and larger packet/error-rate trials remain open.
+2. Implement in-device40→20MS/s filtering, acquisition/CFO/timing, pilot correction
    and validated L-SIG. Integrate these primitives with actual capture RAM.
-5. Qualify actual raw-IQ FCS/BER and build the separate source-tagged OTA GUI;
+3. Qualify actual raw-IQ FCS/BER and build the separate source-tagged OTA GUI;
    then run100,000 unique known payload bits per RF condition with cooldowns.
-6. Separately, build a bounded original-chip attenuation-only probe, qualify
+4. Separately, build a bounded original-chip attenuation-only probe, qualify
    amplitude settling/AM-PM, then decide whether a polar64-QAM backend is viable.
    Direct arbitrary-IQ TX remains research-gated.
 
@@ -136,25 +144,20 @@ FPGA raw-IQ decoding; unavailable receiver evidence remains unknown.
 
 ## PMOD B ROM no-response check
 
-The current PMOD B ROM diagnostic returned no response bytes. No flash writes
-were issued. The physical BOOT-switch test below is still pending; it has not
-been performed or verified.
+The physical BOOT-switch test succeeded: with BOOT ON and a manual reset, PMOD B
+entered ROM `DOWNLOAD_BOOT` and returned MAC `e0:e2:e6:01:a9:30`, matching the
+expected module identity. A full 4 MiB rollback image was read before flashing;
+its SHA-256 is `780d150511dcd0544e16bda55045d117aab2d995cf05b0aadf7e880e19444d51`.
+All three images passed device hash verification. With the runtime FPGA bridge
+restored, normal boot was verified by INFO/STOP/STATUS. The earlier no-response
+result was resolved for the ROM diagnostic path; an external boot-drive issue
+remains an unverified hypothesis.
 
-Before retrying, identify PMOD B and record both physical selector positions:
-the SPI/UART selector and BOOT selector. Route the application/ROM UART, set the
-SPI selector to UART (SPI OFF), and test with BOOT ON followed by a manual B
-reset. Then request ROM `info` and require the reported MAC to equal
-`e0:e2:e6:01:a9:30` before any flash operation. For example:
-
-```sh
-.venv-notebooks/bin/python scripts/flash_esp32.py --module pmod-b \
-  --build-dir build-wifi64-monitor --port /dev/ttyUSB0 \
-  --action info --expect-mac e0:e2:e6:01:a9:30
-```
-
-If ROM info still returns no bytes or reports a different MAC, stop there and
-recheck the selected module, both switch positions, reset sequence and UART
-routing. Do not flash on absent or mismatched identity. After any authorized
-installation, restore the runtime FPGA bridge first, set BOOT OFF, then manually
-reset B for normal boot; keep the SPI selector OFF for the monitor UART. Verify
-normal firmware INFO/STATUS before starting a monitor job.
+For future firmware operations, preserve the rollback image, verify the intended
+module identity immediately before writing, and hash-verify every image after
+flash. Record both selector positions. Restore the runtime FPGA bridge, set BOOT
+OFF, then manually reset B for normal boot; keep the SPI selector OFF for the
+monitor UART. Verify normal firmware INFO/STOP/STATUS before starting a bounded
+monitor job. If boot or UART identity is unexpected, stop and recheck module
+selection, switch positions, reset sequence and UART routing; do not infer that
+the external boot drive is faulty without evidence.

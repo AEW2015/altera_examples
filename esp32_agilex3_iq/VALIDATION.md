@@ -814,11 +814,34 @@ unsupported, second valid). Equalized EVM across three synthetic cases is
 
 Caller workspace/result total107840bytes. A freestanding RV32I link needs
 126980bytes before its4KiB stack allowance, so128KiB fails the linker guard;
-256KiB passes. Checkpoint11 is being built with a larger CPU memory map; the
-existing hardware/runtime and earlier selftest ELFs were not changed by these
-offline checks. Raw-capture RAM integration and real RF decoding remain pending.
+256KiB passes. The Stage11 larger-memory-map build now passes timing (setup
++2.777ns, hold +0.016ns) with27,769/45,800 ALMs,242/353 M20Ks and32/368 DSP
+units reported. This is a build result only; hardware execution, raw-capture
+RAM integration and real RF decoding remain pending. Earlier offline checks did
+not change the existing hardware/runtime or selftest ELFs.
 
 `wifi64_ota.py --publish` is opt-in, validates a new proof path under the run
 directory before device access and atomically updates the display pointer only
 after the proof file closes. Five new publication tests pass; default behavior
 remains nonpublishing. No extra radio job was run for these tests.
+
+### Wi-Fi 64-QAM native OTA and Stage 11 build update
+
+PMOD B's physical4MiB rollback image was captured before flashing; SHA-256:
+`780d150511dcd0544e16bda55045d117aab2d995cf05b0aadf7e880e19444d51`. All three
+installed images passed device hash verification. With the runtime bridge
+restored, normal boot was verified through INFO/STOP/STATUS.
+
+The bounded native OTA proof `cyberether/run/wifi64-native-ota-002.json`
+completed: both expected packets were received and matched on channel8 at
+54Mb/s (RATE code12, SIG mode0, RX state0), RSSI −17dBm, length92, with matching
+run, seed and body. Transport-error and drop deltas were zero; transmitter A
+verified RF-off and receiver B was stopped at completion. This demonstrates
+actual native PHY packet reception over RF. It does not demonstrate FPGA raw-IQ
+decoding, constellation/EVM, or BER; those remain unqualified.
+
+Stage11 FPGA build timing passed with setup slack +2.777ns and hold slack
++0.016ns. Reported resource use was27,769/45,800 ALMs,242/353 M20K blocks and
+32/368 DSP units. The current offline host suite reports306 passing tests.
+These are build and host-test results, not Stage11 hardware execution or
+raw-IQ receiver qualification.
