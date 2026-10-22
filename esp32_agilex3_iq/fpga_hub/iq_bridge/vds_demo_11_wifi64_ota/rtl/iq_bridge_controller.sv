@@ -92,8 +92,12 @@ logic[7:0] low_i;logic[63:0] receipt_tick;
 logic[31:0] bank_job[0:1],bank_samples[0:1],bank_rate[0:1],bank_frequency[0:1],bank_crc[0:1],bank_us[0:1];
 logic[1:0] bank_source[0:1];logic[63:0] bank_first[0:1],bank_last[0:1];
 // Bounded text queues. During payload, every byte is binary, including newlines.
-logic[7:0] line[0:2][0:127],queued[0:2][0:127];
-logic[6:0] line_len[0:2],queued_len[0:2];logic[2:0] text_pending,line_overflow;
+localparam integer TEXT_DEPTH=4;
+logic[7:0] line[0:2][0:255],queued[0:2][0:TEXT_DEPTH-1][0:255];
+logic[7:0] line_len[0:2],queued_len[0:2][0:TEXT_DEPTH-1];
+logic[1:0] text_head[0:2],text_tail[0:2];logic[2:0] text_count[0:2];
+logic[2:0] text_pending,line_overflow,text_push,text_pop,text_drop;
+wire[2:0] text_drop_count={2'b0,text_drop[0]}+{2'b0,text_drop[1]}+{2'b0,text_drop[2]};
 logic[2:0] header_active,header_bad;logic[1:0] header_field[0:2];logic[3:0] hex_digits[0:2];
 logic[31:0] parsed_count[0:2],parsed_crc[0:2],parsed_us[0:2];
 function automatic[4:0] hex(input[7:0] b);
@@ -128,8 +132,18 @@ always_comb begin
  if(output_index<64)next_out=header_byte(output_index[5:0]);
  else if(output_index<64+tx_length)begin
   if(tx_kind==1 || tx_kind==6)next_out=payload_index[0]?output_word[15:8]:output_word[7:0];
-  else next_out=queued[tx_source[1:0]][payload_index[6:0]];
+  else next_out=queued[tx_source[1:0]][text_head[tx_source[1:0]]][payload_index[7:0]];
  end else next_out=8'((~output_crc)>>(8*(output_index-64-tx_length)));
+end
+// The exporting head remains occupied until its final CRC byte completes.
+// A simultaneous pop permits enqueue even at full occupancy without losing order.
+for(genvar q=0;q<3;q=q+1)begin:text_queue_events
+ assign text_pending[q]=text_count[q]!=0;
+ assign text_pop[q]=output_state==2 && host_done && output_index+1==total_bytes && tx_kind==3 && tx_source==q;
+ wire newline=rv[q] && !(binary_active && owner==2'(q)) && rb[q]==10;
+ wire candidate=newline && !(armed && owner==2'(q) && header_active[q]) && line_len[q]!=0 && !line_overflow[q];
+ assign text_push[q]=candidate && (text_count[q]<TEXT_DEPTH || text_pop[q]);
+ assign text_drop[q]=newline && (line_overflow[q] || (candidate && !text_push[q]));
 end
 assign cap_write=mem_write;
 assign cap_waddr=mem_waddr;
@@ -166,10 +180,23 @@ always_ff @(posedge clk)begin
  command_errors<=0;radio_errors<=0;protocol_errors<=0;text_drops<=0;control_pending<=0;
  armed<=0;binary_active<=0;bank_ready<=0;write_bank<=0;owner<=0;deadline<=0;
  output_state<=0;output_index<=0;output_crc<=32'hffffffff;round_robin<=0;tx_kind<=0;tx_source<=0;tx_length<=0;tx_bank<=0;
- text_pending<=0;line_overflow<=0;header_active<=0;header_bad<=0;
- for(integer s=0;s<3;s=s+1)begin line_len[s]<=0;queued_len[s]<=0;header_field[s]<=0;hex_digits[s]<=0;parsed_count[s]<=0;parsed_crc[s]<=0;parsed_us[s]<=0;tphase[s]<=0;config_rate[s]<=16000000;config_frequency[s]<=2417000000;end
+ line_overflow<=0;header_active<=0;header_bad<=0;
+ for(integer s=0;s<3;s=s+1)begin line_len[s]<=0;text_head[s]<=0;text_tail[s]<=0;text_count[s]<=0;header_field[s]<=0;hex_digits[s]<=0;parsed_count[s]<=0;parsed_crc[s]<=0;parsed_us[s]<=0;tphase[s]<=0;config_rate[s]<=16000000;config_frequency[s]<=2417000000;end
  end else begin
  ticks<=ticks+1'b1;
+ text_drops<=text_drops+{29'b0,text_drop_count};
+ for(integer q=0;q<3;q=q+1)begin
+  case({text_push[q],text_pop[q]})
+   2'b10:text_count[q]<=text_count[q]+1'b1;
+   2'b01:text_count[q]<=text_count[q]-1'b1;
+   default:begin end
+  endcase
+  if(text_pop[q])text_head[q]<=text_head[q]+1'b1;
+  if(text_push[q])begin
+   for(integer k=0;k<256;k=k+1)queued[q][text_tail[q]][k]<=line[q][k];
+   queued_len[q][text_tail[q]]<=line_len[q];text_tail[q]<=text_tail[q]+1'b1;
+  end
+ end
  // TX queues permit full-duplex host readout and radio commands.
  for(integer s=0;s<3;s=s+1)begin
   case(tphase[s])
@@ -234,13 +261,10 @@ always_ff @(posedge clk)begin
     if(armed && owner==2'(s) && header_active[s])begin
      if(!header_bad[s]&&header_field[s]==2&&hex_digits[s]==8&&parsed_count[s]==requested_samples)begin binary_active<=1;received_bytes<=0;raw_crc<=32'hffffffff;expected_crc<=parsed_crc[s];header_us<=parsed_us[s];receipt_tick<=ticks;end
      else begin pair_lock<=0;armed<=0;protocol_errors<=protocol_errors+1'b1;control_pending<=1;control_kind<=5;control_source<={6'b0,owner};control_job<=active_job;control_error<=4;end
-    end else if(line_len[s]!=0&&!line_overflow[s])begin
-     if(!text_pending[s])begin for(integer k=0;k<128;k=k+1)queued[s][k]<=line[s][k];queued_len[s]<=line_len[s];text_pending[s]<=1;end
-     else text_drops<=text_drops+1'b1;
     end
     line_len[s]<=0;line_overflow[s]<=0;header_active[s]<=0;header_bad[s]<=0;
    end else if(rb[s]!=13)begin
-    if(line_len[s]!=127)begin line[s][line_len[s]]<=rb[s];line_len[s]<=line_len[s]+1'b1;end else line_overflow[s]<=1;
+    if(line_len[s]!=255)begin line[s][line_len[s]]<=rb[s];line_len[s]<=line_len[s]+1'b1;end else line_overflow[s]<=1;
     if(line_len[s]==4&&line[s][0]=="D"&&line[s][1]=="A"&&line[s][2]=="T"&&line[s][3]=="A"&&rb[s]==32)begin
      header_active[s]<=1;header_field[s]<=0;parsed_count[s]<=0;parsed_crc[s]<=0;parsed_us[s]<=0;hex_digits[s]<=0;
     end else if(header_active[s])begin
@@ -266,9 +290,9 @@ always_ff @(posedge clk)begin
     tx_pair<=bank_pair[bank_ready[round_robin]?round_robin:!round_robin];
     tx_kind<=1;tx_error<=0;tx_aux<=ticks;output_state<=1;
    end else if(text_pending!=0)begin
-    if(text_pending[0])begin tx_source<=0;tx_length<={25'b0,queued_len[0]};end
-    else if(text_pending[1])begin tx_source<=1;tx_length<={25'b0,queued_len[1]};end
-    else begin tx_source<=2;tx_length<={25'b0,queued_len[2]};end
+    if(text_pending[0])begin tx_source<=0;tx_length<={24'b0,queued_len[0][text_head[0]]};end
+    else if(text_pending[1])begin tx_source<=1;tx_length<={24'b0,queued_len[1][text_head[1]]};end
+    else begin tx_source<=2;tx_length<={24'b0,queued_len[2][text_head[2]]};end
     tx_pair<=0;tx_kind<=3;tx_job<=0;tx_samples<=0;tx_rate<=0;tx_frequency<=0;tx_raw_crc<=0;tx_us<=0;tx_error<=0;tx_first<=ticks;tx_last<=0;tx_aux<=0;output_state<=1;
    end
   end
@@ -282,7 +306,6 @@ always_ff @(posedge clk)begin
     end else if(tx_kind==1 || tx_kind==6 || (tx_kind==5 && tx_pair))begin
      bank_ready[tx_bank]<=0;round_robin<=!tx_bank;if(tx_pair)pair_lock<=0;
     end
-    if(tx_kind==3)text_pending[tx_source[1:0]]<=0;
     if(tx_kind==4)host_baud<=new_host_baud;
    end else begin output_index<=output_index+1'b1;output_state<=3;end
   end

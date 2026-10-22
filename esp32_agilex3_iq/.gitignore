@@ -110,3 +110,5 @@ firmware/original_iq_tx_probe/build/
 firmware/tx_lab/sdkconfig*
 !firmware/tx_lab/sdkconfig.defaults
 firmware/tx_lab/build/
+
+/simulation/wifi64-text/

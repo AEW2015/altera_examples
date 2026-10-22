@@ -31,11 +31,11 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/uart_dynamic.sv
 
 set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
 set_global_assignment -name IP_SEARCH_PATHS "ip/**/*;/opt/altera/quartus//../ip/**/*"
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to CLOCK1_50 -entity iq_bridge_vds_top
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to HOST_* -entity iq_bridge_vds_top
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to RFS2_* -entity iq_bridge_vds_top
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to PMOD0_* -entity iq_bridge_vds_top
-set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to PMOD1_* -entity iq_bridge_vds_top
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to CLOCK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to HOST_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to RFS2_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to PMOD0_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to PMOD1_*
 set_global_assignment -name VDS_FILE src/vds/iq_bridge_system/iq_bridge_system.vds -tag "vds::iq_bridge_system"
 set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_clock50.ip -tag "vds::iq_bridge_system"
 set_global_assignment -name VDS_IP_FILE src/vds/iq_bridge_system/ip/iq_bridge_system_cpu.ip -tag "vds::iq_bridge_system"

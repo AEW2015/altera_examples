@@ -32,6 +32,11 @@ Combined PMOD A image: [TX lab guide](docs/TX_LAB_FIRMWARE.md). Build with
 `scripts/tx_lab_control.py --mode ...` after installation. Switching uses an
 RF-off software reboot, not a programmer bridge or a physical reset. Preserve
 RFS2 and PMOD B firmware. The combined image does not qualify arbitrary IQ TX.
+For bounded unattended work, see [incremental calibration](docs/TX_LAB_CALIBRATION.md).
+`tx_lab_calibration.py` advances measured attenuation codes only through acceptance
+gates; engineering fits run offline on the host and remain distinct from FPGA DSP.
+`simulate_wifi64_text.py` checks the stage11 text FIFO in Questa. Never run two
+acquisition batches concurrently; stop an idle batch cleanly before FPGA rebuilds.
 
 Native Wi-Fi 64-QAM work: [implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md).
 Build `scripts/build_wifi64_tx.sh` for PMOD A and `scripts/build_wifi64_monitor.sh`

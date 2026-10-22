@@ -135,3 +135,22 @@ transitions and a full AMP/native-packet preflight round pass. Use
 `tx_lab_soak.py` for bounded endurance testing. PHASE telemetry losses remain an
 open qualification issue; custom-QAM and phase/RF BER gates remain open. The
 installed firmware needs no more physical resets for tested software mode changes.
+
+## Unattended continuation
+
+The first endurance round passes. A subsequent native two-packet test received
+both packets but failed transport qualification after a telemetry line drop;
+TX-off cleanup passed. Investigation found stage11 still used the old127-byte,
+single-pending-line controller while checkpoint07 already had the tested
+255-byte/four-line implementation. Port only the text queue, preserving all
+three UART radio profiles. Run `simulate_wifi64_text.py`, then build with
+`wifi64_fpga.py`, require fit/timing success, program SOF/capture app and repeat
+mode, short PHASE telemetry/raw capture, and AMP/native preflight tests.
+
+After hardware preflight, use the [incremental calibration runner](TX_LAB_CALIBRATION.md)
+for three hours. Code24 is the measured starting point. Repeated control-backed
+measurements gate each next eight-code increment. Record missed sparse coverage,
+weak levels and failed fits rather than filling them with synthetic points.
+Stop candidate progression on a quality gate and retain independent native
+checks as a separate result. No further ESP32 install or manual reset is planned.
+The read-only `/calibration` viewer exposes the resulting plots and progress.

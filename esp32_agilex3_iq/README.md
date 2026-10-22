@@ -363,3 +363,5 @@ now demonstrated; BER qualification and custom arbitrary-IQ transmission remain
 open and separately gated.
 
 Combined PMOD A TX research firmware: [build and software mode switching](docs/TX_LAB_FIRMWARE.md).
+
+Unattended RF work: [incremental calibration and acceptance gates](docs/TX_LAB_CALIBRATION.md). The read-only progress page is `/calibration` on the native Wi-Fi viewer (port8774).

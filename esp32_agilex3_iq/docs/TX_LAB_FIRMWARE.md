@@ -71,3 +71,11 @@ Long PHASE startup/INFO messages and some TX acknowledgements were missed during
 hardware checks. Saved short QFRAME telemetry includes configuration and TX_OFF,
 but that attempt lacks TX_ON and is not accepted as an RF frame qualification.
 The longer batch therefore excludes PHASE transmission.
+
+The next calibration stage is described in
+[Incremental amplitude calibration](TX_LAB_CALIBRATION.md). The stage11 text
+transport update expands the old127-byte/single-line buffer to255 bytes and four
+pending lines per radio, with whole-line overflow counts. This addresses missing
+PHASE INFO/READY and back-to-back configuration/TX_ON messages. It changes FPGA
+transport RTL; the ESP32 firmware stays installed. RTL simulation must pass and
+the rebuilt SOF must pass fit/timing before hardware checks and calibration resume.

@@ -1053,3 +1053,37 @@ owners were released after the final passive check.
   initialization/training, native two-packet reception and final AMP/RF-off passed.
   The optional three-hour runner uses20-minute intervals, stops on first failure,
   and excludes PHASE transmission. Its status/logs remain private under run/.
+
+
+### Checkpoint11 text transport and incremental calibration (2026-10-21)
+
+- Root intentionally stopped the initial endurance run after its first passing
+  round and RF-off cleanup to repair a reproducible transport loss. A later
+  native check received2/2 packets but failed on one dropped telemetry line;
+  this failure is retained, not reclassified as a pass.
+- Stage11 now ports checkpoint07's four-slot255-byte text FIFO, preserving the
+  three UART profiles. Questa checks line bounds,2Mbaud back-to-back CFG/TX_ON,
+  queue order/full/drop and simultaneous full pop/push against actual stage11 RTL.
+- SOF `e856a75c37c7cefe2a016449cfbf320bdd5191f4c788e25b16ce5f52ac1697cf`
+  passes fit/timing and is loaded with the unchanged capture app `a720cb72…`.
+  Resource report:42,025/45,800 ALMs(92%),242/353 M20Ks,32/368 reported DSPs.
+  Setup+2.244ns, hold+0.001ns. The small hold margin and high logic allocation
+  remain material limits; a RAM-backed text FIFO is the next area optimization.
+- Six hardware software-mode transitions pass. Long READY/INFO plus complete
+  QFRAME_CFG/TX_ON/TX_OFF/PHASESTAT are now received. Tone and phase jobs request
+ 50ms; measured reported elapsed windows include50,172us and48,516us. These
+  are software/telemetry windows, not independent hard RF cutoff measurements.
+- The first new phase-capture script accidentally sent receive code1 while
+  declaring16MS/s. Its source and capture are retained privately with explicit
+  profile rejection. The corrected script uses code6 and records that command;
+  its new raw snapshot passes CRC/profile/job checks and RF-off cleanup.
+- Corrected phase raw audit acquires one frame but fails CRC:16/44 coded and3/8
+  soft payload errors. Analysis is offline host Python, not FPGA demodulation.
+  Eight payload bits do not qualify BER. No custom64-QAM or arbitrary IQ claim.
+- Incremental preflight passes:2/2 independent native packets, no job-local
+  transport errors, two accepted code24 fits (ratios0.7419/0.7459, mean model
+  phase−4.29°), final RF-off AMP. A new three-hour process runs gated amplitude
+  candidates and independent native checks; it excludes PHASE transmission.
+- Final host suite:405 tests pass. Calibration viewer GET-only desktop/mobile checks pass with no JS errors or
+  horizontal overflow. The page distinguishes measured ADC ratios from
+  theoretical QAM radii and identifies the offline host fitting backend.

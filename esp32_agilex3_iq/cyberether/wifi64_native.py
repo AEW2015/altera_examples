@@ -102,6 +102,16 @@ def handler(pointer=None,transmitter=None,raw_pointer=None):
                 payload=(ROOT/'cyberether/wifi64_story.html').read_bytes();content_type='text/html; charset=utf-8'
             elif route=='/wifi-phy.svg':
                 payload=(ROOT/'docs/images/wifi64_phy.svg').read_bytes();content_type='image/svg+xml'
+            elif route=='/calibration':
+                payload=(ROOT/'cyberether/tx_calibration.html').read_bytes();content_type='text/html; charset=utf-8'
+            elif route=='/api/calibration':
+                from tx_calibration_view import read
+                payload=json.dumps(read()[0],allow_nan=False).encode();content_type='application/json'
+            elif route=='/tx-calibration.png':
+                from tx_calibration_view import read
+                _,path=read()
+                if path is None:self.send_error(404,'No measured plot yet');return
+                payload=path.read_bytes();content_type='image/png'
             elif route=='/tx-research':
                 payload=(ROOT/'cyberether/wifi64_tx_research.html').read_bytes();content_type='text/html; charset=utf-8'
             elif route=='/tx-transitions.png':

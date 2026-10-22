@@ -25,6 +25,11 @@ def switch(bridge,mode=None):
         time.sleep(.05)
     attempts=[]
     for attempt in range(2):
+        # Discard old announcements only after verified quiet. Otherwise a
+        # leftover READY could acknowledge an earlier boot instead of this one.
+        if isinstance(getattr(bridge,'text_queues',None),dict):
+            bridge.collect(.05)
+            bridge.text_queues[1].clear()
         bridge.radio_command(1,'MODE '+mode,'TXLAB,SWITCH,')
         prefix={'AMP':'OIQ,READY,','NATIVE':'WIFI64_TX,READY,','PHASE':'TX_PROBE_READY,'}[mode]
         try:

@@ -3,7 +3,7 @@
 ![RF envelope and phase measurements](images/original_esp32_transition_gate.png)
 
 V3 app `b112c38a155d66dceaa5a860ab850051280714a0e764c53fc2f7d43750de62a0`
-is installed on PMOD A rev300/MAC78:21:84:d4:4f:98. It passed flash/digest,
+was used on PMOD A rev300/MAC78:21:84:d4:4f:98 for these saved tests. It passed flash/digest,
 normal boot, initialization and short amplitude-transition tests. Minimum free
 worker stack remains4000bytes; guard stack2664bytes. No V3 panic/reboot was
 observed. Initialization took177191us and opened no tone-register window because
@@ -87,8 +87,9 @@ subsequently preload a finite polar schedule. Keep this polar backend separate
 from an unproven SRAM-to-DAC IQ backend. Framing, on-device synchronization,
 demap/FEC and >=100000-bit RF BER remain later gates.
 
-A currently runs V3 research firmware, RFS2 is the raw receiver, B is a passive
-native Wi-Fi monitor. Native54Mb/s TX requires explicitly restoring A's saved
-native firmware; its viewer shows the earlier saved proof. `/tx-research` on
+A now runs the [combined TX lab image](TX_LAB_FIRMWARE.md), containing the V3
+amplitude engine, native Wi-Fi TX and phase research. Select modes in software;
+no per-experiment flashing is required. RFS2 is the raw receiver and B is a
+passive native Wi-Fi monitor. The viewer retains the earlier saved proofs. `/tx-research` on
 port8774 is a read-only presentation of these engineering results and never
 starts RF.

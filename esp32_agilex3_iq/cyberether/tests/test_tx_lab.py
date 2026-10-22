@@ -52,3 +52,9 @@ int main(void){
   b=self.bridge();b.radio_command.side_effect=['TXLAB,MODE,mode=UNKNOWN,quiet=1']
   with self.assertRaises(RuntimeError):c.switch(b,'NATIVE')
   b.radio_write.assert_not_called()
+
+ def test_old_boot_announcements_drained_before_switch(self):
+  from collections import deque
+  b=self.bridge();b.text_queues={1:deque(['WIFI64_TX,READY,stale'])}
+  result=c.switch(b,'NATIVE');self.assertFalse(b.text_queues[1]);b.collect.assert_called_once_with(.05)
+  self.assertIn('mode=NATIVE',result['after'])
