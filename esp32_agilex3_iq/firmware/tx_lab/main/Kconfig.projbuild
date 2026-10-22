@@ -1,0 +1,9 @@
+config ATUM_TX_LAB
+    bool "Combined PMOD A transmitter lab"
+    default y
+config ESP_SDR_UART_TX_PIN
+    int
+    default 17
+config ESP_SDR_UART_RX_PIN
+    int
+    default 16

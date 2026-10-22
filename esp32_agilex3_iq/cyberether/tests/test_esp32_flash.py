@@ -56,6 +56,18 @@ class FirmwareImages(unittest.TestCase):
             self.config['ESP_CONSOLE_UART_TX_GPIO'] = 17
             self.save_config()
 
+    def test_combined_tx_lab_role_and_profile(self):
+        (self.build / 'project_description.json').write_text(json.dumps(dict(target='esp32', project_name='atum_tx_lab')))
+        self.config.update(ATUM_TX_LAB=True, ESP_PHY_ENABLE_CERT_TEST=True, FREERTOS_UNICORE=True)
+        self.save_config()
+        flash.images(self.build, 'pmod-a')
+        for other in ('rfs2', 'pmod-b', 'pmod'):
+            with self.assertRaises(ValueError):flash.images(self.build, other)
+        for key in ('ATUM_TX_LAB','ESP_PHY_ENABLE_CERT_TEST','FREERTOS_UNICORE'):
+            self.config[key]=False;self.save_config()
+            with self.assertRaises(ValueError):flash.images(self.build,'pmod-a')
+            self.config[key]=True
+
     def test_pmod_console_cannot_use_rfs2_pins(self):
         self.config['ESP_CONSOLE_UART_TX_GPIO'] = 1
         self.save_config()

@@ -1,3 +1,6 @@
+#ifdef ATUM_TX_LAB_UNIFIED
+#include "txlab_mode.h"
+#endif
 /* Original ESP32 amplitude experiment. No arbitrary-IQ or QAM claim. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,6 +149,9 @@ static void worker(void*arg){(void)arg;oiq_job job;bool initialized=false;
  }
 }
 static void command(char*s){
+#ifdef ATUM_TX_LAB_UNIFIED
+ if(txlab_command(s,!busy && (!registers_accessible || (!(DPORT_REG_READ(TONE1)&OIQ_ENABLE_MASK) && !(DPORT_REG_READ(TONE2)&OIQ_ENABLE_MASK) && !(DPORT_REG_READ(EXT)&3)))))return;
+#endif
  if(!strcmp(s,"INFO")){
   esp_chip_info_t info;uint8_t mac[6];esp_chip_info(&info);ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA));
   emit("OIQ,INFO,v=3,chip=esp32,uart=2000000,iq=unverified,busy=%u,amp_train=1,max_code=127,stack_min=%u\n",busy,(unsigned)uxTaskGetStackHighWaterMark(worker_task));

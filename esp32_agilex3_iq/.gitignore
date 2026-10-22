@@ -104,3 +104,9 @@ firmware/original_iq_tx_probe/build/
 /simulation/wifi64-receiver/
 
 /simulation/wifi64-capture-app/
+
+# Combined PMOD A TX lab firmware
+/build-tx-lab/
+firmware/tx_lab/sdkconfig*
+!firmware/tx_lab/sdkconfig.defaults
+firmware/tx_lab/build/

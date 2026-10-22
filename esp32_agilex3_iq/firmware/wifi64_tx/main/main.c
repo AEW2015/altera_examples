@@ -1,3 +1,6 @@
+#ifdef ATUM_TX_LAB_UNIFIED
+#include "txlab_mode.h"
+#endif
 /* Original ESP32 native 802.11g TX: bounded explicit jobs, never boot TX. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,6 +91,9 @@ static void transmit(void *arg){(void)arg;
  status(cancel?"CANCELLED":"DONE");vTaskDelete(NULL);
 }
 static void command(char *line){
+#ifdef ATUM_TX_LAB_UNIFIED
+ if(txlab_command(line,!busy && !armed && !radio_on && stop_error==0))return;
+#endif
  unsigned ch,p,c,g;uint32_t r,s;char extra;
  if(!strcmp(line,"INFO")){
   printf("WIFI64_TX,INFO,version=1,chip=esp32,phy=native11g,rate=54,uart=2000000\n");
@@ -120,7 +126,11 @@ static void command(char *line){
  }else puts("WIFI64_TX,ERR,command");
 }
 void app_main(void){
- esp_err_t e=nvs_flash_init();if(e==ESP_ERR_NVS_NO_FREE_PAGES||e==ESP_ERR_NVS_NEW_VERSION_FOUND){ESP_ERROR_CHECK(nvs_flash_erase());e=nvs_flash_init();}ESP_ERROR_CHECK(e);
+ esp_err_t e=nvs_flash_init();
+#ifndef ATUM_TX_LAB_UNIFIED
+ if(e==ESP_ERR_NVS_NO_FREE_PAGES||e==ESP_ERR_NVS_NEW_VERSION_FOUND){ESP_ERROR_CHECK(nvs_flash_erase());e=nvs_flash_init();}
+#endif
+ ESP_ERROR_CHECK(e);
  ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA));
  uart_config_t u={.baud_rate=2000000,.data_bits=UART_DATA_8_BITS,.parity=UART_PARITY_DISABLE,.stop_bits=UART_STOP_BITS_1,.flow_ctrl=UART_HW_FLOWCTRL_DISABLE,.source_clk=UART_SCLK_DEFAULT};
  ESP_ERROR_CHECK(uart_param_config(UART_NUM_0,&u));ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0,17,16,UART_PIN_NO_CHANGE,UART_PIN_NO_CHANGE));ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0,1024,0,0,NULL,0));

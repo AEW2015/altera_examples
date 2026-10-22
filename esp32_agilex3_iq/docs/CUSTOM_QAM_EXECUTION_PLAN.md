@@ -120,3 +120,11 @@ Keep [the detailed research](ORIGINAL_IQ_TX_RESEARCH_20261021.md) and
 
 Completion means a complete custom frame over RF decoded on-device with retained
 measurements, not a pretty alphabet, native Wi-Fi packet or synthetic replay.
+
+## Combined firmware installation
+
+Use the [single-image TX lab](TX_LAB_FIRMWARE.md) for further amplitude,
+phase/BPSK/QPSK and native Wi-Fi experiments. One final PMOD A installation
+replaces per-experiment flashing; subsequent mode changes are software reboots
+with RF off. RFS2 and PMOD B remain unchanged. Hardware mode-switch and bounded
+RF checks are required after installation before unattended experimentation.

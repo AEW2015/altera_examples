@@ -1026,3 +1026,14 @@ All383 host tests pass. `/tx-research` desktop1200px/mobile390px browser checks
 passed with loaded plots, explicit offline-analysis / unqualified-QAM labels,
 GET-only requests, no JavaScript errors and no horizontal overflow. All UART/JTAG
 owners were released after the final passive check.
+
+### Combined PMOD A TX lab (2026-10-21)
+
+- `firmware/tx_lab` links the existing AMP, native Wi-Fi and PHASE engines into one
+  original-ESP32 image, selected by an idle-only UART command and software reboot.
+- Pinned SDK build and compiler stack checks pass (AMP worker frame384B, PHASE
+  worker frame128B; both task stacks8192B). Image fits the1MiB app partition.
+- Host suite:388 tests pass, including strict RTC selector, mode/readback and
+  PMOD-A-only flash-profile checks. These tests do not establish RF behavior.
+- Hardware installation/mode-switch checks are pending; no new custom-IQ or
+  custom64-QAM RF qualification is claimed by packaging these controls.

@@ -1,3 +1,6 @@
+#ifdef ATUM_TX_LAB_UNIFIED
+#include "txlab_mode.h"
+#endif
 /* Original ESP32 bounded carrier diagnostic. No arbitrary IQ TX is claimed.
  * RF calls use esp_phy_cert_test.h; no guessed playback registers are written.
  */
@@ -26,6 +29,9 @@
 #endif
 static QueueHandle_t jobs;
 static volatile bool busy, cancel;
+#ifdef ATUM_TX_LAB_UNIFIED
+static int64_t next_start;
+#endif
 static bool initialized;
 static uint32_t job_id;
 /* Original-chip ROM function and ABI reconstructed from matching ROM ELF and
@@ -41,6 +47,23 @@ static void tone_state(const char *prefix) {
 typedef struct { uint32_t job,cpu,symbols,flips,min,max,late,missed,frames; } phase_stats_t;
 static volatile phase_stats_t phase_stats;
 static portMUX_TYPE pulse_mux=portMUX_INITIALIZER_UNLOCKED;
+#ifdef ATUM_TX_LAB_UNIFIED
+static volatile bool lab_guard_active;
+static volatile int64_t lab_deadline;
+static void lab_disable(void) {
+ portENTER_CRITICAL(&pulse_mux);
+ DPORT_REG_WRITE(TONE1_REG,DPORT_REG_READ(TONE1_REG)&~(255u<<18));
+ DPORT_REG_WRITE(TONE2_REG,DPORT_REG_READ(TONE2_REG)&~(255u<<18));
+ portEXIT_CRITICAL(&pulse_mux);
+}
+static void lab_guard(void *unused) {
+ (void)unused;
+ for(;;){
+  if(initialized && lab_guard_active && (cancel || esp_timer_get_time()>=lab_deadline)) {cancel=true;lab_disable();}
+  vTaskDelay(pdMS_TO_TICKS(1));
+ }
+}
+#endif
 static void phase_report(void) {
     printf("PHASESTAT,job=%"PRIu32",cpu=%"PRIu32",symbols=%"PRIu32",flips=%"PRIu32",min=%"PRIu32",max=%"PRIu32",late=%"PRIu32",missed=%"PRIu32",frames=%"PRIu32"\n",
            phase_stats.job,phase_stats.cpu,phase_stats.symbols,phase_stats.flips,
@@ -124,6 +147,10 @@ static void worker(void *unused) {
         const uint32_t id=++job_id;
         int64_t started=0;
         uint32_t saved1=0,saved2=0,saved_ext=0; bool nco_changed=false;
+#ifdef ATUM_TX_LAB_UNIFIED
+        lab_deadline=esp_timer_get_time()+(int64_t)job.duration_ms*1000;
+        lab_guard_active=true;
+#endif
         if (!cancel) {
             esp_phy_test_start_stop(3);
             esp_phy_wifi_tx_tone(1,job.channel,job.backoff_qdb);
@@ -132,6 +159,9 @@ static void worker(void *unused) {
                 if (!((a>>29)&1) || ((a>>18)&255)!=1 || ((b>>18)&255)!=0 ||
                     ((a|b)&0x0c000000u) || (a&1023) || (e&3)) {
                     esp_phy_wifi_tx_tone(0,job.channel,job.backoff_qdb);esp_phy_test_start_stop(0);
+#ifdef ATUM_TX_LAB_UNIFIED
+                    lab_disable();lab_guard_active=false;next_start=esp_timer_get_time()+2000000;
+#endif
                     puts("ERR phase_requires_canonical_hires_tone1_step0");busy=false;continue;
                 }
                 saved_ext=e;
@@ -154,6 +184,9 @@ static void worker(void *unused) {
                 if ((!e1 && !e2) || e1>1 || e2>1 || ((a|b)&0x0c000000u)) {
                     esp_phy_wifi_tx_tone(0,job.channel,job.backoff_qdb);
                     esp_phy_test_start_stop(0);
+#ifdef ATUM_TX_LAB_UNIFIED
+                    lab_disable();lab_guard_active=false;next_start=esp_timer_get_time()+2000000;
+#endif
                     puts("ERR noncanonical_tone_state");busy=false;continue;
                 }
                 /* Keep vendor enables, calibrated attenuation and bit29 mode.
@@ -169,6 +202,18 @@ static void worker(void *unused) {
             else while (!cancel && esp_timer_get_time()-started<(int64_t)job.duration_ms*1000)
                     vTaskDelay(pdMS_TO_TICKS(5));
         }
+#ifdef ATUM_TX_LAB_UNIFIED
+        /* Never restore saved enables after the guard has disabled the tone. */
+        if(nco_changed){
+            portENTER_CRITICAL(&pulse_mux);
+            DPORT_REG_WRITE(TONE1_REG,saved1&~(255u<<18));
+            DPORT_REG_WRITE(TONE2_REG,saved2&~(255u<<18));
+            DPORT_REG_WRITE(TONE_EXT_REG,saved_ext);
+            portEXIT_CRITICAL(&pulse_mux);
+        }
+        nco_changed=false;
+        lab_disable();
+#endif
         if (nco_changed) {
             bool hires=(saved1>>29)&1;
             unsigned f1=hires?((saved1&1023)<<2)|(saved_ext&3):(saved1&1023);
@@ -180,10 +225,17 @@ static void worker(void *unused) {
         esp_phy_wifi_tx_tone(0,job.channel,job.backoff_qdb);
         esp_phy_test_start_stop(0);
         printf("TX_OFF,id=%"PRIu32",elapsed_us=%"PRIi64",reason=%s\n",id,started?esp_timer_get_time()-started:0,cancel?"stop":"deadline");
+#ifdef ATUM_TX_LAB_UNIFIED
+        lab_disable();lab_guard_active=false;
+        next_start=esp_timer_get_time()+2000000;
+#endif
         busy=false;
     }
 }
 static void command(char *line) {
+#ifdef ATUM_TX_LAB_UNIFIED
+ if(txlab_command(line,!busy && (!initialized || (!(DPORT_REG_READ(TONE1_REG)&(255u<<18)) && !(DPORT_REG_READ(TONE2_REG)&(255u<<18)) && !(DPORT_REG_READ(TONE_EXT_REG)&3)))))return;
+#endif
     if (!strcmp(line,"INFO")) {
         uint8_t mac[6]; esp_chip_info_t chip;
         ESP_ERROR_CHECK(esp_read_mac(mac,ESP_MAC_WIFI_STA)); esp_chip_info(&chip);
@@ -222,6 +274,11 @@ static void command(char *line) {
         if (job.phase && longest>(uint64_t)esp_clk_cpu_freq()*job.symbol_us/(job.nco_step?1250000u:2000000u)) {
             puts("ERR phase_pulse_exceeds_slot_guard");return;
         }
+#ifdef ATUM_TX_LAB_UNIFIED
+        if(job.duration_ms>50 || job.backoff_qdb<96){puts("ERR lab_limit_50ms_backoff_min96");return;}
+        if(esp_timer_get_time()<next_start){puts("ERR cooldown");return;}
+        next_start=esp_timer_get_time()+(int64_t)job.duration_ms*1000+2000000;
+#endif
         if (busy) { puts("ERR busy"); return; }
         cancel=false; busy=true;
         if (xQueueSend(jobs,&job,0)!=pdTRUE) { busy=false; puts("ERR queue"); return; }
@@ -237,7 +294,10 @@ void app_main(void) {
     jobs=xQueueCreate(1,sizeof(probe_job_t)); configASSERT(jobs);
     /* Use the configured scheduler affinity: this image is UNICORE and core 1
      * does not exist. xTaskCreate also supports a future dual-core build. */
-    configASSERT(xTaskCreate(worker,"bounded_tx",4096,NULL,5,NULL)==pdPASS);
+    configASSERT(xTaskCreate(worker,"bounded_tx",8192,NULL,5,NULL)==pdPASS);
+#ifdef ATUM_TX_LAB_UNIFIED
+    configASSERT(xTaskCreate(lab_guard,"phase_deadline",3072,NULL,8,NULL)==pdPASS);
+#endif
     /* UART STOP can preempt the bounded phase worker even during busy waits. */
     vTaskPrioritySet(NULL,6);
     puts("TX_PROBE_READY,rf=off,commands=INFO_STOP_TONE_NCO_PHASE_FASTPHASE_FRAME_FRAMEBITS_QFRAME_QFRAMEBITS_STATE,iq_playback=unverified");

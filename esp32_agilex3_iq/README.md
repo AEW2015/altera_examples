@@ -361,3 +361,5 @@ Both plans keep runtime processing on the ESP32s/FPGA and use the host for
 control/display. Native Wi-Fi packet reception and one raw-IQ packet decode are
 now demonstrated; BER qualification and custom arbitrary-IQ transmission remain
 open and separately gated.
+
+Combined PMOD A TX research firmware: [build and software mode switching](docs/TX_LAB_FIRMWARE.md).

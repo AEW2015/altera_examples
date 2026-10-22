@@ -27,6 +27,12 @@ Work from the directory containing this file. Commands run **beside installed Qu
 
 ## Hardware distinctions that matter
 
+Combined PMOD A image: [TX lab guide](docs/TX_LAB_FIRMWARE.md). Build with
+`scripts/build_tx_lab.sh`; switch AMP/NATIVE/PHASE with
+`scripts/tx_lab_control.py --mode ...` after installation. Switching uses an
+RF-off software reboot, not a programmer bridge or a physical reset. Preserve
+RFS2 and PMOD B firmware. The combined image does not qualify arbitrary IQ TX.
+
 Native Wi-Fi 64-QAM work: [implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md).
 Build `scripts/build_wifi64_tx.sh` for PMOD A and `scripts/build_wifi64_monitor.sh`
 for PMOD B. Both require the pinned SDK; neither build flashes or transmits.
