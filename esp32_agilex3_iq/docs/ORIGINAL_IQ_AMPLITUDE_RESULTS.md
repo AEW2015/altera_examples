@@ -82,7 +82,9 @@ bytes. This is a local-frame check, not a proof of vendor call-tree stack depth.
 The controller detects panic/reboot lines immediately during jobs and permits
 cleanup after a fault. V3 SHA
 `b112c38a155d66dceaa5a860ab850051280714a0e764c53fc2f7d43750de62a0`
-is built, not hardware-tested.
+is now installed and passed initialization / short RF-transition tests with
+4000bytes minimum worker stack remaining. See the subsequent
+[same-capture transition results](ORIGINAL_IQ_TRANSITION_RESULTS.md).
 
 Next after installing the fix: initialization-only CONTROL, inspect its result
 before advancing, unchanged-code TRAIN0 control, then TRAIN120, followed by one

@@ -8,11 +8,11 @@ import argparse,hashlib,json,math,zlib
 from pathlib import Path
 import numpy as np
 
-def samples(root,row):
+def samples(root,row,expected_frequency=2447000000):
     archive=row['archive'];meta=row.get('snapshot',row.get('metadata'))
     path=(root/archive['path']).resolve();path.relative_to((root/'cyberether/run').resolve())
     data=path.read_bytes()
-    if len(data)!=32760 or meta['samples']!=16380 or meta['source']!=0 or meta['rate']!=40000000 or meta['frequency']!=2447000000 or meta['error']!=0:raise ValueError('Wrong capture profile')
+    if len(data)!=32760 or meta['samples']!=16380 or meta['source']!=0 or meta['rate']!=40000000 or meta['frequency']!=expected_frequency or meta['error']!=0:raise ValueError('Wrong capture profile')
     if hashlib.sha256(data).hexdigest()!=archive['sha256'] or zlib.crc32(data)!=meta['raw_crc']:raise ValueError('Raw integrity mismatch')
     a=np.frombuffer(data,np.int8).reshape(-1,2).astype(float)
     if np.any((a==-128)|(a==127)):raise ValueError('Clipped capture is excluded from amplitude comparison')

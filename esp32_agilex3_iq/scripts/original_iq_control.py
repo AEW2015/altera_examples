@@ -50,6 +50,8 @@ def idle(bridge,timeout=5):
 def run(args):
     level=getattr(args,'level',None);period=getattr(args,'train_period_us',None)
     command=job_command(args.atten,args.milliseconds,level,period)
+    rx_mhz=getattr(args,'rx_frequency_mhz',2447)
+    if rx_mhz not in (2442,2447,2452):raise ValueError('RX diagnostic tuning must be2442,2447 or2452MHz')
     if not args.transmit:raise ValueError('--transmit explicitly required')
     output=Path(args.output).resolve();output.relative_to((ROOT/'cyberether/run').resolve())
     # Reserve all evidence paths before hardware access; never overwrite captures.
@@ -59,6 +61,7 @@ def run(args):
            'host_dsp':False,'ber_measured':False,'command':command,
            'snapshot_scope':'Sparse raw snapshot; no assumed plateau or transition alignment',
            'requested_delay_ms':args.capture_delay_ms,'started_unix':time.time()}
+    proof.update(tx_nominal_frequency_hz=2447000000,rx_nominal_frequency_hz=rx_mhz*1000000)
     with output.open('x') as record:
       try:
         private=output.with_name(output.stem+'.private');private.mkdir(mode=0o700,exist_ok=False)
@@ -76,7 +79,7 @@ def run(args):
                 if fields(info).get('v')=='2':raise RuntimeError('V2 diagnostic has a known PHY-init stack overflow; install corrected V3 before RF')
                 if (level is not None or period is not None) and (fields(info).get('v') not in ('2','3') or fields(info).get('amp_train')!='1'):raise RuntimeError('LEVEL/TRAIN requires installed v2+ amplitude firmware')
                 if fields(ident).get('mac','').lower()!=args.expect_mac.lower():raise RuntimeError('PMOD A identity mismatch')
-                proof.update(identity=ident,info=info,receiver=bridge.prepare_sdr(0,2447,40000000))
+                proof.update(identity=ident,info=info,receiver=bridge.prepare_sdr(0,rx_mhz,40000000))
                 original_gain=bridge.radio_command(0,'GAIN?','GAIN ')
                 gain_code=getattr(args,'rx_gain',None)
                 requested_gain='GAIN HARDWARE' if gain_code is None else 'GAIN MANUAL '+str(gain_code)
@@ -91,7 +94,7 @@ def run(args):
                 # separately; no plateau/phase label is assigned to the samples.
                 time.sleep(args.capture_delay_ms/1000)
                 bridge.radio_write(0,'CAP16 16380 1\n')
-                frame=bridge.capture(job,16380,timeout=8,expected_frequency=2447000000)
+                frame=bridge.capture(job,16380,timeout=8,expected_frequency=rx_mhz*1000000)
                 proof['snapshot']=frame.metadata();proof['archive']=save_raw(frame,private,job)
                 proof['done']=bridge.wait_text(1,'OIQ,DONE,',8)
                 if fields(proof['done']).get('job')!=fields(proof['start']).get('job'):raise RuntimeError('Diagnostic job mismatch')
@@ -134,6 +137,7 @@ def main():
     parser.add_argument('--milliseconds',type=int,choices=range(3,51),default=50)
     parser.add_argument('--capture-delay-ms',type=int,choices=range(31),default=10)
     parser.add_argument('--rx-gain',type=int,choices=range(128),help='Explicit manual RX gain code; omitted keeps hardware AGC')
+    parser.add_argument('--rx-frequency-mhz',type=int,choices=(2442,2447,2452),default=2447,help='Keep TX at2447MHz; move RX centre to test near-DC artifacts')
     parser.add_argument('--expect-mac',required=True);parser.add_argument('--port')
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()

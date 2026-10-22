@@ -102,6 +102,10 @@ def handler(pointer=None,transmitter=None,raw_pointer=None):
                 payload=(ROOT/'cyberether/wifi64_story.html').read_bytes();content_type='text/html; charset=utf-8'
             elif route=='/wifi-phy.svg':
                 payload=(ROOT/'docs/images/wifi64_phy.svg').read_bytes();content_type='image/svg+xml'
+            elif route=='/tx-research':
+                payload=(ROOT/'cyberether/wifi64_tx_research.html').read_bytes();content_type='text/html; charset=utf-8'
+            elif route=='/tx-transitions.png':
+                payload=(ROOT/'docs/images/original_esp32_transition_gate.png').read_bytes();content_type='image/png'
             else:self.send_error(404);return
             self.send_response(200);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
         def do_POST(self):self.send_error(405,'Display only; no RF controls')

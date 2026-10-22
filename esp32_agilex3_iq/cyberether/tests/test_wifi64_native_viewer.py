@@ -32,6 +32,9 @@ class NativeViewer(unittest.TestCase):
     with urlopen(url+'/story') as response:self.assertIn(b'Exact remapped constellation needs a new device export',response.read())
     with urlopen(url+'/wifi-phy.svg') as response:
      self.assertEqual(response.headers['Content-Type'],'image/svg+xml');self.assertIn(b'CUSTOM IQ TX',response.read())
+    with urlopen(url+'/tx-research') as response:self.assertIn(b'offline host analysis',response.read())
+    with urlopen(url+'/tx-transitions.png') as response:
+     self.assertEqual(response.headers['Content-Type'],'image/png');self.assertTrue(response.read().startswith(b'\x89PNG\r\n\x1a\n'))
     with self.assertRaises(HTTPError) as result:urlopen(Request(url+'/api/run',method='POST'))
     self.assertEqual(result.exception.code,405)
    finally:server.shutdown();server.server_close();thread.join()

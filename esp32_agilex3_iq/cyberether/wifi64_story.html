@@ -14,7 +14,7 @@
 <div class="stats"><span id="channel">Channel —</span><span id="rate">— Mb/s</span><span id="bytes">— bytes</span><span id="time">— s on Nios</span><span>FEC corrections <b>not measured</b></span></div>
 <img class="diagram" src="/wifi-phy.svg" alt="Packet bytes enter the ESP32 native Wi-Fi PHY, which handles coding, mapping and OFDM transmission. RFS2 captures raw IQ and Agilex 3 Nios performs reception and FEC. Custom FPGA IQ injection into original ESP32 remains unproven.">
 <section class="explain"><article><div class="tag">CAN WE SEND ANY QAM DATA?</div><p>Packet payload bytes: yes, within frame/API limits. Arbitrary QAM symbols or IQ samples: no proven input on these original ESP32s. The native PHY chooses the coded waveform.</p></article><article><div class="tag">CUSTOM FPGA 64-QAM TX</div><p>FPGA mapping works in replay. The missing link is a verified IQ sample feed into the ESP32 TX engine. S3/S31 playback is chip-specific; it does not prove original-chip support.</p></article></section>
-<div id="status">Waiting for qualified capture.</div><p class="foot">Saved hardware capture · no host receiver DSP · opening this page never transmits · <a href="/">Full evidence</a> · <a href="https://github.com/whstudio123/esp32-iq-tx">TX research</a></p>
+<div id="status">Waiting for qualified capture.</div><p class="foot">Saved hardware capture · no host receiver DSP · opening this page never transmits · <a href="/">Full evidence</a> · <a href="/tx-research">Custom TX research</a> · <a href="https://github.com/whstudio123/esp32-iq-tx">Upstream IQ TX</a></p>
 </main>
 <script>
 const $=id=>document.getElementById(id);

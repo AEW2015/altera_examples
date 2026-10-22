@@ -998,3 +998,31 @@ It is built, not yet installed or hardware-qualified. The host watcher detects
 panic/reboot immediately while keeping STOP/cleanup usable. Tests cover the
 original896-byte-frame regression, panic/reboot detection and V2 refusal.
 All376 host tests pass; V3 flash dry-run and compiler stack checks pass.
+
+### V3 on-device stack and same-capture RF transition tests
+
+V3 b112c38a… passed actual flash/digest, normal boot and initialization. The
+initialization-only CONTROL opened no tone-register window; its177191us setup
+exceeded the50ms budget and is excluded from RF success. Runtime minimum stack
+free is4000bytes for the8192-byte worker and2664 for the guard. No V3 panic/reboot
+was observed in the recorded tests.
+
+TRAIN0 controls captured one stable level. TRAIN120/32us captured11 amplitude
+transitions; TRAIN24 captured3 at32us and3 at64us, all with zero exact rail hits,
+matched job IDs, field/gain restoration, STOP and busy0. A5MHz RX-offset control
+and two TRAIN24 attempts are retained: first captured only one level, second
+captured6 transitions. Offset did not remove phase disturbance. Estimated
+low/high phase offsets are−2.42° (24/32us nearDC),−5.24° (24/64us nearDC) and−3.84°
+(24/32us offset); these are end-to-end offline model estimates, not calibrated
+TX phase or EVM. Weak code120 has a poor model fit. Later passive snapshots and
+quiet register checks passed. No custom-QAM payload/FEC/BER qualification.
+
+Source adds an offline NumPy audit, explicit receiver-offset profiles and a
+read-only `/tx-research` page displaying the aggregate plot. Raw SHA/CRC/profile,
+gain and clipping checks precede fitting. Synthetic tests cover known AM/PM/DC,
+unchanged-code rejection and negative IQ orientation. See
+[full results](docs/ORIGINAL_IQ_TRANSITION_RESULTS.md) for proof names and limits.
+All383 host tests pass. `/tx-research` desktop1200px/mobile390px browser checks
+passed with loaded plots, explicit offline-analysis / unqualified-QAM labels,
+GET-only requests, no JavaScript errors and no horizontal overflow. All UART/JTAG
+owners were released after the final passive check.

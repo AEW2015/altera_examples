@@ -24,13 +24,20 @@ flowchart LR
 | 0 Preserve | Private native-A full-flash backup, source/image hashes, current stage11 restore path | Fresh4MiB native backup verified; V1 flash/digest and stage11 restoration passed |
 | 1 Source review | Find a concrete original-chip sample selector, packing, clocks, start/stop; no copied S3 register guesses | No sample input established |
 | 2 Amplitude diagnostic | CONTROL and ATTEN120..127, requested3..50ms, two seconds quiet; independent raw RX, invariant/restore checks | V1 stable RF amplitude change measured; no fine amplitude law yet |
-| 3 Polar calibration | Transfer curve, AM/PM, settling, phase directions and repeatability against unchanged-code controls | V2 stack failure recorded; V3 correction built, pending installation / RF test |
+| 3 Polar calibration | Transfer curve, AM/PM, settling, phase directions and repeatability against unchanged-code controls | V3 stable; same-capture amplitude/phase and5MHz RX-offset tests recorded; full calibration pending |
 | 4 Backend decision | Direct IQ playback if demonstrated; otherwise calibrated polar TX, or explicit unresolved result | Pending evidence |
 | 5 FPGA implementation | Known bits, framing/pilots, K7 FEC, BPSK→QPSK→16-QAM→64-QAM, calibrated waveform/polar schedule | Replay mapper/FEC already works; RF backend pending |
 | 6 Complete RX | On-device acquisition/CFO/timing/equalization/soft demap/FEC/CRC, each module simulated and tested | Native Wi-Fi Nios receiver exists; custom waveform integration pending |
 | 7 RF qualification | Same-capture64 states, EVM, failures, pre/post BER with denominators and >=100000 unique payload bits per point | Not yet measured |
 
 ## First hardware experiment
+
+V3 is installed and passed initialization / short RF-transition tests with
+4000bytes minimum worker stack free. Two amplitudes are measured in single
+captures; phase transients remain, including with RX moved5MHz. See
+[V3 transition results](ORIGINAL_IQ_TRANSITION_RESULTS.md) for scope, missed
+coverage and the next calibration batch. These results do not qualify9radii,
+52directions, arbitrary IQ or custom64-QAM.
 
 V1 stable-amplitude gate has now run on hardware. Repeated CONTROL RMS96–97ADC
 units versus code120 RMS4.20–4.25, with later TX-off1.05–1.12 and no rail hits at
