@@ -6,7 +6,7 @@ symbol replay, labeled **NO RF TX**. No replacement RF results are fabricated.
 
 ```mermaid
 flowchart LR
-  A[PMOD A: native 54Mb/s TX<br/>firmware BUILT] -. install / RF test pending .-> B[RFS2: raw IQ40MS/s<br/>3 captures / CRC PASS]
+  A[PMOD A: native 54Mb/s TX<br/>firmware FLASHED] -. boot / RF test pending .-> B[RFS2: raw IQ40MS/s<br/>3 captures / CRC PASS]
   A -. independent RX pending .-> M[PMOD B: passive monitor<br/>firmware BUILT]
   B --> C[Acquisition / CFO / L-SIG<br/>NOT IMPLEMENTED in new path]
   C --> D[FFT64 / equalizer / soft QAM64]
@@ -18,7 +18,7 @@ flowchart LR
 
 | Item | Evidence | Remaining limit |
 |---|---|---|
-| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Not flashed; no RF packet proof |
+| Native TX firmware | Pinned SDK build; deterministic88-byte frames; UART command tests | Flashed and hash-verified; normal-boot reset pending; no RF packet proof |
 | Independent monitor firmware | Same SDK builds; passive native reception and payload identity check | Not flashed; replaces PMOD B's SPI image |
 | Bounded controller | Shared acquisition lock, explicit `--transmit`, readbacks, STOP/idle proof; fake-bridge tests | Not exercised against installed native firmware |
 | Wideband transport | Three16380-sample CI8 captures, nominal40MS/s, CRCs pass; reported capture411us; no hub errors | Passive; sample clock and complete20MHz analog response not measured |
@@ -31,8 +31,8 @@ Nios test ELF SHA:
 `674d89ee92cfd3cf7f4334359b8ee46bad1388f84a2c72e44c118ebce5772467`.
 Physical FPGA image remains checkpoint06 SHA `4297a6c946a7bb1381523eccd53ee99864871fb5a66c83edef6c90eb8b2f5441`.
 The original monitor ELF was restored and STATUS replied with no errors after that test.
-The subsequent programming bridge temporarily replaces the runtime SOF while
-PMOD A installation waits for the manual reset.
+PMOD A was subsequently flashed and verified. The same runtime SOF is restored;
+GPIO0 is released and the normal-boot reset is pending.
 
 The selftest uses42,804bytes of64KiB including BSS; workspace25,712bytes.
 At50MHz its FFT tone test took453085 timer ticks (~9.06ms), channel/null test
@@ -80,8 +80,10 @@ fixtures on actual hardware. It is not a waveform replay through the RF chain.
 
 ## Next gates
 
-1. Install PMOD A TX firmware with private rollback backup and the two guided
-   resets. User is available; PMOD A ROM bridge is loaded with GPIO0 low and the first programming reset is pending.
+1. Complete PMOD A normal boot: firmware is flashed and hash-verified, GPIO0
+   released, runtime restored. A MAC-matched 4 MiB physical rollback backup is
+   saved privately. The original lower 2 MiB backup is combined with the upper
+   2 MiB, which the installation did not write. The normal-boot reset is pending.
 2. Install independent PMOD B monitor, restore FPGA runtime, SPI selectorOFF,
    BOOTOFF, verify UART identity. Native monitor replaces the current SPI receiver.
 3. Confirm matching native54Mb/s packets in bounded jobs with final RF-off state.

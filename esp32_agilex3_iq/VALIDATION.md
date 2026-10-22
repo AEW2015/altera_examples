@@ -725,3 +725,20 @@ acceleration or an integrated live RF decoder. Measured92-byte DATA decode
 Original-chip TX review identified a specific attenuation-only polar probe;
 o new RF amplitude qualification or arbitrary-IQ playback was performed.
 See docs/WIFI64_IMPLEMENTATION_STATUS.md for reproducible commands and open gates.
+
+
+### PMOD A native transmitter installation
+
+PMOD A identity matched before any flash write. The initial configured-layout
+backup covered2MiB; JEDEC ID0x164020 identifies4MiB physical storage. The upper
+2MiB was retained unchanged by all three programmed images and backed up too.
+The first upper read at460800baud lost its serial stream; reconnecting to the
+stub at that baud, selecting4MiB flash parameters and reading bounded chunks at
+115200baud succeeded. The full physical rollback image is private and hashed.
+
+The native TX app SHA
+`36ad44901f58cbf150f162d91ca9cdd59059f3ea2c6448154a49a6d88ad77a16`
+was installed. Bootloader, partition table and app all passed device hash
+verification. Checkpoint06 SOF restored, GPIO0 released; the normal-boot reset
+is pending. No native RF job has run. Evidence: ignored
+`cyberether/run/wifi64-install-a.json`, `wifi64-flash-a.log`, and private backups.
