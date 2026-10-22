@@ -151,7 +151,7 @@ Build, reference and physical-board verification are also recorded in
 
 Open `/poster` on the same port (for example `http://HOST_IP:8773/poster`).
 The read-only layout has three rows (12, 16 and 20 dB) and two columns:
-actual clean TX symbols on the left, and the matching RX before/after-FEC
+actual clean TX symbols with a faint noisy overlay on the left, and the matching RX before/after-FEC
 overlay on the right. Separate TX/RX diagrams identify Nios replay,
 the FPGA encoder/mapper/demapper/Viterbi, and the host display reconstruction.
 Each lower panel shows frame error counts alongside the full-sweep result. All six plots use the same scale and equal
@@ -162,7 +162,7 @@ The **Download measured example PNG** link serves the committed screenshot,
 not a freshly rendered image of a later sweep. The page itself updates when
 a new completed proof becomes available. For a new export, capture the
 `#poster` element with a browser screenshot; its timestamp identifies the
-measurement. The supplied PNG is 1440 pixels wide and can be used directly
+measurement. The supplied PNG is 1080 pixels wide and can be used directly
 in a social post.
 
 ![FPGA TX/RX six-panel example](../notebooks/screenshots/08_fpga_64qam_social.png)
@@ -188,3 +188,5 @@ zero payload errors after FPGA decoding. These are single-frame counts
 176 payload errors at 12 dB. Old saved proofs are enriched from their NPZ
 snapshots after repeating the exact reference audit; completed results are
 cached. Opening the overlay never starts a hardware action.
+
+The centered poster is capped at 1080 pixels with wider page margins. On the TX side, faint amber dots show the same recorded frame after Nios adds noise; cyan dots remain the actual clean FPGA mapper output. The overlay is explanatory and does not imply noise was transmitted by the mapper.
