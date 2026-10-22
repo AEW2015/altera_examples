@@ -146,3 +146,22 @@ not separately recompiled in this run.
 
 Build, reference and physical-board verification are also recorded in
 [VALIDATION.md](../VALIDATION.md).
+
+## Social / presentation layout
+
+Open `/poster` on the same port (for example `http://HOST_IP:8773/poster`).
+The read-only 2×3 layout shows TX mapper constellations above noisy RX inputs
+for 12, 16 and 20 dB. Separate TX/RX diagrams identify Nios replay and the
+FPGA encoder, mapper, demapper and Viterbi blocks. Every RX panel includes its
+aggregate pre-/post-FEC result. All six plots use the same scale and equal
+I/Q aspect ratio. The page uses actual audited FPGA snapshots, never a
+new acquisition or TX command.
+
+The **Download measured example PNG** link serves the committed screenshot,
+not a freshly rendered image of a later sweep. The page itself updates when
+a new completed proof becomes available. For a new export, capture the
+`#poster` element with a browser screenshot; its timestamp identifies the
+measurement. The supplied PNG is 1440 pixels wide and can be used directly
+in a social post.
+
+![FPGA TX/RX six-panel example](../notebooks/screenshots/08_fpga_64qam_social.png)

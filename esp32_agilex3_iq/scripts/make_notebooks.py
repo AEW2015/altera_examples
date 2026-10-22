@@ -834,6 +834,10 @@ modem_cells.append(nb.v4.new_markdown_cell("""### Measured FPGA 64-QAM example
 The physical Agilex 3 sweep tested 100,096 payload bits per noise level. At 12 dB: 23,559/204,884 coded errors → 176/100,096 payload errors. At 16 and 20 dB: 10,121 and 1,679 coded errors respectively, with no payload errors observed. These are FPGA symbol-replay measurements with Nios-generated approximate Gaussian noise, not RF captures. Each plotted constellation shows the last audited frame at that noise level, while the BER table includes all 391 frames; that individual frame may be error-free even if the aggregate has errors.
 
 ![FPGA 64-QAM constellation and BER](screenshots/08_fpga_64qam_ber.png)
+
+For the compact TX/RX presentation, open `/poster` on the same port (for example `http://HOST_IP:8773/poster`). It shows all three measured levels in six panels, with pipeline blocks and before/after-FEC BER. This page is read-only and starts no acquisition. Its download link provides the saved example PNG.
+
+![FPGA 64-QAM TX/RX social layout](screenshots/08_fpga_64qam_social.png)
 """))
 modem_notebook = nb.v4.new_notebook(cells=modem_cells,metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
 write_notebook(modem_notebook, ROOT/'notebooks/08_modem_lab.ipynb')

@@ -4,6 +4,7 @@
 </style><main><div class="tag">ATUM A3 NANO · AGILEX 3 FPGA · CHECKPOINT 06</div><h1>64-QAM · See the bits recover</h1>
 <div class="pipeline">FPGA FEC + mapper → Nios noisy replay → FPGA soft demapper → FPGA Viterbi</div>
 <p>Real FPGA symbol transactions. Nios supplies repeatable approximate Gaussian noise; the host audits results and draws plots. No radio transmission or RF capture.</p>
+<p><a href="/poster">TX / RX · 2×3 presentation view ↗</a></p>
 <button id="run">Run FPGA BER sweep · 100k bits / level</button> <a href="/" id="simLink">Python modem reference ↗</a>
 <div class="status" id="status">Checking the selected FPGA image…</div><progress id="progress" max="100" value="0"></progress>
 <div class="small" id="progressText">Idle until Run is clicked. Default points: 12, 16, 20 dB Es/N0.</div>

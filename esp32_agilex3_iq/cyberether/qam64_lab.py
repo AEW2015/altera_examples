@@ -69,6 +69,11 @@ def main():
         def do_GET(self):
             route=self.path.split('?')[0]
             if route=='/':self.reply(200,Path(__file__).with_suffix('.html').read_bytes(),'text/html; charset=utf-8')
+            elif route=='/poster':self.reply(200,Path(__file__).with_name('qam64_poster.html').read_bytes(),'text/html; charset=utf-8')
+            elif route=='/poster.png':
+                picture=ROOT/'notebooks/screenshots/08_fpga_64qam_social.png'
+                if picture.is_file():self.reply(200,picture.read_bytes(),'image/png')
+                else:self.reply(404,dict(error='Example PNG not exported yet'))
             elif route=='/api/state':self.reply(200,manager.state())
             elif route=='/health':self.reply(200,dict(status='ready'))
             else:self.reply(404,dict(error='Not found'))
