@@ -190,3 +190,5 @@ snapshots after repeating the exact reference audit; completed results are
 cached. Opening the overlay never starts a hardware action.
 
 The centered poster is capped at 1080 pixels with wider page margins. On the TX side, faint amber dots show the same recorded frame after Nios adds noise; cyan dots remain the actual clean FPGA mapper output. The overlay is explanatory and does not imply noise was transmitted by the mapper.
+
+The poster uses short pipeline labels and 380-pixel canvas heights (340 at narrower browser widths), keeping TX/RX pairs aligned and I/Q axes square. The remaining copy identifies the plotted stage, frame error denominators and separate sweep BER; full evidence stays in the interactive lab and this guide.
