@@ -1,5 +1,11 @@
 # ESP32 → Agilex 3 IQ Pipeline Lab
 
+**Demo sources:** The current 64-QAM constellation/BER page is physical FPGA
+symbol replay with Nios-generated noise; it does not transmit or receive RF.
+The earlier ESP32 BPSK/QPSK experiments are actual PMOD A → RFS2 RF captures,
+with host waveform synchronization and separate FPGA symbol/FEC replay tests.
+64-QAM over the installed ESP32 RF link is not yet qualified.
+
 Five independently editable **Quartus Visual Designer Studio** checkpoints for the **Terasic Atum A3 Nano**, plus a focused notebook and browser demo for each step.
 
 ```mermaid
