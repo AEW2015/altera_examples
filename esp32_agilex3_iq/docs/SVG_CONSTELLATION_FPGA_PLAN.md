@@ -1,14 +1,22 @@
 # SVG constellation loader for the FPGA Modem Lab
 
-Status: proposed; no implementation, FPGA programming or RF transmission performed
-by this plan. Target: Atum A3 Nano / Agilex 3, extending the existing checkpoint06
-internal QAM/FEC replay demonstration.
+Status: the fixed pentagram example now has a tested Python reference, viewer,
+notebook11 and complete standalone RTL with exact Questa and physical-board
+checks. The fitted design passes 50 MHz timing and three 100,096-bit hardware
+noise sweeps. Target: Atum A3 Nano / Agilex 3.
+The standalone derivative preserves the existing checkpoint06 modem and
+checkpoint11 RF image. General SVG import/upload remains the broader extension
+specified below; the first decoder uses the supplied five-node graph and known
+endpoint timing. See [implemented example and evidence](SVG_EDGE_FEC_PLAN.md).
 
 ## Goal and interpretation
 
-Load an SVG, turn its geometry into a finite set of labelled I/Q points, upload
-that constellation to the FPGA, and compare its noise/BER performance against
-standard QAM using the existing FEC pipeline.
+Use SVG geometry as actual FPGA I/Q symbols and, in graph mode, as legal
+transitions. The primary pentagram demonstration is an FPGA internal noisy
+waveform modem: FPGA encoding, graph mapping, waveform generation, noise,
+receive timing, joint decoding and counters. The host prepares the graph and
+displays final FPGA results. The existing memoryless mapper/demapper remains a
+separate constellation baseline.
 
 **Primary requirement: the modulation constellation must match the SVG points.**
 Each selected SVG marker becomes an actual symbol position in the FPGA mapper
@@ -39,9 +47,44 @@ flowchart LR
     C --> G[CyberEther plots + BER]
 ```
 
-This is an internal symbol-rate FPGA experiment. It requires no ESP32 changes,
-button presses, router connection or RF TX. It does not unlock arbitrary-IQ TX
-on the installed original ESP32s.
+This flow describes only the existing memoryless symbol-rate constellation
+baseline. It is not the target pentagram oversampled-waveform architecture
+shown below.
+
+Keep three representations distinct: (1) a symbol is a discrete I/Q point at a
+symbol instant, (2) an oversampled waveform is the timed sequence between
+symbols, and (3) an SVG edge is a permitted graph transition. Endpoint symbols
+alone do not trace the SVG edge. A straight edge needs a defined interpolation
+or pulse shape; a circle arc specifically requires an explicit constant-radius
+phase sweep with programmed phase increment and sample timing. RX timing selects
+the symbol decision instants from the noisy oversampled stream; oversamples are
+not independent graph symbols.
+
+This is an internal FPGA experiment and needs no RF transmission. RF is a later
+qualification gate for hardware with a supported arbitrary-IQ waveform playback
+path. This work does not unlock arbitrary-IQ TX on the installed original ESP32s.
+
+```mermaid
+flowchart LR
+    P[Host graph preparation / run controls] --> U[FPGA verified graph and waveform parameters]
+    B[FPGA payload source] --> K[FPGA K7 encoder]
+    K --> M[FPGA coded-pair mapper]
+    M --> E[FPGA legal edge / next-node selector]
+    E --> W[FPGA oversampled waveform generator: explicit arc phase sweep]
+    W --> N[FPGA internal noise source]
+    N --> T[FPGA RX timing and symbol sampling]
+    T --> D[FPGA joint graph + K7 soft decoder]
+    D --> C[FPGA BER, frame and error counters]
+    C --> H[Host final-target display and waveform visualization]
+    W --> H
+    N --> H
+```
+
+The host may parse SVG, validate labels, prepare tables and set run parameters.
+The demo's measured transmit path, noisy receive samples, timing decisions,
+decoded target path and counters must come from FPGA buffers/readback. Host Python
+may provide an independent reference for comparison, clearly marked as such;
+it cannot fill in an unimplemented FPGA stage.
 
 ## SVG edges: requested coding extension
 
@@ -249,16 +292,24 @@ visible. Retain the original payload/reference buffers and original BER counts.
 For the final FPGA-only processing demo, export this reconstruction from FPGA;
 any interim display-only host reconstruction must be explicitly identified.
 
-## 6. Implementation milestones and tests
+## 6. Implementation milestones and acceptance
+
+Acceptance is staged so a working reference or GUI cannot be mistaken for an
+FPGA modem. The generic checkpoint06 QAM/K7 pipeline remains intact. The fixed
+pentagram derivative now passes Python tests, complete RTL assertions, routed
+timing, physical capture and independent checks of1173 sweep frames. Notebook11
+and its viewer use those measured outputs. These results do not complete the
+broader arbitrary-SVG loader, runtime graph upload or unknown-clock acquisition
+features described elsewhere in this plan.
 
 | Step | Deliverable | Acceptance |
 |---|---|---|
-| A: Import/reference | SVG parser, canonical profile, preview, Python table-driven modem reference | Existing point count/geometry preserved under a single uniform transform; star/logo fixtures remain recognizable; optional arc-length sampling, labels and quantized collisions checked; hostile/unsupported inputs rejected |
-| B: RTL table | Banked constellation RAM, versioned Avalon interface, mapper/demapper pipeline | Questa exact vectors for all points and all per-bit distance metrics; corrupt/incomplete uploads cannot replace active state |
-| C: Board control | Nios commands, upload/readback, frame-generation lock | All active points match uploaded integers; commit while a frame is outstanding is rejected; built-in fallback works |
-| D: Clean demo | SVG → FPGA encode/map → noiseless replay → demap/Viterbi | Every label exercised plus multiple payload/tail lengths; zero errors with adequate metric precision; any failure retained and explained |
-| E: Noise comparison | Repeatable standard-QAM versus imported-shape sweeps | At least100,000 payload bits per shape/noise point; exact error counts, denominators, failures and zero-error bounds retained |
-| F: Presentation | CyberEther2×3 view and an authored notebook | Active-table identity visible, clean-check button works, screenshots and run provenance included |
+| A: Python reference and GUI (fixed fixture accepted) | SVG graph validation, exact symbol/edge model, oversampled waveform model, joint-decoder reference, visible waveform and result view | Geometry and legal transitions match fixture; noiseless encode/decode round trips pass; arc waveform is produced only by explicit phase sweep; noisy reference is reproducible and labeled Python; GUI plots supplied samples and retains errors |
+| B: RTL simulation (fixed graph, known timing accepted) | FPGA graph table, encoder/mapper, edge selector, explicit waveform generator, internal noise, RX timing, joint decoder and counters | Questa tests compare each stage against independent vectors; test all edge classes, arc phase/sample timing, noise seeds, termination, traceback and counter denominators; failures are retained. Unknown timing offsets require the later synchronization stage |
+| C: FPGA fit and board evidence (fixed graph accepted) | Fitted checkpoint image, versioned controls, table/parameter readback and buffer export | Quartus resource/timing report accepted; fixed graph endpoint/ROM buffers and waveform settings read back exactly (runtime graph upload is future work); clean and seeded noisy runs match independent reference bit-for-bit at stage boundaries; measured FPGA buffers feed display |
+| D: Noise qualification (software and internal hardware sweeps accepted) | Repeatable baseline and graph-code sweeps | At least100,000 payload bits per accepted point; coded and payload errors, frame failures, denominators, throughput, Es/N0 and rate-adjusted Eb/N0 reported; no claim of coding gain without comparable rates and evidence |
+| E: Presentation and lesson (fixed example accepted) | Host display and authored notebook around verified FPGA data | Shows intended graph, actual transmitted oversampled target, actual noisy RX waveform, timing decisions, decoded final target and FPGA counters; Python results and FPGA captures are visibly distinguished |
+| F: RF extension (future, separate gate) | RF tests using hardware that supports arbitrary-IQ waveform playback | Verify actual IQ playback, timing/frequency/phase recovery and RF BER; no installed original-ESP32 RF result is inferred from this internal test |
 
 Regression requirements:
 
@@ -305,15 +356,18 @@ existing ownership locks, program the recorded matching SOF/monitor, and expose
 the active image in the viewer. Switching back uses the preserved RF artifacts.
 No ESP32 reflash is part of this project.
 
-First demo sequence: built-in64-QAM baseline → SVG circle/star alphabet → user
-SVG alphabet → clean decode → low/medium/high noise → compare BER and visible
-errors. The SVG defines a real FPGA-used alphabet only after full readback and
-hardware mapper/demapper evidence pass.
+First accepted pentagram sequence: fixture and Python-reference checks → RTL
+stage simulation → fitted/read-back FPGA graph and waveform configuration →
+noiseless FPGA decode → seeded noisy waveform with RX timing and joint decoding
+→ FPGA counters and exported final targets shown by the host. The memoryless
+QAM comparison is a separate baseline. The SVG defines an FPGA-used graph only
+after full readback and stage-by-stage hardware evidence pass.
 
-Completion means a user can import an SVG, verify its applied points in FPGA,
-run reproducible clean/noisy/FEC tests and see correctly attributed results.
-Over-the-air custom modulation, waveform pulse shaping, synchronization and
-ESP32 arbitrary-IQ TX remain separate future gates.
+Completion of this internal project means a user can import and verify the SVG
+graph, run the entire noisy oversampled modem in FPGA, and view FPGA-produced
+waveform, timing, decode and counter outputs with reproducible provenance. RF is
+a separate future project and requires hardware explicitly supporting
+arbitrary-IQ waveform playback.
 
 ## Existing references
 

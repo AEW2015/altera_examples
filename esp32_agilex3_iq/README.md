@@ -366,4 +366,9 @@ Combined PMOD A TX research firmware: [build and software mode switching](docs/T
 
 Unattended RF work: [incremental calibration and acceptance gates](docs/TX_LAB_CALIBRATION.md). The read-only progress page is `/calibration` on the native Wi-Fi viewer (port8774).
 
-Planned extension: [SVG-defined constellations in the internal FPGA QAM/FEC demo](docs/SVG_CONSTELLATION_FPGA_PLAN.md).
+SVG modem: [pentagram/circle coding plan and results](docs/SVG_EDGE_FEC_PLAN.md),
+[notebook11](notebooks/11_svg_constellation.ipynb), and
+[standalone Agilex 3 build/run guide](fpga_hub/iq_bridge/svg_modem/README.md).
+The internal example draws sampled SVG edges and decodes a joint 320-state
+trellis. [General SVG upload work](docs/SVG_CONSTELLATION_FPGA_PLAN.md) remains
+a broader extension; neither mode implies custom ESP32 RF waveform playback.

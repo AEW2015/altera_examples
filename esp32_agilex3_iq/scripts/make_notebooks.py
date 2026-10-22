@@ -1176,3 +1176,129 @@ The first detector is intentionally coarse. The raw capture reaches the detector
 ]
 preamble_notebook = nb.v4.new_notebook(cells=preamble_cells, metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
 write_notebook(preamble_notebook, ROOT/'notebooks/10_fpga_preamble.ipynb')
+
+# The SVG modem keeps Python design experiments separate from explicit RTL/FPGA actions.
+svg_cells = [
+ nb.v4.new_markdown_cell('''# 11 · Draw a coded constellation through noise
+
+**What is added:** a five-point pentagram/circle alphabet, edge-constrained K7 code,
+and an oversampled waveform that draws the SVG over time.
+
+**Why it helps:** see how a sequence decoder can recover a message even when
+individual noisy symbols land nearer the wrong tip.
+
+**How it works:** each input bit produces a coded pair, selecting a graph edge.
+The destination is one of five symbols. Separate waveform logic emits 16 samples
+along a straight star edge or a constant-radius circle arc. A joint 320-state
+Viterbi searches graph node and encoder memory together.
+
+`Payload → K7 → edge mapper → waveform → noise → endpoint sample → joint decoder → counters`
+
+The Python experiments use AWGN. The standalone FPGA uses bounded uniform noise,
+known endpoint timing and integer arithmetic. Neither path is an RF transmission
+or a demonstration of unknown-clock timing recovery. The host displays FPGA
+results; Python models remain independent engineering references.
+
+[Plan and limits](../docs/SVG_EDGE_FEC_PLAN.md) ·
+[FPGA register map and build](../fpga_hub/iq_bridge/svg_modem/README.md)'''),
+ nb.v4.new_code_cell('''from pathlib import Path
+import sys, subprocess
+import numpy as np
+import matplotlib.pyplot as plt
+ROOT = Path.cwd()
+if not (ROOT / "scripts").is_dir():
+    ROOT = ROOT.parent
+assert (ROOT / "scripts/svg_modem.py").is_file(), "Open this notebook in its checkout."
+sys.path.insert(0, str(ROOT / "scripts"))
+from notebook_progress import progress
+from svg_modem import simulate
+with progress("Simulate waveform and joint trellis decoder"):
+    result = simulate(seed=7, snr_db=7, mode="arc", sps=16)
+print("Python simulation, ideal timing:", result["rx"]["hard_symbol_errors"],
+      "wrong nearest symbols;", result["rx"]["decoded_bit_errors"], "payload errors")'''),
+ nb.v4.new_markdown_cell('''## Watch symbols, samples and decisions
+
+Five ideal points are the symbol alphabet. Dense waveform samples draw the edges;
+they are not additional message symbols. The decoded path uses actual traceback
+decisions. Plotting ideal recovered nodes does not clean the noisy waveform.'''),
+ nb.v4.new_code_cell('''points = np.asarray(result["constellation"])
+wave = np.asarray(result["waveform"]["tx_samples"])
+rx = np.asarray(result["rx"]["symbols"])
+path = points[np.asarray(result["rx"]["decoded_node_path"])]
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+for ax in axes:
+    ax.scatter(points[:,0], points[:,1], c="black", s=35, zorder=3)
+    ax.set(xlabel="I", ylabel="Q", aspect="equal")
+    ax.grid(alpha=.2)
+axes[0].plot(wave[:,0], wave[:,1], lw=.7, alpha=.65)
+axes[0].set_title("TX waveform · sampled SVG edges")
+axes[1].scatter(rx[:,0], rx[:,1], s=8, alpha=.6)
+axes[1].set_title("Noisy RX · known symbol instants")
+axes[2].plot(path[:,0], path[:,1], lw=.7, alpha=.6)
+axes[2].set_title("Decoded node sequence · decision chords")
+plt.tight_layout()
+plt.show()'''),
+ nb.v4.new_markdown_cell('''## Actual RTL simulation
+
+This runs synthesizable encoder, waveform, bounded noise, capture RAM, decoder
+and counters against an independent integer reference. It does not simulate RF
+or the JTAG vendor transport. Set the switch below to use local Questa.
+To inspect waveforms in the Questa GUI, run
+`python scripts/simulate_svg_modem.py --gui` from the checkout.'''),
+ nb.v4.new_code_cell('''RUN_QUESTA = False
+if RUN_QUESTA:
+    with progress("Questa: SVG waveform and full modem wrapper"):
+        subprocess.run([sys.executable, "scripts/simulate_svg_modem.py"], cwd=ROOT, check=True)
+else:
+    print("Skipped: set RUN_QUESTA=True to run the actual RTL assertions.")'''),
+ nb.v4.new_markdown_cell('''## Build and program Agilex 3
+
+The standalone project uses the Atum A3 Nano 50 MHz clock and a JTAG-to-Avalon
+master. It includes a complete QPF/QSF, explicit SDC and generated IP sources.
+Programming replaces the current FPGA design; no ESP32 firmware or reset buttons
+are involved. Stop acquisition owners first. The programmer checks build/source
+hashes, timing and hardware leases.'''),
+ nb.v4.new_code_cell('''BUILD_FPGA = False
+PROGRAM_FPGA = False
+if BUILD_FPGA:
+    with progress("Generate IP, synthesize, fit and assemble SVG modem"):
+        subprocess.run([sys.executable, "scripts/build_svg_fpga.py"], cwd=ROOT, check=True)
+    from IPython.display import FileLink, display
+    display(FileLink(str(ROOT / "fpga_hub/iq_bridge/svg_modem/run/build/svg_demo.qpf")))
+if PROGRAM_FPGA:
+    with progress("Program standalone internal SVG modem"):
+        subprocess.run([sys.executable, "scripts/program_svg_fpga.py"], cwd=ROOT, check=True)
+if not BUILD_FPGA and not PROGRAM_FPGA:
+    print("Build/program skipped; no hardware accessed.")'''),
+ nb.v4.new_markdown_cell('''## Capture and show the FPGA result
+
+The explicit capture action sets and reads back controls, runs a bounded frame,
+and downloads samples, traceback decisions and FPGA counters. It does not
+transmit. Noise amplitude is a uniform-noise bound in CI16 units, not an AWGN SNR.
+Try 0 for a clean check, 6000 for correction and 10000 for a harder case.
+
+The server reads only a saved result. It never programs, captures or transmits
+when opened. Use `--host 0.0.0.0` only when you want another device to view it.'''),
+ nb.v4.new_code_cell('''CAPTURE_FPGA = False
+if CAPTURE_FPGA:
+    with progress("Acquire FPGA symbols, waveform and BER counters"):
+        subprocess.run([sys.executable, "scripts/svg_fpga_capture.py", "capture", "--noise", "6000"],
+                       cwd=ROOT, check=True)
+else:
+    print("Capture skipped. For host simulation instead, run:")
+    print("python scripts/start_svg_lab.py simulate --seed 7 --snr-db 7")
+print("Start the read-only viewer in a terminal:")
+print("python scripts/start_svg_lab.py serve --host 0.0.0.0 --port 8775")'''),
+ nb.v4.new_markdown_cell('''## Longer noise sweeps
+
+`python scripts/check_svg_sweep.py` evaluates at least 100,000 payload bits per
+AWGN level in Python. Hardware sweeps use `svg_fpga_capture.py` with frame counts
+and bounded uniform noise. Keep the two noise models separate. Report nearest-node
+symbol error rate separately from decoded payload BER and retain denominators.
+
+### Example viewer
+
+![SVG constellation lab](screenshots/11_svg_modem.png)'''),
+]
+svg_notebook = nb.v4.new_notebook(cells=svg_cells, metadata={'kernelspec':{'name':'atum-a3-iq','display_name':'Atum A3 IQ Demos','language':'python'},'language_info':{'name':'python','version':'3.12'}})
+write_notebook(svg_notebook, ROOT/'notebooks/11_svg_constellation.ipynb')

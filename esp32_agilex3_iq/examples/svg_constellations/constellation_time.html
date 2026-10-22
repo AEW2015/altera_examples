@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pentagram • constellation over time</title>
+<style>
+body{margin:24px auto;max-width:1000px;padding:0 16px;background:#081222;color:#e4edf8;font:16px system-ui}h1{font-size:24px}canvas{width:100%;background:#0c1b30;border-radius:12px}label,button,select{margin:8px;font:inherit}button,select{padding:6px;background:#19324c;color:white;border:1px solid #53718b;border-radius:6px}input{width:65%}p{color:#aec3d9}strong{color:#55e2dd}
+</style>
+<h1>Pentagram • constellation over time</h1>
+<p>Python-free browser simulation · no RF or FPGA acquisition</p>
+<button id="play">Pause</button><label>Between symbols <select id="mode"><option value="shaped">Star chords + circle phase arcs</option><option value="linear">Straight I/Q interpolation</option><option value="hold">Symbol hold</option></select></label>
+<label><input id="scrub" aria-label="Time" type="range" min="0" max="1000" value="0"></label>
+<canvas id="plot" width="1000" height="620" aria-label="I/Q constellation and I Q over time"></canvas>
+<p><strong>White: five decision symbols.</strong> Cyan/purple: oversampled waveform. Orange: current sample.</p>
+<p>Same five symbols, different paths. The arc mode explicitly sweeps phase at constant amplitude on circle edges. Straight interpolation draws chords. Symbol hold stays at the tips. These are illustrative waveforms; a practical pulse-shaping filter has memory and can follow different curves. Edge constraints alone do not specify the waveform.</p>
+<script>
+const canvas=document.querySelector('#plot'),ctx=canvas.getContext('2d');
+const mode=document.querySelector('#mode'),scrub=document.querySelector('#scrub'),play=document.querySelector('#play');
+// Complete star cycle, then complete circle cycle. Crossings are not symbols.
+const sequence=[0,2,4,1,3,0,1,2,3,4,0],N=1000;
+const tip=n=>[Math.cos(Math.PI/2-n*2*Math.PI/5),Math.sin(Math.PI/2-n*2*Math.PI/5)];
+function sample(t){
+  const edge=Math.min(9,Math.floor(t*10)),u=t>=1?1:t*10-edge;
+  const a=tip(sequence[edge]),b=tip(sequence[edge+1]);
+  if(mode.value==='hold')return u===1?b:a;
+  if(mode.value==='shaped'&&edge>=5){const angle=Math.PI/2-(edge-5+u)*2*Math.PI/5;return [Math.cos(angle),Math.sin(angle)];}
+  return a.map((v,k)=>v+(b[k]-v)*u);
+}
+let position=0,running=true,last=0;
+function draw(){
+ctx.clearRect(0,0,1000,620);
+const xy=p=>[300+p[0]*210,280-p[1]*210];
+ctx.lineWidth=1;ctx.strokeStyle='#365069';ctx.beginPath();ctx.moveTo(45,280);ctx.lineTo(555,280);ctx.moveTo(300,25);ctx.lineTo(300,535);ctx.stroke();
+ctx.font='18px system-ui';ctx.fillStyle='#aec3d9';ctx.fillText('Q',312,28);ctx.fillText('I',550,272);ctx.fillText('Oversampled I/Q path',60,575);ctx.fillText('I / Q over time',630,75);
+for(let n=0;n<5;n++){const p=xy(tip(n));ctx.fillStyle='white';ctx.beginPath();ctx.arc(...p,5,0,Math.PI*2);ctx.fill();ctx.fillText('p'+n,p[0]+9,p[1]-8);}
+// Accumulating drawing plus brighter recent trail.
+for(let j=0;j<position;j++){
+ctx.strokeStyle=j<500?'#ad8bfa':'#55e2dd';ctx.globalAlpha=j>position-130?1:.3;
+ctx.beginPath();ctx.moveTo(...xy(sample(j/N)));ctx.lineTo(...xy(sample((j+1)/N)));ctx.stroke();
+}
+ctx.globalAlpha=1;const p=xy(sample(position/N));ctx.fillStyle='#ffb454';ctx.beginPath();ctx.arc(...p,7,0,Math.PI*2);ctx.fill();
+for(let k=0;k<2;k++){
+const mid=185+k*225;ctx.strokeStyle='#365069';ctx.beginPath();ctx.moveTo(620,mid);ctx.lineTo(960,mid);ctx.stroke();
+ctx.fillStyle=k?'#ad8bfa':'#55e2dd';ctx.fillText(k?'Q(t)':'I(t)',625,mid-83);ctx.strokeStyle=ctx.fillStyle;ctx.beginPath();
+for(let j=0;j<=position;j++){const x=620+340*j/N,y=mid-75*sample(j/N)[k];j?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+}
+ctx.fillStyle='#aec3d9';ctx.fillText('Time '+(position/N*10).toFixed(2)+' symbol intervals',620,570);
+scrub.value=position;
+}
+play.onclick=()=>{running=!running;play.textContent=running?'Pause':'Play'};
+scrub.oninput=()=>{position=Number(scrub.value);draw()};mode.onchange=draw;
+function frame(now){if(running&&now-last>30){position=(position+3)%(N+1);last=now;draw()}requestAnimationFrame(frame)}
+draw();requestAnimationFrame(frame);
+</script></html>

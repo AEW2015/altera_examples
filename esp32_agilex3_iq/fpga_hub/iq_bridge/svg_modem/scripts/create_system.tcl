@@ -1,0 +1,31 @@
+package require -exact qsys 26.1
+
+create_system svg_modem_system
+set_project_property DEVICE_FAMILY {Agilex 3}
+set_project_property DEVICE A3CZ135BB18AE7S
+set_project_property HIDE_FROM_IP_CATALOG true
+
+add_instance clk_bridge altera_clock_bridge
+set_instance_parameter_value clk_bridge EXPLICIT_CLOCK_RATE 50000000
+add_instance reset_bridge altera_reset_bridge
+set_instance_parameter_value reset_bridge SYNCHRONOUS_EDGES both
+set_instance_parameter_value reset_bridge SYNC_RESET 1
+add_instance svg_jtag altera_jtag_avalon_master
+set_instance_parameter_value svg_jtag FAST_VER 0
+set_instance_parameter_value svg_jtag USE_PLI 0
+add_instance svg_modem_mm svg_modem_mm 1.0
+
+add_connection clk_bridge.out_clk reset_bridge.clk
+add_connection clk_bridge.out_clk svg_jtag.clk
+add_connection clk_bridge.out_clk svg_modem_mm.clock
+add_connection reset_bridge.out_reset svg_jtag.clk_reset
+add_connection reset_bridge.out_reset svg_modem_mm.reset
+add_connection svg_jtag.master svg_modem_mm.csr
+set_connection_parameter_value svg_jtag.master/svg_modem_mm.csr baseAddress 0x00000000
+
+add_interface clk clock sink
+set_interface_property clk EXPORT_OF clk_bridge.in_clk
+add_interface reset reset sink
+set_interface_property reset EXPORT_OF reset_bridge.in_reset
+
+save_system svg_modem_system.qsys

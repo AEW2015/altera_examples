@@ -88,3 +88,9 @@ Select 1–5 for each FPGA lesson, or 6 for RF Arcade using checkpoint 5. The ch
 Notebooks 01–06 end with saved **CyberEther example screenshots**, including a second FIR coefficient-editor view. These render directly in Jupyter, VS Code and GitHub without running the demos. [Screenshot descriptions](screenshots/README.md).
 
 Explore [10 FPGA Preamble Lab](10_fpga_preamble.ipynb): differential training detection on raw CI8, Python score plots, native checkpoint08 VDS diagram, Questa tests and optional FPGA replay. The focused page uses clean/saved-IQ replay or one passive SPI RF snapshot; it has no TX controls. [Guide](../docs/FPGA_PREAMBLE_LAB.md).
+
+Explore [11 SVG Constellation](11_svg_constellation.ipynb): five-point edge coding,
+oversampled star/circle traces, noise and joint sequence decoding. Run All stays
+in Python; Questa, Quartus, programming and JTAG captures are explicit switches.
+The standalone FPGA loopback uses known endpoint timing and bounded uniform noise,
+with no RF transmission. [Build/run guide](../fpga_hub/iq_bridge/svg_modem/README.md).

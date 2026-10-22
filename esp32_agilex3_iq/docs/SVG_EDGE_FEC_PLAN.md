@@ -1,7 +1,55 @@
 # SVG edges as actual coding constraints
 
-Status: proposed. The SVG and graph fixture exist; no graph encoder/decoder has
-been implemented or programmed into the FPGA yet.
+Status: Python reference, viewer and standalone FPGA RTL are implemented,
+verified in Questa, fitted and tested on the physical Agilex 3 board.
+The first build uses the supplied pentagram graph and known endpoint timing;
+general SVG uploads and unknown-clock recovery remain later extensions.
+
+Start with [notebook11](../notebooks/11_svg_constellation.ipynb) or the
+[standalone build/run guide](../fpga_hub/iq_bridge/svg_modem/README.md).
+
+## Physical FPGA acceptance
+
+[Hardware qualification](../fpga_hub/iq_bridge/svg_modem/VALIDATION.md) records
+the source/image hashes, positive 50 MHz timing and reproducible commands.
+Each noise setting ran 391 frames / 100,096 payload bits:
+
+| FPGA uniform noise bound | Wrong nearest symbols / 102,442 | Decoded payload errors / 100,096 |
+|---:|---:|---:|
+| 0 | 0 | 0 |
+| 6,000 | 19,017 | 0 |
+| 10,000 | 47,644 | 19,697 |
+
+All1173 frame counters and integer decoder metrics were independently checked.
+Final-frame full waveform/sample/path readback also matches exactly. The example
+viewer shows a measured seed7 frame: 47/262 wrong symbols and 0/256 payload
+errors. [Notebook11](../notebooks/11_svg_constellation.ipynb) covers simulation,
+Questa GUI recordings, build/program and explicit captures. The viewer replays
+saved FPGA output; opening it never acquires hardware or starts RF.
+
+## Accepted software and RTL evidence
+
+- Exhaustive noiseless short messages, every final graph node, reverse-trellis
+  checks and independent brute-force maximum-likelihood comparisons pass.
+- Python AWGN: 100,000 payload bits at each Es/N0 of 0, 4 and 7 dB. Decoded
+  payload errors were 17,826, 0 and 0 respectively. Zero observed errors do not
+  establish perfect decoding: FEC errors can cluster within frames. Independent
+  frame trials support a frame-error bound; a bitwise binomial bound additionally
+  assumes independent bit errors and is not an unconditional BER guarantee.
+- Bounded ideal-coordinate distance search through 20 symbols found a
+  first-remerge event of length10 with squared distance11.381966. This is not a
+  complete free-distance proof or a result for all possible starting memories.
+- Actual RTL: every generated ROM sample, all4192 captured TX/RX samples,
+  encoder bits, decoder traceback, metrics and counters match independent
+  integer calculations. At bounded-uniform amplitude6000 and seed7, 47/262
+  nearest-node symbol errors become 0/256 decoded payload errors.
+- Noise amplitudes0, 10000 and30000 also pass exact checks, including actual
+  decoder failures at high noise. Hardware noise is bounded uniform; the Python
+  AWGN sweep is a separate experiment.
+
+The internal loopback uses a known edge-end strobe. It tests waveform generation
+and decoding without claiming symbol-clock acquisition. Ready/valid buffering
+means capture sample indices are waveform positions, not continuous DAC timing.
 
 ![Pentagram whose five tips touch the circle](images/pentagram_circle.png)
 
@@ -20,9 +68,15 @@ been implemented or programmed into the FPGA yet.
 
 The ring is five exact circular arcs sharing endpoints with the star. Each tip
 has radius1 before the uniform coordinate conversion. Importing it must preserve
-these positions. Arc curvature is a graph drawing convention; a transmitted
-sample is the destination point. The RF waveform does not automatically trace
-an arc or star segment between symbols.
+these positions. A symbol is one discrete I/Q point at a symbol instant; it does
+not specify the samples between symbol instants. In symbol-only mode an edge
+selects the next endpoint, while pulse shaping determines the oversampled path.
+If the transmitted waveform must visibly trace a circle arc, the transmitter
+must explicitly generate a phase waveform (constant radius with a programmed
+phase sweep). The arc cannot be inferred from endpoint symbols alone. Star
+segments use an explicitly selected straight I/Q interpolation waveform. The
+receiver therefore processes a timed oversampled waveform before making symbol
+metrics; it must not treat every waveform sample as a new graph symbol.
 
 ## Why the edges alone are insufficient FEC
 
@@ -45,14 +99,25 @@ making independent nearest-point decisions.
 
 ```mermaid
 flowchart LR
-    B[Payload bit] --> K[K7 encoder: two coded bits]
-    K --> E[Select SVG edge from current tip]
-    E --> T[Transmit destination I/Q point]
-    T --> N[Internal noisy symbol replay]
-    N --> V[Joint Viterbi: graph + encoder state]
-    V --> P[Recovered payload]
-    V --> G[Highlight recovered path on SVG]
+    B[Payload bits] --> K[FPGA K7 encoder]
+    K --> M[FPGA coded-pair mapper]
+    M --> E[FPGA graph edge / next-node selector]
+    E --> W[FPGA waveform generator: explicit phase sweep on arcs]
+    W --> N[FPGA internal noise injection]
+    N --> R[FPGA RX timing and symbol sampling]
+    R --> D[FPGA joint graph + K7 decoder]
+    D --> C[FPGA error and frame counters]
+    C --> H[Host displays final FPGA targets, waveform and counters]
 ```
+
+All encode, mapping, edge selection, waveform generation, internal noise,
+receive timing, joint decoding and error counting belong in FPGA RTL in the
+target design. Host-side graph preparation and controls may configure the run;
+the host display consumes final FPGA target/sample/counter buffers. Python
+simulation is a reference and development aid, not a substitute for those FPGA
+blocks. RF is a later gate for hardware with an explicit arbitrary-IQ waveform
+playback path; the installed original ESP32 radios do not provide that qualified
+path, and this internal modem plan does not transmit RF.
 
 Number tips p0 through p4 clockwise in SVG coordinates, with p0 at the top.
 Use the following deterministic proposed edge assignment:
@@ -142,11 +207,30 @@ Python simulation.
 python scripts/make_pentagram_constellation.py
 ```
 
-The generator emits the SVG plus node/edge metadata and checks the unit-circle
-contacts and graph degree. Its metadata describes the proposed FEC mapping;
-`implemented_in_fpga` and `rf_tested` remain false.
+The generator emits SVG plus node/edge metadata and checks the unit-circle
+contacts and graph degree. Geometry files do not declare the active device
+status; qualification lives in the run records and linked guide. The fixed
+graph RTL is available, runtime graph upload is not, and `rf_tested` is false.
 
 This extends the [SVG constellation plan](SVG_CONSTELLATION_FPGA_PLAN.md).
 The coding concept is joint trellis/constellation design; see the original
 [Ungerboeck coded-modulation paper](https://research.ibm.com/publications/channel-coding-with-multilevelphase-signals).
 No gain quoted in that work is assumed for this new pentagram code.
+
+## Constellation over time
+
+Open [the interactive time view](../examples/svg_constellations/constellation_time.html)
+locally in a browser. It animates a five-edge star cycle followed by a five-edge
+circle cycle, with the same five endpoint symbols in three waveform modes:
+
+- Straight I/Q interpolation draws chords between tips.
+- Explicit phase sweeps draw circle arcs at constant amplitude; star edges use
+  straight interpolation. This draws the complete SVG over time.
+- Symbol hold stays at the five tips.
+
+Oversampled receiver IQ can reveal transition trajectories. Their shape depends
+on transmit pulse shaping, channel filtering, timing, carrier offset and phase
+recovery. An off-clock sample does not by itself create the intended SVG.
+The animated path is an illustrative host simulation, not an implemented pulse
+shaper, FEC decoder or measured RF result. Five-point symbol decisions and dense
+waveform samples must remain separate in the eventual FPGA demonstration.

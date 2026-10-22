@@ -1087,3 +1087,14 @@ owners were released after the final passive check.
 - Final host suite:405 tests pass. Calibration viewer GET-only desktop/mobile checks pass with no JS errors or
   horizontal overflow. The page distinguishes measured ADC ratios from
   theoretical QAM radii and identifies the offline host fitting backend.
+
+## SVG graph modem · 2026-10-22
+
+The standalone pentagram/circle modem passes actual Questa, routed 50 MHz timing
+(+5.628 ns setup / +0.061 ns hold) and physical Agilex 3 tests. At bounded-uniform
+noise6000, 19,017 wrong nearest-symbol decisions produced zero decoded errors
+across100,096 payload bits; stronger noise correctly produces failures. All1173
+sweep-frame counters/metrics and final-frame full RAM readbacks match independent
+integer calculations. [Full qualification and commands](fpga_hub/iq_bridge/svg_modem/VALIDATION.md).
+This uses known endpoint timing and internal FPGA noise, with no RF transmission.
+Notebook11's offline execution and desktop/mobile viewer checks pass.

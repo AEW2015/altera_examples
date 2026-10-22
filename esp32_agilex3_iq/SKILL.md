@@ -27,6 +27,21 @@ Work from the directory containing this file. Commands run **beside installed Qu
 
 ## Hardware distinctions that matter
 
+SVG graph modem: [standalone guide](fpga_hub/iq_bridge/svg_modem/README.md),
+[qualification](fpga_hub/iq_bridge/svg_modem/VALIDATION.md), notebook11.
+`simulate_svg_modem.py` tests encoder/waveform/noise/320-state decoder/counters;
+`build_svg_fpga.py` creates the complete local Quartus project;
+`program_svg_fpga.py` is an explicit, hash/timing/test-guarded image replacement.
+`svg_fpga_capture.py capture|sweep` uses JTAG/Avalon with both ownership leases,
+never UART or RF. `audit_svg_capture.py --all-frames` is an offline independent
+integer audit, separate from the FPGA runtime DSP. The read-only page on8775
+plays saved FPGA or clearly labeled Python results. Fixed pentagram,16 samples
+per edge, known endpoint timing and bounded uniform hardware noise are verified;
+arbitrary runtime graph upload, clock acquisition and custom RF are later work.
+Use packed-word survivor RAM and synchronous metric RAM; Quartus otherwise
+expands scalar survivor arrays into logic. Reuse the decoder's registered
+distance unit for nearest-symbol counters to preserve the50MHz timing margin.
+
 Combined PMOD A image: [TX lab guide](docs/TX_LAB_FIRMWARE.md). Build with
 `scripts/build_tx_lab.sh`; switch AMP/NATIVE/PHASE with
 `scripts/tx_lab_control.py --mode ...` after installation. Switching uses an

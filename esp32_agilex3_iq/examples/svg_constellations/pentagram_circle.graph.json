@@ -1,8 +1,9 @@
 {
   "schema": "svg-edge-constellation-graph-v1",
   "svg": "pentagram_circle.svg",
-  "implemented_in_fpga": false,
   "rf_tested": false,
+  "implementation_guide": "../../fpga_hub/iq_bridge/svg_modem/README.md",
+  "runtime_graph_upload": false,
   "origin": [
     0,
     0

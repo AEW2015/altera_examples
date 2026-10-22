@@ -33,7 +33,10 @@ def generate():
     for i in range(5):
         for bits,delta,kind in [('00',1,'circle'),('01',2,'star'),('10',-1,'circle'),('11',-2,'star')]:
             transitions.append(dict(source=f'p{i}',target=f'p{(i+delta)%5}',edge_bits=bits,kind=kind))
-    graph=dict(schema='svg-edge-constellation-graph-v1',svg=target.name,implemented_in_fpga=False,rf_tested=False,
+    # This file defines geometry/coding, not the currently programmed device.
+    # Qualification and result provenance belong to the run records and guide.
+    graph=dict(schema='svg-edge-constellation-graph-v1',svg=target.name,rf_tested=False,
+               implementation_guide='../../fpga_hub/iq_bridge/svg_modem/README.md',runtime_graph_upload=False,
                origin=[0,0],circle_radius=1,svg_y_down=True,crossings_are_nodes=False,
                nodes=[dict(id=f'p{i}',svg_x=x,svg_y=y,i=x,q=-y) for i,(x,y) in enumerate(points)],edges=edges,directed_transitions=transitions,
                constraint_only=dict(input_bits_per_transition=2,allowed_out_degree=4,forbidden='self transitions',guaranteed_single_symbol_correction=False),
