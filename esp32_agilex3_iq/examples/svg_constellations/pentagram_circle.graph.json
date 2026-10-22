@@ -1,0 +1,258 @@
+{
+  "schema": "svg-edge-constellation-graph-v1",
+  "svg": "pentagram_circle.svg",
+  "implemented_in_fpga": false,
+  "rf_tested": false,
+  "origin": [
+    0,
+    0
+  ],
+  "circle_radius": 1,
+  "svg_y_down": true,
+  "crossings_are_nodes": false,
+  "nodes": [
+    {
+      "id": "p0",
+      "svg_x": 6.123233995736766e-17,
+      "svg_y": -1.0,
+      "i": 6.123233995736766e-17,
+      "q": 1.0
+    },
+    {
+      "id": "p1",
+      "svg_x": 0.9510565162951535,
+      "svg_y": -0.3090169943749474,
+      "i": 0.9510565162951535,
+      "q": 0.3090169943749474
+    },
+    {
+      "id": "p2",
+      "svg_x": 0.5877852522924731,
+      "svg_y": 0.8090169943749475,
+      "i": 0.5877852522924731,
+      "q": -0.8090169943749475
+    },
+    {
+      "id": "p3",
+      "svg_x": -0.587785252292473,
+      "svg_y": 0.8090169943749475,
+      "i": -0.587785252292473,
+      "q": -0.8090169943749475
+    },
+    {
+      "id": "p4",
+      "svg_x": -0.9510565162951536,
+      "svg_y": -0.3090169943749473,
+      "i": -0.9510565162951536,
+      "q": 0.3090169943749473
+    }
+  ],
+  "edges": [
+    {
+      "id": "circle-0-1",
+      "source": "p0",
+      "target": "p1",
+      "kind": "circle",
+      "bidirectional": true
+    },
+    {
+      "id": "circle-1-2",
+      "source": "p1",
+      "target": "p2",
+      "kind": "circle",
+      "bidirectional": true
+    },
+    {
+      "id": "circle-2-3",
+      "source": "p2",
+      "target": "p3",
+      "kind": "circle",
+      "bidirectional": true
+    },
+    {
+      "id": "circle-3-4",
+      "source": "p3",
+      "target": "p4",
+      "kind": "circle",
+      "bidirectional": true
+    },
+    {
+      "id": "circle-4-0",
+      "source": "p4",
+      "target": "p0",
+      "kind": "circle",
+      "bidirectional": true
+    },
+    {
+      "id": "star-0-2",
+      "source": "p0",
+      "target": "p2",
+      "kind": "star",
+      "bidirectional": true
+    },
+    {
+      "id": "star-1-3",
+      "source": "p1",
+      "target": "p3",
+      "kind": "star",
+      "bidirectional": true
+    },
+    {
+      "id": "star-2-4",
+      "source": "p2",
+      "target": "p4",
+      "kind": "star",
+      "bidirectional": true
+    },
+    {
+      "id": "star-3-0",
+      "source": "p3",
+      "target": "p0",
+      "kind": "star",
+      "bidirectional": true
+    },
+    {
+      "id": "star-4-1",
+      "source": "p4",
+      "target": "p1",
+      "kind": "star",
+      "bidirectional": true
+    }
+  ],
+  "directed_transitions": [
+    {
+      "source": "p0",
+      "target": "p1",
+      "edge_bits": "00",
+      "kind": "circle"
+    },
+    {
+      "source": "p0",
+      "target": "p2",
+      "edge_bits": "01",
+      "kind": "star"
+    },
+    {
+      "source": "p0",
+      "target": "p4",
+      "edge_bits": "10",
+      "kind": "circle"
+    },
+    {
+      "source": "p0",
+      "target": "p3",
+      "edge_bits": "11",
+      "kind": "star"
+    },
+    {
+      "source": "p1",
+      "target": "p2",
+      "edge_bits": "00",
+      "kind": "circle"
+    },
+    {
+      "source": "p1",
+      "target": "p3",
+      "edge_bits": "01",
+      "kind": "star"
+    },
+    {
+      "source": "p1",
+      "target": "p0",
+      "edge_bits": "10",
+      "kind": "circle"
+    },
+    {
+      "source": "p1",
+      "target": "p4",
+      "edge_bits": "11",
+      "kind": "star"
+    },
+    {
+      "source": "p2",
+      "target": "p3",
+      "edge_bits": "00",
+      "kind": "circle"
+    },
+    {
+      "source": "p2",
+      "target": "p4",
+      "edge_bits": "01",
+      "kind": "star"
+    },
+    {
+      "source": "p2",
+      "target": "p1",
+      "edge_bits": "10",
+      "kind": "circle"
+    },
+    {
+      "source": "p2",
+      "target": "p0",
+      "edge_bits": "11",
+      "kind": "star"
+    },
+    {
+      "source": "p3",
+      "target": "p4",
+      "edge_bits": "00",
+      "kind": "circle"
+    },
+    {
+      "source": "p3",
+      "target": "p0",
+      "edge_bits": "01",
+      "kind": "star"
+    },
+    {
+      "source": "p3",
+      "target": "p2",
+      "edge_bits": "10",
+      "kind": "circle"
+    },
+    {
+      "source": "p3",
+      "target": "p1",
+      "edge_bits": "11",
+      "kind": "star"
+    },
+    {
+      "source": "p4",
+      "target": "p0",
+      "edge_bits": "00",
+      "kind": "circle"
+    },
+    {
+      "source": "p4",
+      "target": "p1",
+      "edge_bits": "01",
+      "kind": "star"
+    },
+    {
+      "source": "p4",
+      "target": "p3",
+      "edge_bits": "10",
+      "kind": "circle"
+    },
+    {
+      "source": "p4",
+      "target": "p2",
+      "edge_bits": "11",
+      "kind": "star"
+    }
+  ],
+  "constraint_only": {
+    "input_bits_per_transition": 2,
+    "allowed_out_degree": 4,
+    "forbidden": "self transitions",
+    "guaranteed_single_symbol_correction": false
+  },
+  "proposed_fec": {
+    "encoder": "K7 rate-1/2 (171,133 octal)",
+    "coded_pair_selects": "edge_bits",
+    "emitted_symbol": "destination node I/Q",
+    "joint_decoder_states": 320,
+    "payload_bits_per_symbol_before_termination": 1,
+    "measured_coding_gain_db": null
+  }
+}

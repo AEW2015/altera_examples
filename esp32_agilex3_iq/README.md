@@ -365,3 +365,5 @@ open and separately gated.
 Combined PMOD A TX research firmware: [build and software mode switching](docs/TX_LAB_FIRMWARE.md).
 
 Unattended RF work: [incremental calibration and acceptance gates](docs/TX_LAB_CALIBRATION.md). The read-only progress page is `/calibration` on the native Wi-Fi viewer (port8774).
+
+Planned extension: [SVG-defined constellations in the internal FPGA QAM/FEC demo](docs/SVG_CONSTELLATION_FPGA_PLAN.md).
