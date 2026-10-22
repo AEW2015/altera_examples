@@ -800,3 +800,25 @@ rendering and mobile width. Chart checks used clearly separate synthetic UI
 fixtures, not radio evidence; waiting-RX screenshot uses actual saved A callback
 evidence with independent RX explicitly unknown. No service was left running
 and no RF was started by these browser checks.
+
+
+### Complete portable C receiver prototype, still offline
+
+`sw/wifi64_receiver.h` integrates40→20MS/s FIR, STF/LTF acquisition/CFO,
+FFT64, channel equalization, pilot phase tracking, L-SIG,64-QAM soft demapping
+and the Wi-Fi DATA decoder. Five independent synthetic waveform test groups
+pass, including exact92-byte FCS, CFO/multipath/noise, failed-FCS retention,
+unsupported headers, truncation and a capture with two candidates (first
+unsupported, second valid). Equalized EVM across three synthetic cases is
+2.21–3.97%; these are generated fixtures, not RF measurements.
+
+Caller workspace/result total107840bytes. A freestanding RV32I link needs
+126980bytes before its4KiB stack allowance, so128KiB fails the linker guard;
+256KiB passes. Checkpoint11 is being built with a larger CPU memory map; the
+existing hardware/runtime and earlier selftest ELFs were not changed by these
+offline checks. Raw-capture RAM integration and real RF decoding remain pending.
+
+`wifi64_ota.py --publish` is opt-in, validates a new proof path under the run
+directory before device access and atomically updates the display pointer only
+after the proof file closes. Five new publication tests pass; default behavior
+remains nonpublishing. No extra radio job was run for these tests.

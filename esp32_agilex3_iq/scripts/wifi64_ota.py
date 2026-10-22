@@ -9,8 +9,10 @@ import argparse
 import collections
 import fcntl
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 import time
 from common import ROOT
 sys.path.insert(0,str(ROOT/'cyberether'))
@@ -19,6 +21,40 @@ from wifi64_control import LOCK,fields,transmit,validate_request,query,poll_idle
 from wifi64_records import LineAssembler,Wifi64MonitorJoiner,expected_packet_map
 
 MON='WIFI64_MON,'
+RUN_DIR=ROOT/'cyberether/run'
+LATEST_POINTER=RUN_DIR/'wifi64-ota-latest.json'
+
+def validate_output_path(path):
+    run_dir=RUN_DIR.resolve()
+    resolved=Path(path).resolve()
+    try:relative=resolved.relative_to(run_dir)
+    except ValueError as exc:raise ValueError('Published proof output must resolve inside '+str(run_dir)) from exc
+    if not relative.parts:raise ValueError('Proof output path must name a file inside the run directory')
+    return resolved
+
+def failure_proof(error):
+    return {'kind':'independent native Wi-Fi64 OTA packet observation',
+            'source':'ota-native-wifi64','finished_unix':time.time(),
+            'error':str(error),'completed':False}
+
+def publish_proof(output,pointer=None):
+    """Atomically publish a repo-relative pointer to a closed proof file."""
+    output=validate_output_path(output).resolve(strict=True)
+    if not output.is_file():raise ValueError('Published proof output is not a file')
+    relative=output.relative_to(ROOT.resolve()).as_posix()
+    target=Path(pointer) if pointer is not None else LATEST_POINTER
+    target.parent.mkdir(parents=True,exist_ok=True)
+    payload={'path':relative}
+    fd,temp_name=tempfile.mkstemp(prefix='.wifi64-ota-latest.',suffix='.tmp',dir=target.parent)
+    try:
+        with os.fdopen(fd,'w',encoding='utf-8') as stream:
+            json.dump(payload,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+        os.replace(temp_name,target)
+    except BaseException:
+        try:os.unlink(temp_name)
+        except OSError:pass
+        raise
+    return payload
 
 class MonitorBridge(Bridge):
     """Retain every radio's text while commands wait for another radio.
@@ -150,6 +186,7 @@ def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--transmit',action='store_true',required=True,help='explicitly permit one bounded native RF packet job')
     p.add_argument('--output',type=Path,required=True,help='new proof JSON, never overwrite')
+    p.add_argument('--publish',action='store_true',help='atomically update the read-only latest-proof pointer')
     p.add_argument('--port');p.add_argument('--channel',type=int,default=8);p.add_argument('--count',type=int,default=4)
     p.add_argument('--power',type=int,default=8);p.add_argument('--gap',type=int,default=2)
     p.add_argument('--run',type=lambda x:int(x,0),default=time.time_ns()&0xffffffff)
@@ -157,17 +194,19 @@ def main(argv=None):
     args=p.parse_args(argv)
     try:
         validate_request(args)
+        if args.publish:args.output=validate_output_path(args.output)
         args.output.parent.mkdir(parents=True,exist_ok=True)
         # Reserve before any device opens: an existing path never triggers RF.
         with args.output.open('x',encoding='utf-8') as stream:
             json.dump({'completed':False,'status':'reserved-before-device-access'},stream);stream.flush()
-            LOCK.parent.mkdir(parents=True,exist_ok=True)
             try:
+                LOCK.parent.mkdir(parents=True,exist_ok=True)
                 with LOCK.open('a') as lock:
                     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
                     with MonitorBridge(args.port) as bridge:proof=run_job(bridge,args)
-            except Exception as exc:proof={'completed':False,'error':str(exc),'source':'ota-native-wifi64'}
+            except Exception as exc:proof=failure_proof(exc)
             stream.seek(0);json.dump(proof,stream,indent=2);stream.write('\n');stream.truncate()
+        if args.publish:publish_proof(args.output)
         print(json.dumps(proof,indent=2));return 0 if proof.get('completed') else 2
     except (OSError,RuntimeError,ValueError) as exc:
         print('wifi64_ota: '+str(exc),file=sys.stderr);return 2
