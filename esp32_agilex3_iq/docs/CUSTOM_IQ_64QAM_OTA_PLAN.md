@@ -40,6 +40,11 @@ The chip having a Wi-Fi TX DAC does not establish an accessible arbitrary-IQ
 input. Our existing phase controls are not an SRAM-to-DAC playback engine.
 Do not label a native Wi-Fi packet or generated replay as completion of this plan.
 
+The current [execution checklist](CUSTOM_QAM_EXECUTION_PLAN.md) narrows the next
+step to the independently measured amplitude gate, with guarded programmer
+support and a one-job capture controller. Compile and mock-test success do not
+establish a working IQ input or RF QAM transmitter.
+
 ## B0 — Preserve the baseline and define the experiment
 
 - Record chip/revision, MAC, SDK/PHY/ROM hashes, firmware, active SOF and wiring.

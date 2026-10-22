@@ -1,0 +1,5 @@
+menu "Original ESP32 amplitude diagnostic"
+config ATUM_ORIGINAL_IQ_TX_PROBE
+    bool "Identify the bounded original-chip amplitude probe"
+    default y
+endmenu

@@ -932,3 +932,21 @@ Desktop1200px and mobile390px browser checks passed: correct channel11/54Mb/s,
 exceptions or horizontal overflow. All354 host tests pass. No radio or FPGA
 programming was performed for this display change. See
 [presentation scope](docs/WIFI64_PRESENTATION.md).
+
+### Original-chip custom-QAM execution preparation
+
+The separate amplitude diagnostic builds against pinned SDK25fe69f9; application
+SHA-256 remains `e5f5e28787d5990505712573eff7b2a7fc59b5f06055ec808cb64d4f2bac49ad`.
+A Kconfig identity flag now enables explicit PMOD-A-only programmer validation,
+including original ESP32 target, certification/unicore options, UART17/16,
+manifest offsets and image hashes. Flash dry-run passed without device access.
+Bridge Questa simulation passes all6routes×64combinations with GPIO0 low/Z.
+All362 host tests pass, including simulated capture timeout, wrong target,
+wrong job and cleanup paths for the new one-job raw-snapshot controller.
+
+Before programming preparation, actual native-A STOP and STATUS both reported
+busy0/armed0/rf0/stop_err0. Existing stage11 SOF and capture-app hashes and source
+guards pass. Fresh native-A full-flash backup must be taken after the manual
+bootloader reset and before any write. This is preparation, not measured RF
+amplitude/phase or arbitrary-IQ qualification. See the
+[execution plan](docs/CUSTOM_QAM_EXECUTION_PLAN.md).

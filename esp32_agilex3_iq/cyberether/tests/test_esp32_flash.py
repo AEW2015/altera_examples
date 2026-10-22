@@ -110,6 +110,21 @@ class FirmwareImages(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Pmod only'):
             flash.images(self.build,'rfs2')
 
+    def test_original_iq_probe_role_and_build_flags(self):
+        (self.build / 'project_description.json').write_text(json.dumps(dict(target='esp32',project_name='atum_original_iq_tx_probe')))
+        required=('ATUM_ORIGINAL_IQ_TX_PROBE','ESP_PHY_ENABLE_CERT_TEST','FREERTOS_UNICORE')
+        for key in required:self.config[key]=True
+        self.save_config()
+        flash.images(self.build,'pmod-a')
+        for other in ('pmod-b','rfs2','pmod'):
+            with self.assertRaisesRegex(ValueError,'pmod-a only'):flash.images(self.build,other)
+        for key in required:
+            self.config[key]=False;self.save_config()
+            with self.assertRaisesRegex(ValueError,'build profile'):flash.images(self.build,'pmod-a')
+            self.config[key]=True
+        self.config['ESP_CONSOLE_UART_TX_GPIO']=1;self.save_config()
+        with self.assertRaisesRegex(ValueError,'needs application UART'):flash.images(self.build,'pmod-a')
+
     def test_mac_probe_leaves_manual_loader_at_initial_baud(self):
         with patch.object(sys,'argv',['flash_esp32.py','--module','pmod-a','--port','/dev/fixture','--build-dir',str(self.build),'--baud','460800','--expect-mac','78:21:84:d4:4f:98']), \
              patch.object(flash.subprocess,'check_output',side_effect=['esptool v5.6.0','MAC: 78:21:84:d4:4f:98']) as output, \

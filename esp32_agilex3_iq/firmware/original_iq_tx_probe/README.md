@@ -1,4 +1,4 @@
-# Original ESP32 attenuation probe — compile only
+# Original ESP32 attenuation probe
 
 **Not installed or RF-qualified. No arbitrary-IQ playback or QAM claim.** This
 separate original-chip image tests the next amplitude-control hypothesis from
@@ -13,9 +13,10 @@ STATE            original tone-register readback (does not initialize RF)
 INFO             identity of this diagnostic and busy state
 ```
 
-No command should be sent to hardware until a future explicit guided install
-and independent receiver acquisition are prepared. The current build helper
-**does not** register the image with the programmer or flash it.
+No RF command should be sent until guided installation and independent receiver
+acquisition are prepared. The build helper records image hashes but never flashes
+or transmits. The programmer now accepts this image **only on PMOD A**, with
+the explicit diagnostic, certification and unicore flags and UART17/16 checked.
 
 ## What it changes
 
@@ -68,4 +69,6 @@ App project: `atum_original_iq_tx_probe`. Output:
 `build-original-iq-tx-probe/atum_original_iq_tx_probe.bin`.
 No automatic NVS erase fallback. A future install needs the existing PMOD A
 manual reset sequence, preserved backup and programmer whitelist/profile support.
-No programmer change is included here.
+See [the execution plan](../../docs/CUSTOM_QAM_EXECUTION_PLAN.md) for the current
+programmer integration and one-job transport controller. Installing this image
+does not establish original-chip arbitrary-IQ transmission.
