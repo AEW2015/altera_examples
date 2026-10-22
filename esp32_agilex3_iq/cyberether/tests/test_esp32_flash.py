@@ -40,6 +40,22 @@ class FirmwareImages(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'needs application UART'):
             flash.images(self.build, 'rfs2')
 
+    def test_wifi64_roles_require_matching_module_and_console(self):
+        for project, target in [('wifi64_tx', 'pmod-a'), ('wifi64_monitor', 'pmod-b')]:
+            (self.build / 'project_description.json').write_text(json.dumps(
+                dict(target='esp32', project_name=project)))
+            flash.images(self.build, target)
+            for other in ('rfs2', 'pmod', 'pmod-a', 'pmod-b'):
+                if other != target:
+                    with self.assertRaisesRegex(ValueError, 'only'):
+                        flash.images(self.build, other)
+            self.config['ESP_CONSOLE_UART_TX_GPIO'] = 1
+            self.save_config()
+            with self.assertRaisesRegex(ValueError, 'needs application UART'):
+                flash.images(self.build, target)
+            self.config['ESP_CONSOLE_UART_TX_GPIO'] = 17
+            self.save_config()
+
     def test_pmod_console_cannot_use_rfs2_pins(self):
         self.config['ESP_CONSOLE_UART_TX_GPIO'] = 1
         self.save_config()

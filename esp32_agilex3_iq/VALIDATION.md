@@ -690,3 +690,38 @@ wrong reconstructed symbols visible. Browser checks verify all three frame
 error counts, six plots, path toggling, 1080/1500-pixel layouts and absence of
 JavaScript errors or POST/hardware requests. No firmware/FPGA changes or new
 RF/replay jobs were needed; the saved physical sweep supplies the evidence.
+
+## 2026-10-21 — native Wi-Fi OTA groundwork and actual Nios primitives
+
+Both native original-ESP32 firmware projects compile with SDK commit
+`25fe69f946311abdaf9ad56591f25fedbc20ac98`. Neither has been flashed.
+Role/pin guards and protocol/control tests reject incorrect targets and
+unbounded requests before hardware access. Firmware binaries/build databases
+remain ignored. Manual programming-reset availability is pending.
+
+Three passive RFS2 captures at nominal40MS/s and2447MHz passed transport CRC:
+16380CI8 samples each, reported411us capture, zero hub command/framing/capture
+errors. Actual sample clock/full analog bandwidth are not qualified by this.
+No RF transmit was requested. Existing PMOD A v6 reported busy0 and both tone
+amplitudes disabled. Capture proof: `cyberether/run/wifi64-wideband-passive-1792630367872929318/`.
+
+New portable integer FFT64/channel/equalizer/64-QAM soft demapper and Wi-Fi54
+DATA backend pass independent C/Python fixtures. Register orientation and Gray
+bit grouping were checked against the earlier externally anchored receiver and
+IEEE/GNU Radio references; end-to-end C demapper→C backend passes payload FCS.
+The backend uses 3/4 puncturing, s=3 deinterleave, unforced DATA final state,
+SERVICE seed recovery/descramble and CRC. No runtime host decoding was added.
+
+Actual Agilex3 Nios V execution passes5/5: FFT tone, equalizer/null rejection,
+all64 constellation labels,92-byte PSDU/4-symbol valid FCS, bad FCS rejection.
+ELF SHA `674d89ee92cfd3cf7f4334359b8ee46bad1388f84a2c72e44c118ebce5772467`;
+proof `cyberether/run/wifi64-nios-hardware-final/`. Checkpoint06 SOF is unchanged;
+original monitor restored and JTAG STATUS confirms no errors. First attempt
+using optional mcycle timed out; final version uses memory-mapped mtime and
+immutable ELF snapshots. These are finite-burst CPU prototypes, not RTL
+acceleration or an integrated live RF decoder. Measured92-byte DATA decode
+~416ms at50MHz; continuous wideband processing requires acceleration.
+
+Original-chip TX review identified a specific attenuation-only polar probe;
+o new RF amplitude qualification or arbitrary-IQ playback was performed.
+See docs/WIFI64_IMPLEMENTATION_STATUS.md for reproducible commands and open gates.

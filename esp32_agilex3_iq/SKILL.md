@@ -27,6 +27,16 @@ Work from the directory containing this file. Commands run **beside installed Qu
 
 ## Hardware distinctions that matter
 
+Native Wi-Fi 64-QAM work: [implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md).
+Build `scripts/build_wifi64_tx.sh` for PMOD A and `scripts/build_wifi64_monitor.sh`
+for PMOD B. Both require the pinned SDK; neither build flashes or transmits.
+The monitor uses UART17/16 with B's SPI selector OFF, replacing the SPI receiver.
+`wifi64_control.py --transmit` is an explicit bounded RF job, never a launch action.
+`wifi64_nios_selftest.py` builds CPU software; `check_wifi64_nios.py --hardware`
+temporarily downloads it and restores checkpoint06's monitor. Its five tests use
+offline fixtures on actual Nios hardware, not OTA. Native PHY delivery, raw-IQ
+FPGA decoding, CPU prototypes and custom-IQ TX remain separate evidence gates.
+
 The board is **Atum A3 Nano / Agilex 3 / A3CZ135BB18AE7S**, 50 MHz. Radio 0 is RFS2 ESP32, radio 1 is PMOD A ESP32, radio 2 is PMOD B ESP32. Do not label it Agilex 5. Reference the current QSF/bridge wiring rather than guessing connector orientation.
 
 One board image and acquisition owner are shared. A ROM programmer image contains no DSP or Nios and replaces the active lesson design. It must isolate inactive UARTs and drive GPIO0 only low or high-Z. A runtime lesson must be restored after flashing. The Pmod ROM requires a manual reset while GPIO0 is low; normal boot requires release and another reset. Do not claim a button press, target identity, flash or hardware test occurred without evidence. Adding a programmer utility does not itself call for reflashing working radios.

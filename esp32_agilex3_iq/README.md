@@ -6,6 +6,11 @@ The earlier ESP32 BPSK/QPSK experiments are actual PMOD A → RFS2 RF captures,
 with host waveform synchronization and separate FPGA symbol/FEC replay tests.
 64-QAM over the installed ESP32 RF link is not yet qualified.
 
+[Native/custom OTA implementation status](docs/WIFI64_IMPLEMENTATION_STATUS.md):
+native TX/monitor firmware builds, integer receiver primitives and five passing
+tests on the actual Nios V processor. Firmware installation and live RF decoding
+remain separate gates.
+
 Five independently editable **Quartus Visual Designer Studio** checkpoints for the **Terasic Atum A3 Nano**, plus a focused notebook and browser demo for each step.
 
 ```mermaid

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from common import ROOT, local_tools, tool_env, tool_exe
+from common import ROOT, local_tools, tool_env, tool_exe, resolve_uart
 
 PINS = dict(HOST_RX='L1', HOST_TX='T6', RFS2_TX='H13', RFS2_RX='K13',
             PMOD0_TX='AB9', PMOD0_RX='P6', PMOD1_TX='AK1', PMOD1_RX='AJ6',
@@ -17,7 +17,7 @@ def main():
     parser.add_argument('module', choices=['rfs2', 'pmod-a', 'pmod-b'])
     parser.add_argument('--mode', choices=['rom', 'runtime'], default='rom')
     parser.add_argument('--load', action='store_true')
-    parser.add_argument('--port', default=os.getenv('ATUM_UART', '/dev/serial/by-id/usb-TERASIC_Atum_A3_Nano_TRWJB3QN-if01-port0'), help='Atum host UART, used to check active readers before --load')
+    parser.add_argument('--port', help='Atum host UART; detected by USB identity or ATUM_UART')
     parser.add_argument('--simulate', action='store_true', help='Run assertion-based Questa simulation without loading hardware')
     args = parser.parse_args()
     if not local_tools():
@@ -55,9 +55,10 @@ def main():
     if args.load:
         from lessons import stop_demo
         from flash_esp32 import serial_owners
-        port = args.port
-        if not Path(port).exists():
-            parser.error('Set --port or ATUM_UART to the actual Atum serial device before loading.')
+        try:
+            port = resolve_uart(args.port)
+        except RuntimeError as error:
+            parser.error(str(error))
         stop_demo()
         if serial_owners(port):
             parser.error('Stop unrelated serial readers before loading the UART bridge.')

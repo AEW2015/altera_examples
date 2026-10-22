@@ -54,6 +54,14 @@ firmware/modem_tx/sdkconfig*
 firmware/modem_tx/build/
 
 # Original ESP32 bounded TX diagnostic
+/build-wifi64-tx/
+/build-wifi64-monitor/
+firmware/wifi64_monitor/sdkconfig*
+!firmware/wifi64_monitor/sdkconfig.defaults
+firmware/wifi64_monitor/build/
+firmware/wifi64_tx/sdkconfig*
+!firmware/wifi64_tx/sdkconfig.defaults
+firmware/wifi64_tx/build/
 /build-esp32-tx-probe/
 firmware/esp32_tx_probe/sdkconfig*
 !firmware/esp32_tx_probe/sdkconfig.defaults
@@ -77,3 +85,6 @@ firmware/esp32_spi_probe/build/
 
 # Generated preamble detector simulation vectors
 /simulation/preamble/
+
+# Standalone Nios Wi-Fi primitive builds
+/simulation/wifi64-nios-selftest/

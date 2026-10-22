@@ -41,18 +41,24 @@ def images(build, module):
     desc = json.loads((build / 'project_description.json').read_text())
     cfg = json.loads((build / 'config/sdkconfig.json').read_text())
     diagnostic = desc['project_name'] == 'atum_esp32_tx_probe'
+    wifi64 = desc['project_name'] == 'wifi64_tx'
+    wifi64_monitor = desc['project_name'] == 'wifi64_monitor'
+    if wifi64 and module != 'pmod-a':
+        raise ValueError('Native Wi-Fi 64-QAM transmitter is configured for pmod-a only.')
+    if wifi64_monitor and module != 'pmod-b':
+        raise ValueError('Native Wi-Fi monitor is configured for pmod-b only.')
     cache = (build / 'CMakeCache.txt').read_text() if (build / 'CMakeCache.txt').exists() else ''
     spi = desc['project_name'] == 'esp32_spi_probe' or (desc['project_name'] == 'atum_rf_suite' and
             'IQ_SPI_RX_PROFILE:BOOL=ON' in cache.splitlines())
     if spi and module != 'pmod-b':
         raise ValueError('Separate SPI qualification images are explicitly configured for pmod-b only.')
-    if desc['target'] != 'esp32' or desc['project_name'] not in ('atum_rf_suite', 'atum_esp32_tx_probe', 'esp32_spi_probe'):
+    if desc['target'] != 'esp32' or desc['project_name'] not in ('atum_rf_suite', 'atum_esp32_tx_probe', 'esp32_spi_probe', 'wifi64_tx', 'wifi64_monitor'):
         raise ValueError('Expected an original-ESP32 RF suite or bounded TX probe build.')
     if diagnostic and (not cfg.get('ATUM_TX_PROBE') or profile(module) != 'pmod'):
         raise ValueError('The bounded TX probe is explicitly configured for a Pmod only.')
     expected = (1, 3) if spi or profile(module) == 'rfs2' else (17, 16)
     console = (1, 3) if cfg.get('ESP_CONSOLE_UART_DEFAULT') else tuple(cfg.get('ESP_CONSOLE_UART_' + key + '_GPIO') for key in ('TX', 'RX'))
-    actual = console if desc['project_name'] == 'esp32_spi_probe' else tuple(cfg.get('ESP_SDR_UART_' + key + '_PIN') for key in ('TX', 'RX'))
+    actual = console if desc['project_name'] == 'esp32_spi_probe' or wifi64 or wifi64_monitor else tuple(cfg.get('ESP_SDR_UART_' + key + '_PIN') for key in ('TX', 'RX'))
     if actual != expected:
         raise ValueError(f'{module} needs application UART TX/RX {expected}; this build has {actual}.')
     if profile(module) == 'pmod' and console != expected:

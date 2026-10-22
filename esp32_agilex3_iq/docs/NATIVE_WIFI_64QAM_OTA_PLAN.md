@@ -1,6 +1,8 @@
 # Plan A — Native Wi-Fi 64-QAM over the air
 
-Status: proposed; no native 64-QAM RF result has been measured in this project.
+Status: implementation in progress; firmware builds and Nios primitive hardware
+tests pass. No native 64-QAM RF result has been measured in this project.
+See [implementation status and next gates](WIFI64_IMPLEMENTATION_STATUS.md).
 Hardware: installed original ESP32s, Atum A3 Nano / Agilex 3.
 Host: control and display only. No runtime host synchronization, FFT, equalization,
 demapping, FEC, CRC, reference generation or BER calculation.

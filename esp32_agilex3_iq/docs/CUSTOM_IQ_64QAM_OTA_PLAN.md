@@ -2,6 +2,9 @@
 
 Status: research-gated on the installed original ESP32s. No arbitrary-IQ TX
 or custom 64-QAM RF result is established on these modules.
+Offline review identified an original-chip attenuation-only probe candidate;
+see [research](ORIGINAL_IQ_TX_RESEARCH_20261021.md) and
+[implementation status](WIFI64_IMPLEMENTATION_STATUS.md). RF qualification is pending.
 Host: control and display only. FPGA/ESP32 perform the live waveform generation,
 reception, synchronization, decoding and error measurement.
 
