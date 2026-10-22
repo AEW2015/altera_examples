@@ -835,7 +835,7 @@ The physical Agilex 3 sweep tested 100,096 payload bits per noise level. At 12 d
 
 ![FPGA 64-QAM constellation and BER](screenshots/08_fpga_64qam_ber.png)
 
-For the compact TX/RX presentation, open `/poster` on the same port (for example `http://HOST_IP:8773/poster`). It shows noisy received samples above before/after-FEC overlays at all three measured levels. Green rings reconstruct the same coded symbols from actual FPGA-decoded bits, using host display-only re-encoding/remapping; received IQ is not denoised. Frame error counts and full-sweep BER are kept separate. This page is read-only and starts no acquisition. Its download link provides the saved example PNG.
+For the compact TX/RX presentation, open `/poster` on the same port (for example `http://HOST_IP:8773/poster`). It shows three rows (12, 16 and 20 dB), with clean FPGA TX symbols on the left and the matching RX before/after-FEC overlay on the right. Green rings reconstruct the same coded symbols from actual FPGA-decoded bits, using host display-only re-encoding/remapping; received IQ is not denoised. Frame error counts and full-sweep BER are kept separate. This page is read-only and starts no acquisition. Its download link provides the saved example PNG.
 
 ![FPGA 64-QAM TX/RX social layout](screenshots/08_fpga_64qam_social.png)
 """))

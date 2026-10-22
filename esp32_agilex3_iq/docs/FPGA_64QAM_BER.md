@@ -150,8 +150,9 @@ Build, reference and physical-board verification are also recorded in
 ## Social / presentation layout
 
 Open `/poster` on the same port (for example `http://HOST_IP:8773/poster`).
-The read-only 2×3 layout shows noisy received samples above before/after-FEC
-overlays for 12, 16 and 20 dB. Separate TX/RX diagrams identify Nios replay,
+The read-only layout has three rows (12, 16 and 20 dB) and two columns:
+actual clean TX symbols on the left, and the matching RX before/after-FEC
+overlay on the right. Separate TX/RX diagrams identify Nios replay,
 the FPGA encoder/mapper/demapper/Viterbi, and the host display reconstruction.
 Each lower panel shows frame error counts alongside the full-sweep result. All six plots use the same scale and equal
 I/Q aspect ratio. The page uses actual audited FPGA snapshots, never a
@@ -176,8 +177,7 @@ Faint paths pair corresponding positions. They are a comparison aid, not a
 claim that FEC moves or denoises the received IQ samples. Toggle **Correction
 paths** to hide them.
 
-Red points in the upper row mark symbol groups with wrong hard-decision bits.
-Red crosses in the overlay mark reconstructed symbols that still differ from
+Red crosses in the RX overlay mark reconstructed symbols that still differ from
 the known TX sequence. Incorrect decoded bits remain incorrect; this view
 does not simply snap every sample to a convenient ideal point. A regression
 test flips a decoded payload bit and verifies that red mismatches remain.
